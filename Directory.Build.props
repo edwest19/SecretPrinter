@@ -1,0 +1,75 @@
+<!--
+  Directory.Build.props
+
+  Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
+  Edwin West, for the SecretPrinter project.
+
+  Build settings shared by every project in this repository. Centralising them
+  here means an auditor checks one file to learn how everything is compiled,
+  instead of reading each .csproj and hoping they agree.
+
+  Individual projects set only what is genuinely specific to them: output type,
+  assembly name, root namespace, and project references.
+-->
+<Project>
+
+  <PropertyGroup>
+    <!-- .NET 10 is the current LTS. .NET 8's support window closes in
+         November 2026, so a new project starting there would need an
+         immediate migration. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Warnings are errors, everywhere, without exception. A project that
+         claims to be auditable cannot ship with a backlog of warnings nobody
+         reads. Where an analyzer is genuinely wrong, the rule is suppressed at
+         the specific site with a written justification (REQ-DIST-007) - never
+         globally, and never by lowering this setting. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Deterministic builds: the same source produces the same bytes. This is
+         what makes a signature meaningful (REQ-DIST-004) - a reader can rebuild
+         from source and compare. ContinuousIntegrationBuild additionally
+         normalises source paths, and is set by CI rather than hardcoded. -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Ship symbols with releases so stack traces from users are readable. -->
+    <DebugType>portable</DebugType>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Product>SecretPrinter</Product>
+    <Authors>Claude (Anthropic), directed by Edwin West</Authors>
+    <Company>Edwin West</Company>
+    <Copyright>Copyright (c) 2026 Edwin West</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Authorship is recorded in the compiled assembly, not only in source
+         comments and the README. Someone holding only a binary can read it:
+           ildasm, or  [Reflection.Assembly]::LoadFrom($dll).GetCustomAttributes($true)
+         This is the same claim the README makes, in a place it cannot be
+         separated from the artifact. -->
+    <AssemblyMetadata Include="AuthoredBy"
+                      Value="Claude (Anthropic model, Claude Opus 4.5)" />
+    <AssemblyMetadata Include="DirectedBy"
+                      Value="Edwin West" />
+    <AssemblyMetadata Include="Specification"
+                      Value="See README.md; requirements carry IDs of the form REQ-AREA-NNN" />
+  </ItemGroup>
+
+</Project>

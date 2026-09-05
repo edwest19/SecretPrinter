@@ -1,0 +1,156 @@
+# -----------------------------------------------------------------------------
+# ci.yml
+#
+# Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
+# Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
+#
+# Purpose:
+#   Builds the solution, runs every test suite, and enforces the specification
+#   check on every push and pull request.
+#
+# Why the suites are discovered rather than listed:
+#   Running the checker by hand means typing one --test-results flag per suite.
+#   That went wrong on most attempts during development: a mistyped or omitted
+#   filename made the checker silently report less coverage than existed, or -
+#   worse, before the staleness check existed - report coverage from a file left
+#   over from an earlier run. Enumerating the suites removes the opportunity.
+#
+# What this workflow does NOT do:
+#   It does not sign anything, publish anything, or deploy anything. Signing and
+#   release belong in a separate workflow with different permissions, so that a
+#   change to the test pipeline can never quietly gain the ability to publish.
+# -----------------------------------------------------------------------------
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Read-only. This workflow builds and checks; it has no business writing to the
+# repository, and saying so here means a mistake in a step cannot.
+permissions:
+  contents: read
+
+# A newer push supersedes an in-flight run on the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-verify:
+    # Windows, because SecretPrinter is a Windows service and several of its
+    # claims are about Windows-specific behaviour: sharing UDP 5353 with the
+    # DNS Client service, and recovering the arrival interface from IP_PKTINFO.
+    # Testing it anywhere else would verify something the product is not.
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          # Uses the version pinned in global.json rather than a version written
+          # here, so the SDK cannot drift between a developer's machine and CI.
+          global-json-file: global.json
+
+      - name: Build
+        # Release, so the artifacts checked are the ones that would ship.
+        # Directory.Build.props sets TreatWarningsAsErrors, so a warning fails
+        # here without any extra flag.
+        run: dotnet build --configuration Release
+
+      - name: Run test suites
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $suites = Get-ChildItem -Path tests -Directory -Filter '*.Tests' |
+                    Sort-Object Name
+
+          if ($suites.Count -eq 0) {
+              throw "No test suites found under tests/. Finding none is treated as a failure, " +
+                    "not an empty pass: it almost always means a rename or a path change, and " +
+                    "a run that tests nothing must never look like a run that tests everything."
+          }
+
+          Write-Host "Found $($suites.Count) test suite(s):"
+          $suites | ForEach-Object { Write-Host "  $($_.Name)" }
+          Write-Host ""
+
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+
+          foreach ($suite in $suites) {
+              $results = Join-Path 'artifacts' "$($suite.Name).txt"
+
+              Write-Host "--- $($suite.Name) ---"
+              dotnet run --project $suite.FullName --configuration Release --no-build `
+                  -- --results $results
+
+              if ($LASTEXITCODE -ne 0) {
+                  throw "$($suite.Name) failed. See the output above for which test and why."
+              }
+
+              if (-not (Test-Path $results)) {
+                  throw "$($suite.Name) reported success but wrote no results file at $results. " +
+                        "Without it the specification check cannot tell an executed test from a " +
+                        "skipped one."
+              }
+          }
+
+      - name: Verify specification
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $suites = Get-ChildItem -Path tests -Directory -Filter '*.Tests'
+          $results = Get-ChildItem -Path artifacts -Filter '*.txt' | Sort-Object Name
+
+          # Every suite must have contributed a file. A missing one would make
+          # its requirements look untested rather than making the run fail,
+          # which is the quieter and therefore worse outcome.
+          if ($results.Count -ne $suites.Count) {
+              throw "Expected $($suites.Count) results file(s) but found $($results.Count). " +
+                    "Every suite must contribute one."
+          }
+
+          $resultArgs = $results | ForEach-Object { '--test-results', $_.FullName }
+
+          dotnet run --project tools/SecretPrinter.SpecCheck --configuration Release --no-build -- `
+              --readme README.md `
+              --evidence docs/verification.md `
+              @resultArgs `
+              --write-matrix artifacts/coverage-matrix.md `
+              --search .
+
+          $checkExit = $LASTEXITCODE
+
+          # The matrix goes into the run summary either way, so a reader can see
+          # what is and is not covered without opening the log.
+          if (Test-Path artifacts/coverage-matrix.md) {
+              Get-Content artifacts/coverage-matrix.md |
+                  Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          }
+
+          if ($checkExit -ne 0) {
+              throw "The specification check failed. Every binding requirement must have an " +
+                    "implementation and a test recorded as passing against this build, or be " +
+                    "evidenced in docs/verification.md."
+          }
+
+      - name: Upload test results and coverage matrix
+        # Kept even when earlier steps failed: a failed run is exactly when
+        # somebody wants to read what the checker actually said.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: specification-check
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 30

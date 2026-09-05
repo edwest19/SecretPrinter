@@ -1,0 +1,80 @@
+# .gitignore
+#
+# Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
+# Edwin West, for the SecretPrinter project.
+#
+# Kept short on purpose. A sprawling ignore file copied from a template makes it
+# hard to notice when something that SHOULD be committed is being silently
+# excluded. Every rule below is here because this repository actually produces
+# the thing it names.
+
+# ---- Build output -----------------------------------------------------------
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+
+# ---- Visual Studio / Rider / VS Code user state -----------------------------
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ---- Test and coverage output -----------------------------------------------
+TestResults/
+*.trx
+*.coverage
+coverage*.json
+coverage*.xml
+*.opencover.xml
+
+# ---- NuGet ------------------------------------------------------------------
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# ---- OS noise ---------------------------------------------------------------
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+
+# ---- Local configuration and secrets ----------------------------------------
+# A configuration file describes one machine: its adapter names, its printer,
+# and the UUID that installation advertises. None of that is secret - the UUID
+# is broadcast in the clear on the local network - but none of it belongs to
+# anybody else either.
+#
+# The UUID matters for a second reason. If one were committed as an example,
+# every copy of this repository would advertise the same identity, and two
+# SecretPrinters on one network claiming one UUID is exactly what REQ-ADV-005
+# exists to prevent. Configurations are produced by:
+#
+#   SecretPrinter.Service.exe --print-example-config
+#
+# which is documented in docs/operating.md, along with generating a fresh UUID.
+secretprinter.json
+appsettings.Local.json
+appsettings.*.Local.json
+*.local.json
+local.settings.json
+
+# Signing material must never be committed. Release signing uses Azure Trusted
+# Signing (REQ-DIST-004), which does not require a certificate file in the repo;
+# these patterns exist so an accidental local certificate cannot be added.
+*.pfx
+*.snk
+*.p12
+*.key
+
+# ---- Diagnostic captures ----------------------------------------------------
+# Output from tools/SecretPrinter.Listen can contain device names from the
+# operator's own network. Captures are ignored by default so they are published
+# deliberately, after review, rather than by accident.
+captures/
+*.mdns-capture.txt

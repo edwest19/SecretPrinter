@@ -1,0 +1,20 @@
+# -----------------------------------------------------------------------------
+# .gitattributes
+#
+# Written by Claude (Anthropic model, Claude Opus 5) at the direction of
+# Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
+#
+# Line endings are declared here rather than left to each contributor's
+# core.autocrlf setting, so the bytes in the repository do not depend on who
+# committed them. Without this file, the same edit produces different content
+# from a Windows machine and a Linux one.
+# -----------------------------------------------------------------------------
+
+# Normalise text files to LF in the repository; check out per-platform.
+* text=auto
+
+# PowerShell is run by Windows PowerShell here, which is happiest with CRLF.
+*.ps1 text eol=crlf
+
+# Shell scripts must keep LF or they will not execute on a Linux runner.
+*.sh text eol=lf
