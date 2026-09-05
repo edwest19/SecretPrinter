@@ -105,8 +105,27 @@ internal static class ConfigurationLoaderTests
     [Requirement("REQ-CFG-001")]
     public static void Tuning_may_default()
     {
-        string json = ConfigurationLoader.ExampleJson[
-            ..ConfigurationLoader.ExampleJson.IndexOf(",\n\n  \"tuning\"", StringComparison.Ordinal)] + "\n}";
+        // The example is trimmed rather than retyped, so this test cannot drift
+        // from the configuration the documentation actually shows.
+        //
+        // The trim locates the block by its key and the comma before it. An
+        // earlier version searched for the literal "\n\n" preceding it, which
+        // assumed the line endings of the source file that holds ExampleJson.
+        // That passed on a CRLF working copy and failed on a fresh checkout
+        // where .gitattributes normalises to LF - found by CI on its first run,
+        // not by any local test. Nothing here should depend on how a file is
+        // stored.
+        string example = ConfigurationLoader.ExampleJson;
+
+        int tuning = example.IndexOf("\"tuning\"", StringComparison.Ordinal);
+        Assert.True(tuning > 0,
+            "the example configuration must contain a tuning block for this test to trim");
+
+        int comma = example.LastIndexOf(',', tuning);
+        Assert.True(comma > 0,
+            "the tuning block must be preceded by a comma, which is where the trim cuts");
+
+        string json = example[..comma] + "\n}";
 
         ServiceConfiguration configuration = ConfigurationLoader.Load(json, RealisticMachine());
 
