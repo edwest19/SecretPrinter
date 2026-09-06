@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// Interface matching widened to compare address family by Claude (Anthropic
+// model, Claude Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed
+// by a human before merge.
+//
 // Purpose:
 //   Finds where the real printer currently is, by asking the printer network,
 //   at the moment the answer is needed.
@@ -92,7 +96,11 @@ public sealed class PrinterResolver : IDisposable
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(printerInterface);
 
-        if (!transport.Interfaces.Any(i => i.Index == printerInterface.Index))
+        // Matches() rather than an index comparison: the transport's interface
+        // list can now hold one adapter twice, once per address family, and the
+        // two families number indexes separately. An index-only test could
+        // accept an IPv6 entry as proof that the IPv4 printer interface is held.
+        if (!transport.Interfaces.Any(i => i.Matches(printerInterface)))
         {
             throw new ArgumentException(
                 $"Interface {printerInterface} is not held by the transport. Resolution would send "

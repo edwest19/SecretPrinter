@@ -8,6 +8,11 @@
 // Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
 // before merge.
 //
+// Matches() added by Claude (Anthropic model, Claude Opus 5) at the direction
+// of Edwin West, 2026-09-06, when IPv6 entries began appearing alongside IPv4
+// ones and open-coded index comparisons became unsafe. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Turns an IPv4 address from configuration into a fully identified network
 //   interface: its friendly name, its operating-system index, and which address
@@ -65,6 +70,31 @@ public sealed record MdnsInterface(string Name, IPAddress Address, int Index, Ad
 {
     /// <summary>True when this entry carries IPv6.</summary>
     public bool IsIPv6 => Transport == AddressFamily.InterNetworkV6;
+
+    /// <summary>
+    /// True when <paramref name="other"/> names the same adapter in the same
+    /// address family.
+    /// </summary>
+    /// <remarks>
+    /// This exists so that no caller has to remember to compare the family.
+    /// Once one adapter yields an entry per family, two entries can share an
+    /// <see cref="Index"/> and mean different interfaces, because Windows
+    /// numbers the families separately. Code that compared indexes alone would
+    /// still compile, still pass its tests on an IPv4-only machine, and be
+    /// wrong on the machine this service is for.
+    ///
+    /// Record equality is not used for this on purpose: two entries can
+    /// legitimately differ in <see cref="Name"/> - an adapter renamed between
+    /// resolutions - while still being the same interface, and identity here
+    /// means "the same place to send and receive", which is the family and the
+    /// index.
+    /// </remarks>
+    public bool Matches(MdnsInterface other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+
+        return Transport == other.Transport && Index == other.Index;
+    }
 
     public override string ToString() =>
         $"{Name} ({Address}, {(IsIPv6 ? "IPv6" : "IPv4")} index {Index})";

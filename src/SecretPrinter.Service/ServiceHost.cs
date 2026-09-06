@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// IPv6 binding of client interfaces added by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -68,18 +72,51 @@ public sealed class ServiceHost
             _log.Info($"  {line}");
         }
 
-        var allInterfaces = new List<IPAddress>(_configuration.ClientInterfaces.Select(i => i.Address))
+        // The IPv6 mDNS group is joined on client interfaces only. iOS was
+        // measured querying over IPv6 alone, so the client side needs it; the
+        // printer is IPv4-only at 192.168.12.180 and REQ-RES-006 confines
+        // resolution to that side, so joining ff02::fb there would put MLD
+        // reports onto the printer network and gain nothing. This is the one
+        // place that knows which interface plays which role - MdnsSocket is told
+        // where to join, never why.
+        var bindings = new List<MdnsBinding>();
+        foreach (MdnsInterface client in _configuration.ClientInterfaces)
         {
-            _configuration.PrinterInterface.Address,
-        };
+            bindings.Add(new MdnsBinding(client.Address, JoinIPv6: true));
+        }
 
-        using MdnsSocket socket = MdnsSocket.Open(allInterfaces);
+        bindings.Add(new MdnsBinding(_configuration.PrinterInterface.Address, JoinIPv6: false));
+
+        using MdnsSocket socket = MdnsSocket.Open(bindings);
         MdnsSocketConfiguration socketConfiguration = socket.ReadBackConfiguration();
 
         _log.Info($"Bound {socketConfiguration.LocalEndPoint} "
                   + $"(reuse={socketConfiguration.ReuseAddress}, "
                   + $"pktinfo={socketConfiguration.PacketInformation}, "
                   + $"ttl={socketConfiguration.MulticastTimeToLive}).");
+
+        MdnsIPv6SocketConfiguration? socketConfiguration6 = socket.ReadBackIPv6Configuration();
+        if (socketConfiguration6 is null)
+        {
+            _log.Info("No IPv6 socket was opened: no interface asked to join ff02::fb.");
+        }
+        else
+        {
+            _log.Info($"Bound {socketConfiguration6.LocalEndPoint} "
+                      + $"(reuse={socketConfiguration6.ReuseAddress}, "
+                      + $"v6only={!socketConfiguration6.DualMode}, "
+                      + $"pktinfo={socketConfiguration6.PacketInformation}, "
+                      + $"hops={socketConfiguration6.MulticastHopLimit}).");
+
+            foreach (MdnsInterface joined in socketConfiguration6.Interfaces)
+            {
+                _log.Info($"Joined {MdnsSocket.MulticastGroupV6} on {joined}.");
+            }
+
+            // Said plainly, in the log, every time. An operator watching startup
+            // must not read "joined ff02::fb" as "answers IPv6 queries".
+            _log.Info("IPv6 mDNS is joined but not yet read or answered (REQ-ADV-018 unmet).");
+        }
 
         using var resolver = new PrinterResolver(socket, _configuration.PrinterInterface);
 

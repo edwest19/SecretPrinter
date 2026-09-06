@@ -8,6 +8,10 @@
 // Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
 // before merge.
 //
+// IPv6 socket and group-join tests added by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Verifies that MdnsSocket is configured the way the specification requires,
 //   by reading the options back from the operating system rather than trusting
@@ -81,11 +85,79 @@ internal static class MdnsSocketTests
 
         try
         {
-            return MdnsSocket.Open([found]);
+            return MdnsSocket.Open([new MdnsBinding(found, JoinIPv6: false)]);
         }
         catch (SocketException ex)
         {
             throw new SkipException($"Could not bind UDP 5353 in this environment: {ex.SocketErrorCode}.");
+        }
+    }
+
+    /// <summary>
+    /// Finds an IPv4 address on an adapter that also has IPv6 configured, or
+    /// null. Both families are needed because configuration names an interface
+    /// by its IPv4 address even when the interface will carry IPv6.
+    /// </summary>
+    private static IPAddress? FindIPv6CapableInterface()
+    {
+        foreach (NetworkInterface adapter in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (adapter.OperationalStatus != OperationalStatus.Up || !adapter.SupportsMulticast)
+            {
+                continue;
+            }
+
+            if (adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+            {
+                continue;
+            }
+
+            IPInterfaceProperties properties = adapter.GetIPProperties();
+
+            try
+            {
+                if (properties.GetIPv4Properties() is null || properties.GetIPv6Properties() is null)
+                {
+                    continue;
+                }
+            }
+            catch (NetworkInformationException)
+            {
+                // One of the families is not configured on this adapter, which
+                // is exactly the case being excluded.
+                continue;
+            }
+
+            foreach (UnicastIPAddressInformation unicast in properties.UnicastAddresses)
+            {
+                if (unicast.Address.AddressFamily == AddressFamily.InterNetwork
+                    && !IPAddress.IsLoopback(unicast.Address))
+                {
+                    return unicast.Address;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static MdnsSocket OpenIPv6OrSkip()
+    {
+        IPAddress? found = FindIPv6CapableInterface()
+            ?? throw new SkipException(
+                "No non-loopback multicast-capable interface with both IPv4 and IPv6 on this machine.");
+
+        try
+        {
+            return MdnsSocket.Open([new MdnsBinding(found, JoinIPv6: true)]);
+        }
+        catch (SocketException ex)
+        {
+            throw new SkipException($"Could not bind UDP 5353 in this environment: {ex.SocketErrorCode}.");
+        }
+        catch (MdnsInterfaceException ex)
+        {
+            throw new SkipException($"IPv6 not usable on the chosen interface here: {ex.Message}");
         }
     }
 
@@ -355,6 +427,130 @@ internal static class MdnsSocketTests
         Assert.True(socket.Interfaces[0].Name.Length > 0, "the interface should be named for logging");
     }
 
+    // ---- IPv6 socket and group membership ------------------------------------
+    //
+    // Still no [Requirement] markers. REQ-ADV-018 is receiving and answering
+    // over IPv6, and this socket does neither yet; REQ-ADV-019 and REQ-ADV-020
+    // are about outgoing hop limit and arrival attribution, and nothing sends or
+    // receives on this socket either. Every option below is set and read back,
+    // which is worth testing as regression protection, but it is not the
+    // behaviour the requirements name. The markers go on when the behaviour does.
+
+    [TestCase("A binding that does not ask for IPv6 opens no IPv6 socket")]
+    [RequiresNetwork]
+    public static void No_ipv6_binding_opens_no_ipv6_socket()
+    {
+        using MdnsSocket socket = OpenOrSkip(out _);
+
+        Assert.Null(socket.ReadBackIPv6Configuration(),
+            "an interface that did not ask to join ff02::fb must not quietly get an IPv6 socket");
+        Assert.Equal(0, socket.IPv6Interfaces.Count, "nothing joined the IPv6 group");
+    }
+
+    [TestCase("The IPv6 socket shares port 5353 and is not dual-mode")]
+    [RequiresNetwork]
+    public static void IPv6_socket_is_shared_and_v6_only()
+    {
+        using MdnsSocket socket = OpenIPv6OrSkip();
+        MdnsIPv6SocketConfiguration? configuration = socket.ReadBackIPv6Configuration();
+
+        Assert.NotNull(configuration, "a binding asked to join IPv6, so the socket must exist");
+
+        Assert.True(configuration!.ReuseAddress,
+            "SO_REUSEADDR must be set, or the bind fails against the Windows DNS Client");
+        Assert.False(configuration.ExclusiveAddressUse,
+            "exclusive use would defeat SO_REUSEADDR on Windows");
+        Assert.False(configuration.DualMode,
+            "a dual-mode socket would receive the IPv4 traffic the IPv4 socket already receives, "
+            + "delivering every IPv4 datagram to this host twice");
+        Assert.Equal(MdnsSocket.MdnsPort, configuration.LocalEndPoint.Port,
+            "the socket must be bound to the mDNS port");
+        Assert.Equal(IPAddress.IPv6Any, configuration.LocalEndPoint.Address,
+            "a wildcard bind is required for reliable multicast receipt");
+    }
+
+    [TestCase("The IPv6 socket sets hop limit 255 and IPV6_PKTINFO")]
+    [RequiresNetwork]
+    public static void IPv6_socket_sets_hops_and_packet_information()
+    {
+        using MdnsSocket socket = OpenIPv6OrSkip();
+        MdnsIPv6SocketConfiguration? configuration = socket.ReadBackIPv6Configuration();
+
+        Assert.NotNull(configuration, "a binding asked to join IPv6, so the socket must exist");
+
+        Assert.Equal(255, configuration!.MulticastHopLimit,
+            "RFC 6762 s11 requires hop limit 255 so receivers can reject anything routed");
+        Assert.Equal(255, MdnsSocket.RequiredMulticastHopLimit,
+            "the constant and the specification must not drift apart");
+
+        // This one is the least proven thing in the file. The option reads back
+        // as set; that Windows then reports a usable interface index through it
+        // has not been observed by anyone on this project. Reading it back is
+        // not evidence that arrival attribution works.
+        Assert.True(configuration.PacketInformation,
+            "without IPV6_PKTINFO the arrival interface of an IPv6 datagram would have to be guessed");
+    }
+
+    [TestCase("Joining IPv6 adds a companion entry with the adapter's IPv6 index")]
+    [RequiresNetwork]
+    public static void IPv6_join_adds_a_companion_entry()
+    {
+        using MdnsSocket socket = OpenIPv6OrSkip();
+
+        Assert.Equal(1, socket.IPv4Interfaces.Count, "one interface was requested");
+        Assert.Equal(1, socket.IPv6Interfaces.Count, "and it asked to join IPv6");
+        Assert.Equal(2, socket.Interfaces.Count, "both entries are reported as joined");
+
+        MdnsInterface ipv4 = socket.IPv4Interfaces[0];
+        MdnsInterface ipv6 = socket.IPv6Interfaces[0];
+
+        Assert.True(ipv6.IsIPv6, "the companion carries IPv6");
+        Assert.Equal(ipv4.Address, ipv6.Address,
+            "the address advertised over IPv6 is still the IPv4 address the relay listens on");
+        Assert.True(ipv6.Index > 0, "a real interface has a positive IPv6 index");
+    }
+
+    [TestCase("Sending over an IPv6 entry is refused rather than sent over IPv4")]
+    [RequiresNetwork]
+    public static void Send_over_ipv6_is_refused_while_unimplemented()
+    {
+        using MdnsSocket socket = OpenIPv6OrSkip();
+
+        // The dangerous failure this guards is not an exception, it is silence:
+        // falling through would transmit over IPv4 while the caller believed it
+        // had asked for IPv6, and the wire would look almost right.
+        Assert.Throws<NotSupportedException>(
+            () => socket.SendMulticastAsync(
+                      new byte[] { 0, 0 }, socket.IPv6Interfaces[0], CancellationToken.None)
+                        .GetAwaiter().GetResult(),
+            "REQ-ADV-018 is unmet, and an unimplemented send must say so rather than send something else");
+    }
+
+    // ---- Cross-family identity ------------------------------------------------
+
+    [TestCase("Matches distinguishes two families that share an index")]
+    public static void Matches_compares_family_not_only_index()
+    {
+        // Windows numbers the address families separately, so the same integer
+        // can name different interfaces in each. This arrangement is contrived
+        // but not unrealistic, and it is exactly what an index-only comparison
+        // gets wrong - while still passing on an IPv4-only machine.
+        var ipv4 = new MdnsInterface(
+            "Ethernet", IPAddress.Parse("192.168.1.98"), 15, AddressFamily.InterNetwork);
+        var ipv6 = new MdnsInterface(
+            "Ethernet", IPAddress.Parse("192.168.1.98"), 15, AddressFamily.InterNetworkV6);
+
+        Assert.False(ipv4.Matches(ipv6),
+            "an IPv6 entry must not satisfy a check for an IPv4 interface, whatever the index says");
+        Assert.False(ipv6.Matches(ipv4), "and the same in the other direction");
+
+        var renamed = new MdnsInterface(
+            "Ethernet (renamed)", IPAddress.Parse("192.168.1.98"), 15, AddressFamily.InterNetwork);
+
+        Assert.True(ipv4.Matches(renamed),
+            "identity is the family and the index; a friendly name is for logs, not for routing");
+    }
+
     // ---- Interface confinement ----------------------------------------------
 
     [TestCase("Sending out an interface the socket does not own is refused")]
@@ -396,7 +592,8 @@ internal static class MdnsSocketTests
     public static void Open_fails_fast_on_bad_interface()
     {
         Assert.Throws<MdnsInterfaceException>(
-            () => MdnsSocket.Open([IPAddress.Parse("203.0.113.11")]),
+            () => MdnsSocket.Open(
+                [new MdnsBinding(IPAddress.Parse("203.0.113.11"), JoinIPv6: false)]),
             "a service that starts without a usable interface would receive nothing, silently");
     }
 

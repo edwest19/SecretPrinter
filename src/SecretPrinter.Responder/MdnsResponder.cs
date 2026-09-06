@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// Interface matching widened to compare address family by Claude (Anthropic
+// model, Claude Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed
+// by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -95,7 +99,10 @@ public sealed class MdnsResponder
 
         foreach (AdvertisedInterface entry in advertised)
         {
-            if (!transport.Interfaces.Any(i => i.Index == entry.Interface.Index))
+            // Matches() rather than an index comparison: see the same change in
+            // PrinterResolver. One adapter can appear in the transport's list
+            // once per address family, and the indexes are numbered separately.
+            if (!transport.Interfaces.Any(i => i.Matches(entry.Interface)))
             {
                 throw new ArgumentException(
                     $"Advertisement is for {entry.Interface}, which the transport does not hold. "
