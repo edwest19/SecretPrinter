@@ -186,6 +186,11 @@ What the service publishes on the client network.
 | REQ-ADV-015 | MUST | The arrival interface of each received query is determined from `IP_PKTINFO`, not inferred from the socket's bound address. |
 | REQ-ADV-016 | SHOULD | The advertised instance name makes the proxy's role evident to a person reading the printer list, rather than impersonating the printer. |
 | REQ-ADV-017 | MUST | The service identifies legacy unicast queriers by a source port other than 5353 (RFC 6762 §6.7), answers them by unicast rather than multicast, echoes the query identifier, and caps response TTLs. |
+| REQ-ADV-018 | MUST | The service receives and answers mDNS queries over IPv6 on `ff02::fb` port 5353, on each configured client interface, in addition to IPv4 on `224.0.0.251`. It answers with the same records it would send over IPv4. Measured: an iPhone on the client network queried exclusively over IPv6 and never over IPv4, so a responder holding an IPv4 socket alone never receives the question. |
+| REQ-ADV-019 | MUST | Outgoing IPv6 mDNS packets carry hop limit 255, per RFC 6762 §11, as REQ-ADV-013 requires of the IPv4 TTL. |
+| REQ-ADV-020 | MUST | The arrival interface of a query received over IPv6 is determined from `IPV6_PKTINFO`, not inferred from the socket's bound address, as REQ-ADV-015 requires for IPv4. |
+| REQ-ADV-021 | MUST NOT | The service publishes an `AAAA` record for its own hostname while the relay accepts IPv4 connections only. Advertising an address the relay does not listen on would produce a printer that is discovered and cannot be reached. |
+| REQ-ADV-022 | MUST | A response carrying an `A` record for a name that has no `AAAA` includes an `NSEC` record asserting that absence, so the client receives a definite negative rather than silence. Measured: iOS accepted the `NSEC` and opened an IPv4 connection to port 631 seventy milliseconds later. |
 
 ## 5. Requirements: resolution (RES)
 
@@ -378,9 +383,12 @@ attempts during development and always in the direction of reporting less
 coverage than existed.
 
 **Until every requirement is covered, CI fails.** That is intended: the check
-reports 16 binding requirements with no implementation, and a green badge over
-an incomplete specification would be the exact overstatement this repository
-exists to avoid. The consequence is worth stating plainly - while the build is
+reports every binding requirement that has no implementation, naming each one in
+the coverage matrix it writes to the run summary, and a green badge over an
+incomplete specification would be the exact overstatement this repository exists
+to avoid. An earlier version of this paragraph stated a fixed count of such
+requirements. It was correct when written and wrong within days, which is why
+the number is now read from the matrix instead of asserted here. The consequence is worth stating plainly - while the build is
 red for a known reason, it is less useful at signalling a *new* problem, so read
 which step failed rather than trusting the colour.
 
@@ -576,6 +584,7 @@ Recorded here rather than resolved silently.
 | 4 | **Is `mopria-certified` safe to relay?** The bytes would be identical to the printer's, and the printer is certified — but the proxy is not the certified device. | Currently forbidden by REQ-ADV-007. Revisit with evidence. |
 | 5 | **What privileges does the service actually need?** | Resolved: none beyond standard user. Measured on 2026-09-04 by running unelevated and confirming every bind, join and relay succeeded. Running under `LocalService` remains unmeasured. See [findings](docs/findings/2026-09-04-service-runs-unelevated.md). |
 | 6 | **How should the service register with Windows?** | Resolved: `System.ServiceProcess.ServiceController` is referenced for `ServiceBase`, documented under [Dependencies](#dependencies) as REQ-SEC-009 requires. Run with `--service` to register with the control manager, or without it as a console application. |
+| 7 | **Will iOS accept an `A` record delivered over IPv6 mDNS transport, and then connect over IPv4?** | Resolved: yes. An iPhone accepted an `A` record and an `NSEC` denying `AAAA`, both delivered over `ff02::fb`, and sent IPv4 SYNs to port 631 seventy milliseconds later. IPv6 is therefore a transport addition to `SecretPrinter.Mdns`; advertisement content, resolution and relay are unaffected. Specified as REQ-ADV-018 to REQ-ADV-022. See [findings](docs/findings/2026-09-06-ipv6-mdns-transport.md). |
 
 ## 15. License
 
