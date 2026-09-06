@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// IPv6 groundwork for REQ-ADV-018 added by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Verifies that the printer is found by name rather than by remembered
 //   address, and that a stale answer is never returned.
@@ -20,6 +24,7 @@
 // -----------------------------------------------------------------------------
 
 using System.Net;
+using System.Net.Sockets;
 using SecretPrinter.Dns;
 using SecretPrinter.Mdns;
 using SecretPrinter.Spec;
@@ -30,10 +35,10 @@ namespace SecretPrinter.Resolution.Tests;
 internal static class PrinterResolverTests
 {
     private static readonly MdnsInterface PrinterNic =
-        new("Wi-Fi", IPAddress.Parse("192.168.12.245"), 11);
+        new("Wi-Fi", IPAddress.Parse("192.168.12.245"), 11, AddressFamily.InterNetwork);
 
     private static readonly MdnsInterface ClientNic =
-        new("Ethernet 2", IPAddress.Parse("192.168.1.234"), 13);
+        new("Ethernet 2", IPAddress.Parse("192.168.1.234"), 13, AddressFamily.InterNetwork);
 
     private static readonly DnsName Instance =
         new(["EPSON ET-3760 Series", "_ipp", "_tcp", "local"]);

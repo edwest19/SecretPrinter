@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// IPv6 groundwork for REQ-ADV-018 added by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Describes the machine's network adapters, behind an interface, so the rules
 //   in MdnsInterfaceResolver can be tested against any adapter arrangement
@@ -33,12 +37,23 @@ namespace SecretPrinter.Mdns;
 /// <param name="IsUp">Whether the adapter is operationally up.</param>
 /// <param name="SupportsMulticast">Whether the adapter can carry multicast.</param>
 /// <param name="IPv4Addresses">IPv4 unicast addresses held by this adapter.</param>
+/// <param name="IPv6Index">
+/// Operating-system IPv6 interface index, or null when the adapter has no IPv6
+/// configuration. Windows numbers the two families separately, so this is not
+/// the same value as <paramref name="Index"/> for the same adapter.
+///
+/// It defaults to null - meaning "this adapter cannot carry IPv6" - so that a
+/// test describing an adapter for some unrelated reason need not state an IPv6
+/// identity it does not care about. The default is the restrictive case: an
+/// adapter is never treated as IPv6-capable unless something said so.
+/// </param>
 public sealed record LocalAdapter(
     string Name,
     int? Index,
     bool IsUp,
     bool SupportsMulticast,
-    IReadOnlyList<IPAddress> IPv4Addresses);
+    IReadOnlyList<IPAddress> IPv4Addresses,
+    int? IPv6Index = null);
 
 /// <summary>Supplies the set of local adapters.</summary>
 public interface IInterfaceInventory
@@ -74,6 +89,19 @@ public sealed class SystemInterfaceInventory : IInterfaceInventory
                     // precisely why an address on it cannot be used.
                 }
 
+                int? ipv6Index = null;
+                try
+                {
+                    ipv6Index = properties.GetIPv6Properties()?.Index;
+                }
+                catch (NetworkInformationException)
+                {
+                    // Adapter has no IPv6 configuration - IPv6 disabled on the
+                    // adapter, most often. Reported as null for the same reason
+                    // as the IPv4 index above: the resolver can then say which
+                    // family is missing rather than failing vaguely.
+                }
+
                 var addresses = new List<IPAddress>();
                 foreach (UnicastIPAddressInformation unicast in properties.UnicastAddresses)
                 {
@@ -88,7 +116,8 @@ public sealed class SystemInterfaceInventory : IInterfaceInventory
                     index,
                     adapter.OperationalStatus == OperationalStatus.Up,
                     adapter.SupportsMulticast,
-                    addresses));
+                    addresses,
+                    ipv6Index));
             }
 
             return adapters;

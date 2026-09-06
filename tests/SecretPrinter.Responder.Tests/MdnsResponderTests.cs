@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// IPv6 groundwork for REQ-ADV-018 added by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Verifies which queries get answered, which are ignored, what the answers
 //   contain, and how they are addressed.
@@ -15,6 +19,7 @@
 // -----------------------------------------------------------------------------
 
 using System.Net;
+using System.Net.Sockets;
 using SecretPrinter.Advertising;
 using SecretPrinter.Dns;
 using SecretPrinter.Mdns;
@@ -26,10 +31,10 @@ namespace SecretPrinter.Responder.Tests;
 internal static class MdnsResponderTests
 {
     private static readonly MdnsInterface ClientNic =
-        new("Ethernet 2", IPAddress.Parse("192.168.1.234"), 13);
+        new("Ethernet 2", IPAddress.Parse("192.168.1.234"), 13, AddressFamily.InterNetwork);
 
     private static readonly MdnsInterface PrinterNic =
-        new("Wi-Fi", IPAddress.Parse("192.168.12.245"), 11);
+        new("Wi-Fi", IPAddress.Parse("192.168.12.245"), 11, AddressFamily.InterNetwork);
 
     /// <summary>
     /// Real ET-3760 records. The low three bytes of the UUID are redacted to

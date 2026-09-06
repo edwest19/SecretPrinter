@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// IPv6 groundwork for REQ-ADV-018 added by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Checks the claims in Section 8 of the specification that say what the
 //   service does NOT do.
@@ -286,7 +290,10 @@ internal static class SecurityClaimsTests
             Guid.Parse("b6f4e2a1-9c37-4d58-8e0b-7a1f3d6c5e94"), 631);
 
         var client = new Mdns.MdnsInterface(
-            "Ethernet 2", System.Net.IPAddress.Parse("192.168.1.234"), 13);
+            "Ethernet 2",
+            System.Net.IPAddress.Parse("192.168.1.234"),
+            13,
+            System.Net.Sockets.AddressFamily.InterNetwork);
 
         Advertising.Advertisement advertisement =
             Advertising.AdvertisementBuilder.Build(capabilities, identity, client.Address);

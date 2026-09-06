@@ -4,9 +4,20 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// IPv6 groundwork for REQ-ADV-018 added by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Turns an IPv4 address from configuration into a fully identified network
-//   interface: its friendly name and its operating-system index.
+//   interface: its friendly name, its operating-system index, and which address
+//   family it carries.
+//
+//   One adapter yields one entry per family. The IPv4 entry comes from the
+//   configured address directly; the IPv6 entry is derived from it, keeping the
+//   same advertised IPv4 address and taking the adapter's separate IPv6 index.
+//   That is what lets a caller pick a family by picking an entry, with no extra
+//   parameter threaded through the transport.
 //
 //   The index matters more than it looks. Every datagram the service receives
 //   is attributed to an interface by index (IP_PKTINFO), and deciding whether
@@ -24,13 +35,39 @@ using SecretPrinter.Spec;
 
 namespace SecretPrinter.Mdns;
 
-/// <summary>A resolved local interface: what it is called, its address, its index.</summary>
+/// <summary>
+/// A resolved local interface, for one address family: what it is called, the
+/// address it advertises, its index in that family, and which family it carries.
+/// </summary>
 /// <param name="Name">Friendly adapter name, e.g. "Ethernet 2".</param>
-/// <param name="Address">The IPv4 address the service was configured with.</param>
-/// <param name="Index">Operating-system IPv4 interface index, as reported by IP_PKTINFO.</param>
-public sealed record MdnsInterface(string Name, IPAddress Address, int Index)
+/// <param name="Address">
+/// The IPv4 address the service was configured with. This stays IPv4 even on an
+/// entry whose <paramref name="Transport"/> is IPv6, and that is deliberate
+/// rather than an oversight. The transport family decides how a datagram travels;
+/// it does not decide what the datagram says. An iPhone that asks over IPv6 is
+/// answered with this IPv4 address, because that is the address the relay
+/// listens on - measured on 2026-09-06 and recorded in
+/// docs/findings/2026-09-06-ipv6-mdns-transport.md.
+/// </param>
+/// <param name="Index">
+/// Operating-system interface index for <paramref name="Transport"/>, as
+/// reported by IP_PKTINFO or IPV6_PKTINFO. Windows numbers the two families
+/// separately, so the same adapter has two different indexes and they must not
+/// be compared across families.
+/// </param>
+/// <param name="Transport">
+/// Which address family this entry sends and receives over. One adapter yields
+/// one entry per family it can carry, so choosing an entry is the whole of
+/// choosing a family: nothing downstream needs a second parameter to say
+/// whether a reply goes to 224.0.0.251 or ff02::fb.
+/// </param>
+public sealed record MdnsInterface(string Name, IPAddress Address, int Index, AddressFamily Transport)
 {
-    public override string ToString() => $"{Name} ({Address}, index {Index})";
+    /// <summary>True when this entry carries IPv6.</summary>
+    public bool IsIPv6 => Transport == AddressFamily.InterNetworkV6;
+
+    public override string ToString() =>
+        $"{Name} ({Address}, {(IsIPv6 ? "IPv6" : "IPv4")} index {Index})";
 }
 
 /// <summary>Thrown when a configured interface cannot be used. Never swallowed.</summary>
@@ -94,7 +131,7 @@ public static class MdnsInterfaceResolver
                     $"Interface '{adapter.Name}' ({address}) has no usable IPv4 configuration.");
             }
 
-            return new MdnsInterface(adapter.Name, address, index);
+            return new MdnsInterface(adapter.Name, address, index, AddressFamily.InterNetwork);
         }
 
         throw new MdnsInterfaceException(
@@ -157,6 +194,82 @@ public static class MdnsInterfaceResolver
 
         throw new MdnsInterfaceException(
             $"No interface is named '{name}'. Interfaces on this machine: {string.Join(", ", known)}");
+    }
+
+    /// <summary>Resolves the IPv6 companion using the machine's real adapters.</summary>
+    public static MdnsInterface ResolveIPv6(MdnsInterface ipv4Interface) =>
+        ResolveIPv6(ipv4Interface, SystemInterfaceInventory.Instance);
+
+    /// <summary>
+    /// Produces the IPv6 entry for the adapter an IPv4 entry already names: same
+    /// adapter, same advertised address, the adapter's IPv6 index, IPv6
+    /// transport.
+    /// </summary>
+    /// <remarks>
+    /// The IPv4 entry is the input rather than a bare address because
+    /// configuration names interfaces by IPv4 address and nothing else. There is
+    /// no separate IPv6 address to configure, and there should not be: an
+    /// operator who has already said which adapter faces the client network has
+    /// said everything the service needs. Asking again in another family would
+    /// be a second chance to get it wrong.
+    ///
+    /// The returned entry keeps the IPv4 address. See the remarks on
+    /// <see cref="MdnsInterface.Address"/> for why.
+    /// </remarks>
+    /// <exception cref="MdnsInterfaceException">
+    /// The adapter is gone, is down, carries no multicast, or has no IPv6
+    /// configuration. The last is the interesting one and is reported as such:
+    /// an operator whose client interface has IPv6 disabled needs to be told
+    /// that specifically, because the service will refuse to start and the
+    /// reason is a single checkbox on the adapter.
+    /// </exception>
+    public static MdnsInterface ResolveIPv6(MdnsInterface ipv4Interface, IInterfaceInventory inventory)
+    {
+        ArgumentNullException.ThrowIfNull(ipv4Interface);
+        ArgumentNullException.ThrowIfNull(inventory);
+
+        if (ipv4Interface.Transport != AddressFamily.InterNetwork)
+        {
+            throw new MdnsInterfaceException(
+                $"{ipv4Interface} is not an IPv4 entry, so it has no IPv6 companion to resolve.");
+        }
+
+        foreach (LocalAdapter adapter in inventory.Adapters)
+        {
+            if (!adapter.IPv4Addresses.Any(held => held.Equals(ipv4Interface.Address)))
+            {
+                continue;
+            }
+
+            if (!adapter.IsUp)
+            {
+                throw new MdnsInterfaceException(
+                    $"Interface '{adapter.Name}' holds {ipv4Interface.Address} but is not up.");
+            }
+
+            if (!adapter.SupportsMulticast)
+            {
+                throw new MdnsInterfaceException(
+                    $"Interface '{adapter.Name}' ({ipv4Interface.Address}) does not support multicast, "
+                    + "so mDNS cannot work on it.");
+            }
+
+            if (adapter.IPv6Index is not { } ipv6Index)
+            {
+                throw new MdnsInterfaceException(
+                    $"Interface '{adapter.Name}' ({ipv4Interface.Address}) has no IPv6 configuration, "
+                    + "so it cannot receive the mDNS queries iOS sends. iOS was measured querying over "
+                    + "IPv6 only, so a client interface without it is never discovered. Enable IPv6 on "
+                    + "the adapter, or configure a different client interface. On Windows, check with: "
+                    + "Get-NetAdapterBinding -Name '" + adapter.Name + "' -ComponentID ms_tcpip6");
+            }
+
+            return new MdnsInterface(
+                adapter.Name, ipv4Interface.Address, ipv6Index, AddressFamily.InterNetworkV6);
+        }
+
+        throw new MdnsInterfaceException(
+            $"{ipv4Interface.Address} is no longer an address on any interface of this machine.");
     }
 
     /// <summary>Resolves several addresses using the machine's real adapters.</summary>

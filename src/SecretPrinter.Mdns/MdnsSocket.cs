@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// IPv6 groundwork for REQ-ADV-018 added by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   The service's single point of contact with the network for mDNS. It binds
 //   UDP 5353, joins the multicast group on configured interfaces, receives
@@ -21,6 +25,14 @@
 //   (docs/findings/2026-09-02-ios-accepts-advertisement.md), promoted from
 //   tools/SecretPrinter.Respond with the option handling made explicit and the
 //   interface confinement made mandatory rather than incidental.
+//
+// IPv4 only, at present:
+//   This socket binds and joins IPv4 alone. REQ-ADV-018 requires IPv6 transport
+//   as well, and until that exists a client querying only over ff02::fb is never
+//   heard - which is exactly the fault recorded in
+//   docs/findings/2026-09-06-ipv6-mdns-transport.md. MdnsInterface already
+//   carries a Transport family so that this class can gain IPv6 without changing
+//   IMdnsTransport; the socket work itself is not done.
 //
 // One socket, not one per interface:
 //   A single socket bound to the wildcard address handles both receiving and

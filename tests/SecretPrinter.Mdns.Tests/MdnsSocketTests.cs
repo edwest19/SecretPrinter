@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// IPv6 groundwork for REQ-ADV-018 added by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Verifies that MdnsSocket is configured the way the specification requires,
 //   by reading the options back from the operating system rather than trusting
@@ -211,6 +215,85 @@ internal static class MdnsSocketTests
             "without an index, arriving datagrams could not be attributed to this interface");
     }
 
+    // ---- IPv6 companion resolution -------------------------------------------
+    //
+    // These carry no [Requirement] marker. REQ-ADV-018 is about receiving and
+    // answering over IPv6, and none of that exists yet; marking preparatory
+    // code would make the coverage matrix claim a behaviour the service does
+    // not have. The marker goes on the socket work when the socket does it.
+
+    [TestCase("A resolved IPv4 interface says it carries IPv4")]
+    public static void Resolved_interface_states_its_transport()
+    {
+        var inventory = new FakeInventory(
+            new LocalAdapter("Ethernet", 13, IsUp: true, SupportsMulticast: true,
+                [IPAddress.Parse("192.168.1.98")], IPv6Index: 15));
+
+        MdnsInterface resolved =
+            MdnsInterfaceResolver.Resolve(IPAddress.Parse("192.168.1.98"), inventory);
+
+        Assert.Equal(AddressFamily.InterNetwork, resolved.Transport,
+            "an entry that does not state its family cannot be used to choose one");
+        Assert.False(resolved.IsIPv6, "this entry carries IPv4");
+        Assert.True(resolved.ToString().Contains("IPv4", StringComparison.Ordinal),
+            "a log line naming an interface must say which family it means, since the indexes differ");
+    }
+
+    [TestCase("The IPv6 companion keeps the IPv4 address and takes the IPv6 index")]
+    public static void IPv6_companion_keeps_ipv4_address()
+    {
+        // The two indexes differ deliberately: Windows numbers the families
+        // separately, and a companion that inherited the IPv4 index would
+        // attribute arriving IPv6 datagrams to the wrong interface - or to no
+        // interface at all, which is silent.
+        var inventory = new FakeInventory(
+            new LocalAdapter("Ethernet", 13, IsUp: true, SupportsMulticast: true,
+                [IPAddress.Parse("192.168.1.98")], IPv6Index: 15));
+
+        MdnsInterface ipv4 =
+            MdnsInterfaceResolver.Resolve(IPAddress.Parse("192.168.1.98"), inventory);
+        MdnsInterface ipv6 = MdnsInterfaceResolver.ResolveIPv6(ipv4, inventory);
+
+        Assert.True(ipv6.IsIPv6, "the companion carries IPv6");
+        Assert.Equal(15, ipv6.Index, "the companion takes the adapter's IPv6 index, not its IPv4 one");
+        Assert.Equal(ipv4.Address, ipv6.Address,
+            "the address advertised over IPv6 is still the IPv4 address the relay listens on");
+        Assert.Equal(ipv4.Name, ipv6.Name, "both entries describe one adapter");
+    }
+
+    [TestCase("An interface with IPv6 disabled is rejected, naming IPv6")]
+    public static void Interface_without_ipv6_is_rejected()
+    {
+        var inventory = new FakeInventory(
+            new LocalAdapter("Ethernet", 13, IsUp: true, SupportsMulticast: true,
+                [IPAddress.Parse("192.168.1.98")]));
+
+        MdnsInterface ipv4 =
+            MdnsInterfaceResolver.Resolve(IPAddress.Parse("192.168.1.98"), inventory);
+
+        var ex = Assert.Throws<MdnsInterfaceException>(
+            () => MdnsInterfaceResolver.ResolveIPv6(ipv4, inventory),
+            "a client interface without IPv6 can never be discovered by iOS");
+
+        Assert.True(ex.Message.Contains("IPv6", StringComparison.Ordinal),
+            "the operator needs to know it is IPv6 that is missing, not merely that something failed");
+    }
+
+    [TestCase("An IPv6 entry has no IPv6 companion of its own")]
+    public static void IPv6_entry_has_no_companion()
+    {
+        var inventory = new FakeInventory(
+            new LocalAdapter("Ethernet", 13, IsUp: true, SupportsMulticast: true,
+                [IPAddress.Parse("192.168.1.98")], IPv6Index: 15));
+
+        MdnsInterface ipv6 = MdnsInterfaceResolver.ResolveIPv6(
+            MdnsInterfaceResolver.Resolve(IPAddress.Parse("192.168.1.98"), inventory), inventory);
+
+        Assert.Throws<MdnsInterfaceException>(
+            () => MdnsInterfaceResolver.ResolveIPv6(ipv6, inventory),
+            "deriving a companion from a companion would produce an entry nobody asked for");
+    }
+
     // ---- Socket configuration -----------------------------------------------
 
     [TestCase("Open shares port 5353 rather than seizing it")]
@@ -281,7 +364,8 @@ internal static class MdnsSocketTests
     {
         using MdnsSocket socket = OpenOrSkip(out _);
 
-        var foreign = new MdnsInterface("not-ours", IPAddress.Parse("203.0.113.9"), 9999);
+        var foreign = new MdnsInterface(
+            "not-ours", IPAddress.Parse("203.0.113.9"), 9999, AddressFamily.InterNetwork);
 
         Assert.Throws<ArgumentException>(
             () => socket.SendMulticastAsync(new byte[] { 0, 0 }, foreign, CancellationToken.None)
@@ -298,7 +382,8 @@ internal static class MdnsSocketTests
 
         // Right address, wrong index: the kind of thing a stale cached
         // descriptor would produce after an adapter change.
-        var mismatched = new MdnsInterface("stale", address, socket.Interfaces[0].Index + 1000);
+        var mismatched = new MdnsInterface(
+            "stale", address, socket.Interfaces[0].Index + 1000, AddressFamily.InterNetwork);
 
         Assert.Throws<ArgumentException>(
             () => socket.SendMulticastAsync(new byte[] { 0, 0 }, mismatched, CancellationToken.None)
