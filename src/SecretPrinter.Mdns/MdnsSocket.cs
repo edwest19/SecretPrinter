@@ -12,6 +12,9 @@
 // Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
 // before merge.
 //
+// IPv6 send path added by Claude (Anthropic model, Claude Opus 5) at the
+// direction of Edwin West, 2026-09-06. Reviewed by a human before merge.
+//
 // Purpose:
 //   The service's single point of contact with the network for mDNS. It binds
 //   UDP 5353, joins the multicast group on configured interfaces, receives
@@ -35,24 +38,52 @@
 //   tools/SecretPrinter.Respond6 - with one honest exception noted below.
 //
 // How far the IPv6 work has got:
-//   This file now opens a second socket, binds it to [::]:5353 and joins
-//   ff02::fb on the interfaces that asked for it. It does NOT yet receive on
-//   that socket, and it does NOT yet send on it. So:
+//   This file opens a second socket, binds it to [::]:5353, joins ff02::fb on
+//   the interfaces that asked for it, and can now SEND on it. It still does NOT
+//   receive on that socket. So:
 //
-//     REQ-ADV-018 (receive and answer over IPv6)  - NOT met. Nothing is read
-//                                                   from the IPv6 socket.
-//     REQ-ADV-019 (hop limit 255)                 - option set below, but the
-//                                                   requirement is about
-//                                                   OUTGOING datagrams and none
-//                                                   go out yet.
-//     REQ-ADV-020 (arrival from IPV6_PKTINFO)     - option set below, but
-//                                                   nothing reads an arrival
+//     REQ-ADV-018 (receive and answer over IPv6)  - NOT met. The answering half
+//                                                   exists; nothing is read from
+//                                                   the IPv6 socket, so a query
+//                                                   arriving only over IPv6 is
+//                                                   still never seen. One
+//                                                   requirement covers both
+//                                                   halves, so it stays unmarked
+//                                                   until receive lands.
+//     REQ-ADV-019 (hop limit 255)                 - MET, and marked on SendAsync
+//                                                   below. Both hop limits are
+//                                                   set: see the note on unicast.
+//     REQ-ADV-020 (arrival from IPV6_PKTINFO)     - NOT met. The option is set,
+//                                                   but nothing reads an arrival
 //                                                   interface from it yet.
 //
-//   None of the three carries a [Requirement] marker here for that reason. A
-//   marker on a set option would make the coverage matrix report a behaviour
-//   the service does not have, which is the one thing this project's matrix
-//   exists to prevent.
+//   REQ-ADV-018 and REQ-ADV-020 carry no [Requirement] marker for that reason. A
+//   marker on a set option would make the coverage matrix report a behaviour the
+//   service does not have, which is the one thing this project's matrix exists
+//   to prevent.
+//
+// Why the IPv6 send sets TWO hop limits:
+//   IPV6_MULTICAST_HOPS applies only to datagrams addressed to a multicast
+//   group. A response to a legacy unicast querier (RFC 6762 §6.7, REQ-ADV-017)
+//   goes to a unicast address and takes IPV6_UNICAST_HOPS instead. REQ-ADV-019
+//   says outgoing IPv6 mDNS packets carry hop limit 255, without qualifying
+//   which kind, so both are set and both are read back.
+//
+//   The IPv4 path below sets only IP_MULTICAST_TTL and has the matching gap.
+//   That is deliberately NOT fixed here - it is a separate defect in a
+//   requirement already marked covered, recorded in
+//   docs/findings/2026-09-06-unicast-ttl-gap.md and to be settled by a packet
+//   capture rather than by argument.
+//
+// One IPv6 option deliberately left alone:
+//   MulticastLoopback. tools/SecretPrinter.Respond6 set it false, because
+//   Respond6 received on the same socket it sent from and did not want its own
+//   announcements back. Nothing here reads the IPv6 socket yet, so that reason
+//   does not apply and the setting has no observable effect: IPV6_MULTICAST_LOOP
+//   controls local delivery of a copy, not what goes on the wire. Choosing it
+//   now would be an unmeasured choice. It is deferred to the step that adds
+//   receive, where the effect becomes measurable. Decided by Edwin West,
+//   2026-09-06.
 //
 // One thing in the IPv6 configuration is NOT measured:
 //   Respond6 named a single interface on its command line and therefore never
@@ -137,6 +168,22 @@ public sealed record MdnsIPv6SocketConfiguration(
     int MulticastHopLimit,
     IPEndPoint LocalEndPoint,
     IReadOnlyList<MdnsInterface> Interfaces);
+
+/// <summary>The IPv6 send options in effect right now, read back from the OS.</summary>
+/// <remarks>
+/// Separate from <see cref="MdnsIPv6SocketConfiguration"/> because these three
+/// are not startup state. The egress interface is rewritten before every send,
+/// so this record describes the most recent send and is meaningless before the
+/// first one. It exists so a test can prove the send set what it said it set,
+/// rather than proving only that the send did not throw - a send configured with
+/// a byte-swapped interface index can still succeed and leave by the wrong
+/// adapter, which on a dual-homed host is the failure this project must never
+/// have.
+/// </remarks>
+public sealed record MdnsIPv6SendState(
+    int MulticastInterfaceIndex,
+    int MulticastHopLimit,
+    int UnicastHopLimit);
 
 /// <summary>Binds UDP 5353 and moves mDNS datagrams. Knows nothing about their contents.</summary>
 public sealed class MdnsSocket : IMdnsTransport, IDisposable
@@ -413,6 +460,38 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     }
 
     /// <summary>
+    /// Reads the IPv6 egress interface and both hop limits back from the
+    /// operating system, or returns null when no IPv6 socket was opened.
+    /// </summary>
+    /// <remarks>
+    /// Call this after a send. Before the first send the interface index is
+    /// whatever the OS defaults to, which is not a claim about anything.
+    ///
+    /// None of these three read-backs has ever been executed on this project.
+    /// The IPv6 counterparts of options this file already reads on IPv4 are
+    /// assumed to be readable, and that assumption is exactly what this method
+    /// is here to test. If a call throws, the honest response is to delete this
+    /// method and record why, not to work around it.
+    /// </remarks>
+    public MdnsIPv6SendState? ReadBackIPv6SendState()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (_socket6 is null)
+        {
+            return null;
+        }
+
+        return new MdnsIPv6SendState(
+            MulticastInterfaceIndex: (int)_socket6.GetSocketOption(
+                SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface)!,
+            MulticastHopLimit: (int)_socket6.GetSocketOption(
+                SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive)!,
+            UnicastHopLimit: (int)_socket6.GetSocketOption(
+                SocketOptionLevel.IPv6, SocketOptionName.IpTimeToLive)!);
+    }
+
+    /// <summary>
     /// Waits for one datagram, on IPv4 only.
     /// </summary>
     /// <remarks>
@@ -460,17 +539,27 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     /// wrong interface means advertising onto the printer network, which is
     /// precisely what this project must never do.
     /// </exception>
-    /// <exception cref="NotSupportedException">
-    /// The interface is an IPv6 entry. Sending over IPv6 is REQ-ADV-018 and is
-    /// not implemented yet.
-    /// </exception>
     [Requirement("REQ-ADV-011",
         "Refuses to send out any interface the socket was not opened for, so advertisement cannot leak onto an unconfigured network.")]
     [Requirement("REQ-ADV-013",
         "Reasserts IP_MULTICAST_TTL 255 immediately before each multicast send.")]
     public Task SendMulticastAsync(
-        ReadOnlyMemory<byte> payload, MdnsInterface via, CancellationToken cancellationToken) =>
-        SendAsync(payload, new IPEndPoint(MulticastGroup, MdnsPort), via, cancellationToken);
+        ReadOnlyMemory<byte> payload, MdnsInterface via, CancellationToken cancellationToken)
+    {
+        // Checked here as well as in SendAsync, because via is dereferenced
+        // below and a null would otherwise surface as a NullReferenceException
+        // instead of naming the parameter.
+        ArgumentNullException.ThrowIfNull(via);
+
+        // The group has to follow the family. Handing an IPv4 sockaddr to the
+        // IPv6 socket is rejected by Windows with WSAEFAULT, which arrives as
+        // "the system detected an invalid pointer address" and says nothing
+        // about address families. Setting the socket options correctly is not
+        // enough on its own: the destination is the other half.
+        IPAddress group = via.IsIPv6 ? MulticastGroupV6 : MulticastGroup;
+
+        return SendAsync(payload, new IPEndPoint(group, MdnsPort), via, cancellationToken);
+    }
 
     /// <summary>
     /// Sends a datagram directly to one endpoint, out of one specific
@@ -485,6 +574,8 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
         CancellationToken cancellationToken) =>
         SendAsync(payload, destination, via, cancellationToken);
 
+    [Requirement("REQ-ADV-019",
+        "Sets IPV6_MULTICAST_HOPS and IPV6_UNICAST_HOPS to 255 immediately before each IPv6 send, so both multicast responses and replies to legacy unicast queriers carry hop limit 255.")]
     private async Task SendAsync(
         ReadOnlyMemory<byte> payload,
         IPEndPoint destination,
@@ -506,36 +597,71 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
                 nameof(via));
         }
 
-        if (via.IsIPv6)
-        {
-            // The IPv6 socket exists and has joined the group, but nothing has
-            // been written to make it send: IPV6_MULTICAST_IF takes an interface
-            // index rather than the address bytes used below, and no such send
-            // has been measured. Refusing loudly is the only honest option -
-            // falling through would transmit over IPv4 while the caller believed
-            // it had asked for IPv6.
-            throw new NotSupportedException(
-                $"Sending over IPv6 ({via}) is not implemented. REQ-ADV-018 is unmet; "
-                + "see the header of MdnsSocket.cs.");
-        }
-
-        // IP_MULTICAST_IF is socket-wide state, so sends are serialised. The
-        // option is set immediately before each send rather than once at open,
-        // because a socket serving several interfaces would otherwise send out
-        // whichever interface was configured last.
+        // The egress-interface option is socket-wide state in both families, so
+        // sends are serialised. It is set immediately before each send rather
+        // than once at open, because a socket serving several interfaces would
+        // otherwise send out whichever interface was configured last.
+        //
+        // One lock covers both sockets. They could take a lock each, but sends
+        // here are small and infrequent, and a single lock is one thing to
+        // reason about when auditing the claim that a datagram cannot leave by
+        // the wrong interface.
         await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            _socket.SetSocketOption(
-                SocketOptionLevel.IP,
-                SocketOptionName.MulticastInterface,
-                via.Address.GetAddressBytes());
+            if (via.IsIPv6)
+            {
+                // Cannot be null here: the confinement check above matched an
+                // IPv6 entry, IPv6 entries exist only when a binding asked to
+                // join IPv6, and that is exactly when Open creates this socket.
+                // Stated where it is relied on rather than assumed silently.
+                Socket socket6 = _socket6
+                    ?? throw new InvalidOperationException(
+                        $"Interface {via} is an IPv6 entry but no IPv6 socket exists. "
+                        + "That is a bug in MdnsSocket.Open, not a caller error.");
 
-            _socket.SetSocketOption(
-                SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, RequiredMulticastTtl);
+                // IPV6_MULTICAST_IF takes a bare interface index, in host byte
+                // order, not the address bytes the IPv4 option below takes. It
+                // is easy to find code that wraps this value in
+                // IPAddress.HostToNetworkOrder; that is carried over from the
+                // IPv4 option, where the byte order genuinely matters. The plain
+                // index is what tools/SecretPrinter.Respond6 sent with when it
+                // was measured reaching a real iPhone on 2026-09-06.
+                socket6.SetSocketOption(
+                    SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface, via.Index);
 
-            await _socket.SendToAsync(payload, SocketFlags.None, destination, cancellationToken)
-                         .ConfigureAwait(false);
+                // IPV6_MULTICAST_HOPS. Applies to the multicast sends only.
+                socket6.SetSocketOption(
+                    SocketOptionLevel.IPv6,
+                    SocketOptionName.MulticastTimeToLive,
+                    RequiredMulticastHopLimit);
+
+                // IPV6_UNICAST_HOPS, despite the enum member being named for an
+                // IPv4 concept: SocketOptionName.IpTimeToLive is the value 4,
+                // which at SocketOptionLevel.IPv6 is IPV6_UNICAST_HOPS. This is
+                // what carries hop limit 255 on a reply to a legacy unicast
+                // querier, which the multicast option above would not touch.
+                socket6.SetSocketOption(
+                    SocketOptionLevel.IPv6,
+                    SocketOptionName.IpTimeToLive,
+                    RequiredMulticastHopLimit);
+
+                await socket6.SendToAsync(payload, SocketFlags.None, destination, cancellationToken)
+                             .ConfigureAwait(false);
+            }
+            else
+            {
+                _socket.SetSocketOption(
+                    SocketOptionLevel.IP,
+                    SocketOptionName.MulticastInterface,
+                    via.Address.GetAddressBytes());
+
+                _socket.SetSocketOption(
+                    SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, RequiredMulticastTtl);
+
+                await _socket.SendToAsync(payload, SocketFlags.None, destination, cancellationToken)
+                             .ConfigureAwait(false);
+            }
         }
         finally
         {

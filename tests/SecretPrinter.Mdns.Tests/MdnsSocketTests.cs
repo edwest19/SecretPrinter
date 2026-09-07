@@ -12,6 +12,9 @@
 // Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
 // before merge.
 //
+// IPv6 send tests added by Claude (Anthropic model, Claude Opus 5) at the
+// direction of Edwin West, 2026-09-06. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that MdnsSocket is configured the way the specification requires,
 //   by reading the options back from the operating system rather than trusting
@@ -429,12 +432,15 @@ internal static class MdnsSocketTests
 
     // ---- IPv6 socket and group membership ------------------------------------
     //
-    // Still no [Requirement] markers. REQ-ADV-018 is receiving and answering
-    // over IPv6, and this socket does neither yet; REQ-ADV-019 and REQ-ADV-020
-    // are about outgoing hop limit and arrival attribution, and nothing sends or
-    // receives on this socket either. Every option below is set and read back,
-    // which is worth testing as regression protection, but it is not the
-    // behaviour the requirements name. The markers go on when the behaviour does.
+    // The tests in this section still carry no [Requirement] markers, and that is
+    // still correct. REQ-ADV-018 is receiving AND answering over IPv6; the socket
+    // can now answer but cannot receive, and one requirement covering both halves
+    // is not half met. REQ-ADV-020 is arrival attribution, and nothing reads this
+    // socket. Every option below is set and read back, which is worth testing as
+    // regression protection, but it is not the behaviour those requirements name.
+    //
+    // REQ-ADV-019 is different: it is met, and its marker is in the send section
+    // further down, on the test that drives a real send.
 
     [TestCase("A binding that does not ask for IPv6 opens no IPv6 socket")]
     [RequiresNetwork]
@@ -510,20 +516,106 @@ internal static class MdnsSocketTests
         Assert.True(ipv6.Index > 0, "a real interface has a positive IPv6 index");
     }
 
-    [TestCase("Sending over an IPv6 entry is refused rather than sent over IPv4")]
+    // ---- IPv6 sending ---------------------------------------------------------
+    //
+    // These tests put real bytes on a real network, which nothing else in this
+    // file does, so it is worth saying exactly what: a twelve-byte DNS header
+    // with every field zero. That is a well-formed mDNS query carrying no
+    // questions. It asks nothing, no responder answers it, and it is the
+    // smallest thing that can be sent at all - a send is the only way to
+    // exercise options that are set inside the send path.
+    //
+    // The interface it goes out of is whichever one OpenIPv6OrSkip found, which
+    // on a dual-homed machine may be the printer-facing one. An empty query is
+    // harmless there, but the choice is stated rather than left to be noticed.
+
+    /// <summary>A well-formed mDNS query with no questions in it.</summary>
+    private static byte[] EmptyQuery() => new byte[12];
+
+    [TestCase("An IPv6 send selects its egress interface by bare index")]
     [RequiresNetwork]
-    public static void Send_over_ipv6_is_refused_while_unimplemented()
+    [Requirement("REQ-ADV-019")]
+    public static void Send_over_ipv6_sets_interface_and_both_hop_limits()
+    {
+        using MdnsSocket socket = OpenIPv6OrSkip();
+        MdnsInterface ipv6 = socket.IPv6Interfaces[0];
+
+        socket.SendMulticastAsync(EmptyQuery(), ipv6, CancellationToken.None)
+              .GetAwaiter().GetResult();
+
+        // That the send returned at all is part of the assertion. An IPv6 socket
+        // handed an IPv4 destination fails here with WSAEFAULT, and every socket
+        // option below would still have read back correctly - the options and the
+        // destination are independent, and only a real send exercises both.
+
+        MdnsIPv6SendState? state = socket.ReadBackIPv6SendState();
+        Assert.NotNull(state, "a binding asked to join IPv6, so the socket must exist");
+
+        // The point of reading this back rather than trusting the send to have
+        // thrown: IPV6_MULTICAST_IF takes a bare index in host byte order, and
+        // wrapping it in HostToNetworkOrder is a common and plausible mistake.
+        // A swapped index can be accepted and then send out of a different
+        // adapter, which on a dual-homed host means advertising onto the printer
+        // network. That failure is silent at the API and loud on the wire.
+        Assert.Equal(ipv6.Index, state!.MulticastInterfaceIndex,
+            "the egress interface must be the adapter's IPv6 index, unswapped");
+
+        Assert.Equal(255, state.MulticastHopLimit,
+            "RFC 6762 s11 requires hop limit 255 on multicast responses");
+
+        // IPV6_MULTICAST_HOPS does not apply to a datagram sent to a unicast
+        // address, so a reply to a legacy unicast querier would leave at the
+        // system default unless IPV6_UNICAST_HOPS is set too. REQ-ADV-019 does
+        // not distinguish the two, so neither does this.
+        Assert.Equal(255, state.UnicastHopLimit,
+            "a reply to a legacy unicast querier must also carry hop limit 255");
+    }
+
+    [TestCase("An IPv6 unicast send sets the hop limits the same way")]
+    [RequiresNetwork]
+    [Requirement("REQ-ADV-019")]
+    public static void Unicast_send_over_ipv6_sets_both_hop_limits()
+    {
+        using MdnsSocket socket = OpenIPv6OrSkip();
+        MdnsInterface ipv6 = socket.IPv6Interfaces[0];
+
+        // Addressed to this host's own loopback, so the bytes do not leave the
+        // machine. What is under test is the option state the send path
+        // establishes, not delivery.
+        var destination = new IPEndPoint(IPAddress.IPv6Loopback, MdnsSocket.MdnsPort);
+
+        socket.SendUnicastAsync(EmptyQuery(), destination, ipv6, CancellationToken.None)
+              .GetAwaiter().GetResult();
+
+        MdnsIPv6SendState? state = socket.ReadBackIPv6SendState();
+        Assert.NotNull(state, "a binding asked to join IPv6, so the socket must exist");
+
+        Assert.Equal(255, state!.UnicastHopLimit,
+            "the unicast path is the one IPV6_MULTICAST_HOPS would have missed");
+        Assert.Equal(255, state.MulticastHopLimit,
+            "and the multicast option is set on every send regardless of destination");
+    }
+
+    [TestCase("An IPv6 send still refuses an interface the socket never opened")]
+    [RequiresNetwork]
+    [Requirement("REQ-ADV-011")]
+    public static void Send_over_unopened_ipv6_interface_is_refused()
     {
         using MdnsSocket socket = OpenIPv6OrSkip();
 
-        // The dangerous failure this guards is not an exception, it is silence:
-        // falling through would transmit over IPv4 while the caller believed it
-        // had asked for IPv6, and the wire would look almost right.
-        Assert.Throws<NotSupportedException>(
-            () => socket.SendMulticastAsync(
-                      new byte[] { 0, 0 }, socket.IPv6Interfaces[0], CancellationToken.None)
+        // Same index as a real entry, and a plausible-looking name, but never
+        // opened by this socket. Confinement is checked before the family
+        // branch, so it must reject this whichever family it carries.
+        var stranger = new MdnsInterface(
+            socket.IPv6Interfaces[0].Name,
+            IPAddress.Parse("203.0.113.11"),
+            socket.IPv6Interfaces[0].Index,
+            AddressFamily.InterNetworkV6);
+
+        Assert.Throws<ArgumentException>(
+            () => socket.SendMulticastAsync(EmptyQuery(), stranger, CancellationToken.None)
                         .GetAwaiter().GetResult(),
-            "REQ-ADV-018 is unmet, and an unimplemented send must say so rather than send something else");
+            "advertising out an unconfigured interface is the one thing this project must never do");
     }
 
     // ---- Cross-family identity ------------------------------------------------
