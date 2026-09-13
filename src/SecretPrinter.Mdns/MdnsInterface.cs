@@ -13,6 +13,10 @@
 // ones and open-coded index comparisons became unsafe. Reviewed by a human
 // before merge.
 //
+// Per-family index claim corrected by Claude (Anthropic model, Claude Opus 5)
+// at the direction of Edwin West, 2026-09-13. Comments only; no behaviour
+// changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns an IPv4 address from configuration into a fully identified network
 //   interface: its friendly name, its operating-system index, and which address
@@ -56,9 +60,12 @@ namespace SecretPrinter.Mdns;
 /// </param>
 /// <param name="Index">
 /// Operating-system interface index for <paramref name="Transport"/>, as
-/// reported by IP_PKTINFO or IPV6_PKTINFO. Windows numbers the two families
-/// separately, so the same adapter has two different indexes and they must not
-/// be compared across families.
+/// reported by IP_PKTINFO or IPV6_PKTINFO. The platform reports an index per
+/// address family and guarantees no relationship between the two, so an index
+/// is meaningful only alongside the family it was read for and must never be
+/// compared across families. They may well hold the same value - on every
+/// adapter this project has measured they did - but nothing may depend on that.
+/// See docs/findings/2026-09-13-interface-index-parity.md.
 /// </param>
 /// <param name="Transport">
 /// Which address family this entry sends and receives over. One adapter yields
@@ -78,10 +85,16 @@ public sealed record MdnsInterface(string Name, IPAddress Address, int Index, Ad
     /// <remarks>
     /// This exists so that no caller has to remember to compare the family.
     /// Once one adapter yields an entry per family, two entries can share an
-    /// <see cref="Index"/> and mean different interfaces, because Windows
-    /// numbers the families separately. Code that compared indexes alone would
-    /// still compile, still pass its tests on an IPv4-only machine, and be
-    /// wrong on the machine this service is for.
+    /// <see cref="Index"/> while meaning different interfaces, because the
+    /// platform numbers each family independently and promises nothing about
+    /// how the two numberings relate.
+    ///
+    /// On both machines this service has run on, the two families in fact use
+    /// the same index for a given adapter, which makes an index-only comparison
+    /// the more dangerous kind of wrong: it would compile, pass its tests, and
+    /// appear to work here, while resting on an undocumented property of the
+    /// platform that no measurement supports.
+    /// See docs/findings/2026-09-13-interface-index-parity.md.
     ///
     /// Record equality is not used for this on purpose: two entries can
     /// legitimately differ in <see cref="Name"/> - an adapter renamed between

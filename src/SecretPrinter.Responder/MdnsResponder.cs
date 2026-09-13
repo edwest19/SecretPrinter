@@ -8,6 +8,10 @@
 // model, Claude Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed
 // by a human before merge.
 //
+// Per-family index claim corrected by Claude (Anthropic model, Claude Opus 5)
+// at the direction of Edwin West, 2026-09-13. Comment only; no behaviour
+// changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -101,7 +105,9 @@ public sealed class MdnsResponder
         {
             // Matches() rather than an index comparison: see the same change in
             // PrinterResolver. One adapter can appear in the transport's list
-            // once per address family, and the indexes are numbered separately.
+            // once per address family, each carrying the index the platform
+            // reports for that family, with no guarantee that the two values
+            // relate. See docs/findings/2026-09-13-interface-index-parity.md.
             if (!transport.Interfaces.Any(i => i.Matches(entry.Interface)))
             {
                 throw new ArgumentException(

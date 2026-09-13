@@ -8,6 +8,10 @@
 // Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
 // before merge.
 //
+// Per-family index claim corrected by Claude (Anthropic model, Claude Opus 5)
+// at the direction of Edwin West, 2026-09-13. Comment only; no behaviour
+// changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   Describes the machine's network adapters, behind an interface, so the rules
 //   in MdnsInterfaceResolver can be tested against any adapter arrangement
@@ -39,8 +43,12 @@ namespace SecretPrinter.Mdns;
 /// <param name="IPv4Addresses">IPv4 unicast addresses held by this adapter.</param>
 /// <param name="IPv6Index">
 /// Operating-system IPv6 interface index, or null when the adapter has no IPv6
-/// configuration. Windows numbers the two families separately, so this is not
-/// the same value as <paramref name="Index"/> for the same adapter.
+/// configuration. Read separately from <paramref name="Index"/> because the
+/// platform exposes an index per address family and promises no relationship
+/// between them - not because the two are known to differ. On every adapter
+/// measured by this project they were equal; that is two machines, not a
+/// guarantee, and neither equality nor difference may be assumed. See
+/// docs/findings/2026-09-13-interface-index-parity.md.
 ///
 /// It defaults to null - meaning "this adapter cannot carry IPv6" - so that a
 /// test describing an adapter for some unrelated reason need not state an IPv6

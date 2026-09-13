@@ -15,6 +15,10 @@
 // IPv6 send path added by Claude (Anthropic model, Claude Opus 5) at the
 // direction of Edwin West, 2026-09-06. Reviewed by a human before merge.
 //
+// Per-family index claim corrected by Claude (Anthropic model, Claude Opus 5)
+// at the direction of Edwin West, 2026-09-13. Comments only; no behaviour
+// changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   The service's single point of contact with the network for mDNS. It binds
 //   UDP 5353, joins the multicast group on configured interfaces, receives
@@ -218,12 +222,20 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     private readonly Socket? _socket6;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
 
-    // Keyed by family AND index, and by family AND address. Windows numbers the
-    // address families separately, so one adapter has two indexes and the same
-    // integer can name different interfaces in each family. Keying on the number
-    // alone would silently attribute an IPv6 datagram to an IPv4 interface. The
-    // string half of the address key compares ordinally, which is the default
-    // for string inside a ValueTuple key.
+    // Keyed by family AND index, and by family AND address. The platform reports
+    // an index per address family and guarantees no relationship between the
+    // two, so the same integer may name different interfaces in each family.
+    // Keying on the number alone would silently attribute an IPv6 datagram to an
+    // IPv4 interface.
+    //
+    // On both machines this project has measured, the two families do use the
+    // same index for a given adapter, so that misattribution would land on the
+    // right interface here and be wrong anywhere the platform chose otherwise.
+    // Carrying the family costs nothing and needs no such luck. See
+    // docs/findings/2026-09-13-interface-index-parity.md.
+    //
+    // The string half of the address key compares ordinally, which is the
+    // default for string inside a ValueTuple key.
     private readonly Dictionary<(AddressFamily Family, int Index), MdnsInterface> _byIndex;
     private readonly Dictionary<(AddressFamily Family, string Address), MdnsInterface> _byAddress;
 
@@ -250,10 +262,12 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     /// IPv6 companions.
     /// </summary>
     /// <remarks>
-    /// One adapter can appear twice, once per family, with a different index
-    /// each time. Anything matching an entry against this list must compare the
-    /// family as well as the index - use <see cref="MdnsInterface.Matches"/>
-    /// rather than comparing <see cref="MdnsInterface.Index"/> alone.
+    /// One adapter can appear twice, once per family, each entry carrying the
+    /// index the platform reports for that family. Those two indexes may or may
+    /// not hold the same value; nothing guarantees either. Anything matching an
+    /// entry against this list must therefore compare the family as well as the
+    /// index - use <see cref="MdnsInterface.Matches"/> rather than comparing
+    /// <see cref="MdnsInterface.Index"/> alone.
     /// </remarks>
     public IReadOnlyList<MdnsInterface> Interfaces { get; }
 
@@ -388,9 +402,10 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
             foreach (MdnsInterface joined in interfaces)
             {
                 // IPv6 membership is by interface index, not by local address.
-                // The index here is the adapter's IPv6 index, which differs from
-                // its IPv4 index on Windows; MdnsInterfaceResolver.ResolveIPv6
-                // is what puts the right one in this entry.
+                // The index here must be the adapter's IPv6 index, read from
+                // the IPv6 properties rather than assumed equal to the IPv4 one;
+                // MdnsInterfaceResolver.ResolveIPv6 is what puts the right one
+                // in this entry.
                 socket.SetSocketOption(
                     SocketOptionLevel.IPv6,
                     SocketOptionName.AddMembership,
