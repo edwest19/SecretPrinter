@@ -100,9 +100,19 @@ public sealed class FakeTransport : IMdnsTransport
     /// hold. A fake that accepted anything would let a test pass while the real
     /// transport threw.
     /// </summary>
+    /// <remarks>
+    /// Matches() rather than an index comparison. One adapter appears in the
+    /// transport's list once per address family, each entry carrying the index
+    /// the platform reports for that family, and on every machine this project
+    /// has measured those two numbers are equal. An index-only check therefore
+    /// accepts a send via an IPv6 entry when only the IPv4 entry is held - so a
+    /// test asserting "the answer went out over IPv6" would pass whether or not
+    /// the code was right, which is worse than having no such test.
+    /// See docs/findings/2026-09-13-interface-index-parity.md.
+    /// </remarks>
     private void RequireKnown(MdnsInterface via)
     {
-        if (!Interfaces.Any(i => i.Index == via.Index))
+        if (!Interfaces.Any(i => i.Matches(via)))
         {
             throw new ArgumentException($"Interface {via} is not held by this transport.", nameof(via));
         }

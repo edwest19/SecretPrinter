@@ -33,6 +33,7 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Text;
 using SecretPrinter.Spec;
 using SecretPrinter.TestKit;
 
@@ -616,6 +617,106 @@ internal static class MdnsSocketTests
             () => socket.SendMulticastAsync(EmptyQuery(), stranger, CancellationToken.None)
                         .GetAwaiter().GetResult(),
             "advertising out an unconfigured interface is the one thing this project must never do");
+    }
+
+    // ---- IPv6 receive ---------------------------------------------------------
+
+    /// <summary>
+    /// Sends one datagram to ff02::fb from a second socket on this host, and
+    /// returns the bytes sent so the caller can recognise its own probe.
+    /// </summary>
+    /// <remarks>
+    /// Hop limit 0, so the datagram stays on this machine rather than putting
+    /// traffic on a real network every time the suite runs. That a hop-limit-0
+    /// multicast datagram is nonetheless delivered locally, and is attributed to
+    /// the sending adapter rather than to loopback, was measured on
+    /// DESKTOP-URULEFH on 2026-09-14 and recorded in
+    /// docs/findings/2026-09-14-ipv6-loopback-arrival.md.
+    ///
+    /// Bound to 5353 rather than to an ephemeral port. A datagram from any other
+    /// source port is a legacy unicast querier under RFC 6762 s6.7, which takes
+    /// a different path through the responder. This test is about arrival
+    /// attribution and must not quietly exercise that instead.
+    ///
+    /// The payload is deliberately not a DNS message. Nothing here parses it -
+    /// the socket returns raw bytes - and a nonce is what lets the caller pick
+    /// its own datagram out of the link's ordinary mDNS traffic.
+    /// </remarks>
+    private static byte[] SendLocalIPv6Probe(int interfaceIndex)
+    {
+        byte[] marker = Encoding.ASCII.GetBytes("SecretPrinter-receive-test-");
+        byte[] nonce = Guid.NewGuid().ToByteArray();
+
+        var payload = new byte[marker.Length + nonce.Length];
+        marker.CopyTo(payload, 0);
+        nonce.CopyTo(payload, marker.Length);
+
+        using var sender = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
+
+        // The socket under test already holds 5353. All three precede Bind.
+        sender.ExclusiveAddressUse = false;
+        sender.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        sender.DualMode = false;
+
+        sender.Bind(new IPEndPoint(IPAddress.IPv6Any, MdnsSocket.MdnsPort));
+
+        sender.SetSocketOption(
+            SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface, interfaceIndex);
+        sender.SetSocketOption(
+            SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 0);
+
+        sender.SendTo(payload, new IPEndPoint(MdnsSocket.MulticastGroupV6, MdnsSocket.MdnsPort));
+
+        return payload;
+    }
+
+    [TestCase("An IPv6 arrival is attributed to the IPv6 entry, given the OS loopback default")]
+    [RequiresNetwork]
+    [Requirement("REQ-ADV-018")]
+    [Requirement("REQ-ADV-020")]
+    public static void IPv6_arrival_is_attributed_to_the_ipv6_entry()
+    {
+        using MdnsSocket socket = OpenIPv6OrSkip();
+
+        MdnsInterface ipv6 = socket.IPv6Interfaces[0];
+        byte[] expected = SendLocalIPv6Probe(ipv6.Index);
+
+        // The socket is joined on a live adapter, so the link's own mDNS traffic
+        // arrives here too. Read until the probe turns up, or give up.
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        MdnsDatagram? found = null;
+        try
+        {
+            while (found is null)
+            {
+                MdnsDatagram received = socket.ReceiveAsync(deadline.Token).GetAwaiter().GetResult();
+
+                if (received.Payload.AsSpan().SequenceEqual(expected))
+                {
+                    found = received;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw new AssertionException(
+                "The probe sent to ff02::fb did not come back within 5s. This test depends on the "
+                + "operating system's IPV6_MULTICAST_LOOP default being on, which was measured as "
+                + "true on 2026-09-14 and is not set by this project. A changed default is the "
+                + "first thing to check, before suspecting the receive path.");
+        }
+
+        MdnsDatagram datagram = found!;
+
+        Assert.NotNull(datagram.ArrivedOn,
+            "a datagram arriving on a joined interface must be attributed to it");
+
+        Assert.Equal(AddressFamily.InterNetworkV6, datagram.ArrivedOn!.Transport,
+            "the arrival family must come from the socket that received it, not from a constant");
+
+        Assert.True(datagram.ArrivedOn.Matches(ipv6),
+            "the datagram must be attributed to the IPv6 entry for the adapter it arrived on");
     }
 
     // ---- Cross-family identity ------------------------------------------------

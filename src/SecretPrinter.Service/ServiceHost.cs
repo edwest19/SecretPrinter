@@ -114,8 +114,9 @@ public sealed class ServiceHost
             }
 
             // Said plainly, in the log, every time. An operator watching startup
-            // must not read "joined ff02::fb" as "answers IPv6 queries".
-            _log.Info("IPv6 mDNS is joined but not yet read or answered (REQ-ADV-018 unmet).");
+            // should be able to see which transports actually answer.
+            _log.Info("IPv6 mDNS is joined, read, and answered over the arrival transport "
+                      + "(REQ-ADV-018).");
         }
 
         using var resolver = new PrinterResolver(socket, _configuration.PrinterInterface);
@@ -150,7 +151,27 @@ public sealed class ServiceHost
         {
             Advertisement advertisement = AdvertisementBuilder.Build(capabilities, identity, client.Address);
             AdvertisementLog.Write(_log, client, advertisement);
-            advertised.Add(new AdvertisedInterface(client, advertisement));
+
+            // The IPv6 companion is matched by address, because that is the one
+            // thing the two entries for an adapter share: MdnsInterfaceResolver
+            // builds the companion with the adapter's IPv4 address and its IPv6
+            // index. The responder re-checks that invariant rather than trusting
+            // it, so a mismatch here is refused there too.
+            //
+            // Every client binding asked to join IPv6 a few lines above, so a
+            // missing companion is a bug in this file or in MdnsSocket.Open - not
+            // a configuration an operator chose. It fails loudly rather than
+            // passing null, which would start the service answering IPv4 only and
+            // reproduce the original fault silently.
+            MdnsInterface companion =
+                socket.IPv6Interfaces.FirstOrDefault(entry => entry.Address.Equals(client.Address))
+                ?? throw new InvalidOperationException(
+                    $"No IPv6 companion was opened for {client}, although this host asked to join "
+                    + $"{MdnsSocket.MulticastGroupV6} on it. Answering IPv6 queries would be "
+                    + "impossible and iOS would not discover the printer.");
+
+            advertised.Add(new AdvertisedInterface(client, advertisement, companion));
+            _log.Info($"Answering on {client} and, for queries that arrive over IPv6, {companion}.");
         }
 
         var responder = new MdnsResponder(socket, advertised);

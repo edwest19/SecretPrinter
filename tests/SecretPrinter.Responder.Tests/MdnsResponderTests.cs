@@ -37,6 +37,23 @@ internal static class MdnsResponderTests
         new("Wi-Fi", IPAddress.Parse("192.168.12.245"), 11, AddressFamily.InterNetwork);
 
     /// <summary>
+    /// The IPv6 companion of <see cref="ClientNic"/>: the same adapter, the same
+    /// IPv4 address, and the index the platform reports for IPv6.
+    /// </summary>
+    /// <remarks>
+    /// The address is IPv4 and that is deliberate, not an oversight - the
+    /// transport decides how a datagram travels, the A record decides what it
+    /// says. MdnsInterfaceResolver.ResolveIPv6 builds the real ones the same way.
+    ///
+    /// The index is 13, equal to the IPv4 index, because that is what every
+    /// adapter on both of this project's machines reports. Keeping it equal here
+    /// is the point: a responder keyed on the index alone would pass these tests
+    /// by finding the IPv4 entry.
+    /// </remarks>
+    private static readonly MdnsInterface ClientNicV6 =
+        new("Ethernet 2", IPAddress.Parse("192.168.1.234"), 13, AddressFamily.InterNetworkV6);
+
+    /// <summary>
     /// Real ET-3760 records. The low three bytes of the UUID are redacted to
     /// <c>000000</c>; see docs/findings/2026-09-04-pre-publication-audit.md.
     /// </summary>
@@ -62,6 +79,16 @@ internal static class MdnsResponderTests
         var transport = new FakeTransport(ClientNic);
         var responder = new MdnsResponder(
             transport, [new AdvertisedInterface(ClientNic, BuildAdvertisement())]);
+        return (responder, transport);
+    }
+
+    /// <summary>A responder whose client interface also answers over IPv6.</summary>
+    private static (MdnsResponder Responder, FakeTransport Transport) BuildDualStack()
+    {
+        var transport = new FakeTransport(ClientNic, ClientNicV6);
+        var responder = new MdnsResponder(
+            transport,
+            [new AdvertisedInterface(ClientNic, BuildAdvertisement(), ClientNicV6)]);
         return (responder, transport);
     }
 
@@ -333,6 +360,97 @@ internal static class MdnsResponderTests
         Assert.Equal((ushort)0, sent.Parsed.Id, "multicast responses use identifier 0 (RFC 6762 s18.1)");
         Assert.True(sent.Parsed.AllRecords.Any(r => r.Ttl > MdnsResponder.LegacyUnicastTtl),
             "multicast answers keep their full TTLs");
+    }
+
+    // ---- Answering over the arrival transport --------------------------------
+
+    [TestCase("A query arriving over IPv6 is answered over IPv6")]
+    [Requirement("REQ-ADV-018")]
+    public static void IPv6_query_is_answered_over_ipv6()
+    {
+        (MdnsResponder responder, FakeTransport transport) = BuildDualStack();
+
+        bool answered = Handle(responder, Query("_ipp._tcp.local", arrivedOn: ClientNicV6));
+
+        Assert.True(answered, "a query arriving over IPv6 must be answered, not ignored");
+
+        SentDatagram sent = transport.Sent[0];
+        Assert.Equal(AddressFamily.InterNetworkV6, sent.Via.Transport,
+            "REQ-ADV-018: the answer goes out over the transport the query arrived on");
+        Assert.True(sent.Via.Matches(ClientNicV6),
+            "the answer must leave by the IPv6 entry, not the IPv4 entry that shares its index");
+    }
+
+    [TestCase("A query arriving over IPv4 is still answered over IPv4")]
+    public static void IPv4_query_is_answered_over_ipv4()
+    {
+        (MdnsResponder responder, FakeTransport transport) = BuildDualStack();
+
+        Handle(responder, Query("_ipp._tcp.local", arrivedOn: ClientNic));
+
+        SentDatagram sent = transport.Sent[0];
+        Assert.Equal(AddressFamily.InterNetwork, sent.Via.Transport,
+            "adding an IPv6 companion must not divert IPv4 answers onto IPv6");
+    }
+
+    [TestCase("Both transports answer with the same advertisement")]
+    public static void Both_transports_answer_with_the_same_records()
+    {
+        (MdnsResponder responder, FakeTransport transport) = BuildDualStack();
+
+        Handle(responder, Query("_ipp._tcp.local", arrivedOn: ClientNic));
+        Handle(responder, Query("_ipp._tcp.local", arrivedOn: ClientNicV6));
+
+        string overIPv4 = string.Join(
+            "|", transport.Sent[0].Parsed.AllRecords.Select(r => $"{r.Name} {r.Type}"));
+        string overIPv6 = string.Join(
+            "|", transport.Sent[1].Parsed.AllRecords.Select(r => $"{r.Name} {r.Type}"));
+
+        Assert.Equal(overIPv4, overIPv6,
+            "the same records are delivered over either transport; only the path differs");
+
+        Assert.False(
+            transport.Sent[1].Parsed.AllRecords.Any(r => r.Type == DnsRecordType.Aaaa),
+            "REQ-ADV-021: answering over IPv6 must not publish an AAAA record");
+    }
+
+    [TestCase("Announcements and goodbyes stay on IPv4 only")]
+    public static void Announcements_do_not_follow_the_companion()
+    {
+        (MdnsResponder responder, FakeTransport transport) = BuildDualStack();
+
+        responder.AnnounceAsync(TimeSpan.Zero, CancellationToken.None).GetAwaiter().GetResult();
+        responder.SendGoodbyeAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+        Assert.True(
+            transport.Sent.All(s => s.Via.Transport == AddressFamily.InterNetwork),
+            "adding an IPv6 companion must not quietly start announcing over IPv6 - that would "
+            + "change REQ-ADV-001, REQ-ADV-002 and REQ-LIF-003, which is a separate decision");
+    }
+
+    [TestCase("An IPv6 companion carrying a different address is rejected")]
+    public static void Companion_with_a_foreign_address_is_rejected()
+    {
+        var foreign = new MdnsInterface(
+            "Ethernet 2", IPAddress.Parse("192.168.1.99"), 13, AddressFamily.InterNetworkV6);
+        var transport = new FakeTransport(ClientNic, foreign);
+
+        Assert.Throws<ArgumentException>(
+            () => _ = new MdnsResponder(
+                transport, [new AdvertisedInterface(ClientNic, BuildAdvertisement(), foreign)]),
+            "the companion and its IPv4 entry must describe one adapter, since they share an "
+            + "advertisement whose A record publishes that address");
+    }
+
+    [TestCase("An IPv4 interface offered as an IPv6 companion is rejected")]
+    public static void Companion_that_is_not_ipv6_is_rejected()
+    {
+        var transport = new FakeTransport(ClientNic, PrinterNic);
+
+        Assert.Throws<ArgumentException>(
+            () => _ = new MdnsResponder(
+                transport, [new AdvertisedInterface(ClientNic, BuildAdvertisement(), PrinterNic)]),
+            "filing an IPv4 interface under IPv6 would answer IPv6 queries over IPv4");
     }
 
     // ---- Announcing and goodbyes --------------------------------------------

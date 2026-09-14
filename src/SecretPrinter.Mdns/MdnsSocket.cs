@@ -19,6 +19,9 @@
 // at the direction of Edwin West, 2026-09-13. Comments only; no behaviour
 // changed. Reviewed by a human before merge.
 //
+// IPv6 receive path added by Claude (Anthropic model, Claude Opus 5) at the
+// direction of Edwin West, 2026-09-14. Reviewed by a human before merge.
+//
 // Purpose:
 //   The service's single point of contact with the network for mDNS. It binds
 //   UDP 5353, joins the multicast group on configured interfaces, receives
@@ -43,28 +46,27 @@
 //
 // How far the IPv6 work has got:
 //   This file opens a second socket, binds it to [::]:5353, joins ff02::fb on
-//   the interfaces that asked for it, and can now SEND on it. It still does NOT
-//   receive on that socket. So:
+//   the interfaces that asked for it, sends on it, and now receives on it. So:
 //
-//     REQ-ADV-018 (receive and answer over IPv6)  - NOT met. The answering half
-//                                                   exists; nothing is read from
-//                                                   the IPv6 socket, so a query
-//                                                   arriving only over IPv6 is
-//                                                   still never seen. One
-//                                                   requirement covers both
-//                                                   halves, so it stays unmarked
-//                                                   until receive lands.
+//     REQ-ADV-018 (receive and answer over IPv6)  - MET, across two files. This
+//                                                   one reads the IPv6 socket
+//                                                   and records which transport
+//                                                   a datagram arrived on;
+//                                                   MdnsResponder.HandleAsync
+//                                                   answers over that transport.
+//                                                   Both carry the marker,
+//                                                   because neither half alone
+//                                                   satisfies it.
 //     REQ-ADV-019 (hop limit 255)                 - MET, and marked on SendAsync
 //                                                   below. Both hop limits are
 //                                                   set: see the note on unicast.
-//     REQ-ADV-020 (arrival from IPV6_PKTINFO)     - NOT met. The option is set,
-//                                                   but nothing reads an arrival
-//                                                   interface from it yet.
+//     REQ-ADV-020 (arrival from IPV6_PKTINFO)     - MET, and marked on
+//                                                   ReceiveAsync below.
 //
-//   REQ-ADV-018 and REQ-ADV-020 carry no [Requirement] marker for that reason. A
-//   marker on a set option would make the coverage matrix report a behaviour the
-//   service does not have, which is the one thing this project's matrix exists
-//   to prevent.
+//   The markers went on when both halves worked, not when this file was
+//   finished. A marker on a half-built behaviour would make the coverage matrix
+//   report a behaviour the service does not have, which is the one thing this
+//   project's matrix exists to prevent.
 //
 // Why the IPv6 send sets TWO hop limits:
 //   IPV6_MULTICAST_HOPS applies only to datagrams addressed to a multicast
@@ -80,20 +82,43 @@
 //   capture rather than by argument.
 //
 // One IPv6 option deliberately left alone:
-//   MulticastLoopback. tools/SecretPrinter.Respond6 set it false, because
-//   Respond6 received on the same socket it sent from and did not want its own
-//   announcements back. Nothing here reads the IPv6 socket yet, so that reason
-//   does not apply and the setting has no observable effect: IPV6_MULTICAST_LOOP
-//   controls local delivery of a copy, not what goes on the wire. Choosing it
-//   now would be an unmeasured choice. It is deferred to the step that adds
-//   receive, where the effect becomes measurable. Decided by Edwin West,
-//   2026-09-06.
+//   MulticastLoopback stays at the operating system default. Decided by Edwin
+//   West, 2026-09-13; reasoning recorded in
+//   docs/findings/2026-09-13-ipv6-pktinfo-arrival.md.
 //
-// One thing in the IPv6 configuration is NOT measured:
+//   The IPv4 path already receives its own multicast back and discards it in
+//   MdnsResponder.HandleAsync at the query.IsResponse check, which is existing,
+//   tested behaviour. Setting IPV6_MULTICAST_LOOP false would make the two
+//   families behave differently for no measured reason, and would replace a
+//   filter that tests exercise with a socket option that they do not.
+//   tools/SecretPrinter.Respond6 set it false because it received on the socket
+//   it sent from; the product discards them one layer up instead.
+//
+//   Now that this file receives on the IPv6 socket, that effect is live: the
+//   service's own IPv6 announcements come back to it and are discarded at
+//   IsResponse, exactly as the IPv4 ones are. If the responder's counters ever
+//   look surprising, this is the first thing to revisit.
+//
+// The loopback default is also what the receive test depends on:
+//   tests/SecretPrinter.Mdns.Tests sends to ff02::fb from a second socket and
+//   asserts the datagram comes back attributed to the adapter. That works
+//   because Windows loops multicast back by default, measured on 2026-09-14 in
+//   docs/findings/2026-09-14-ipv6-loopback-arrival.md. If that default ever
+//   changes, the test fails - and its name says so, so the failure reads as
+//   "the loopback default changed" rather than "IPv6 receive is broken".
+//
+// Arrival attribution over IPv6 is measured, not assumed:
 //   Respond6 named a single interface on its command line and therefore never
-//   set IPV6_PKTINFO. Arrival attribution over IPv6 is new ground here. The
-//   option is set; that it reports a usable interface index on Windows has not
-//   been observed by anyone on this project and must not be assumed.
+//   set IPV6_PKTINFO, so arrival attribution over IPv6 was new ground. It has
+//   since been measured twice on DESKTOP-URULEFH: 62 datagrams arriving from
+//   the link (docs/findings/2026-09-13-ipv6-pktinfo-arrival.md) and 3 looped
+//   back locally (docs/findings/2026-09-14-ipv6-loopback-arrival.md). Every one
+//   reported the adapter's index.
+//
+//   Neither measurement can show WHICH family's numbering that index came from,
+//   because every adapter on both machines reports the same index in both
+//   families. The lookup below is keyed by family anyway, which needs no such
+//   luck. See docs/findings/2026-09-13-interface-index-parity.md.
 //
 // One socket per family, not one per interface:
 //   Each family has a single socket bound to its wildcard address, handling
@@ -221,6 +246,35 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     private readonly Socket _socket;
     private readonly Socket? _socket6;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+
+    // One receive buffer per family, allocated once and reused.
+    //
+    // Reuse is safe only because a single caller is in ReceiveAsync at a time:
+    // the payload is copied to a right-sized array the moment a result is taken,
+    // and no new receive starts on that socket until then. Two concurrent
+    // callers would corrupt each other's payloads. That assumption is enforced
+    // by _receiving below rather than left to this comment - this project does
+    // not rely on a comment where a throw will do.
+    //
+    // Both are allocated whether or not an IPv6 socket exists. Nine kilobytes in
+    // the printer-only case buys a receive path with no nullable buffer in it.
+    private readonly byte[] _bufferV4 = new byte[ReceiveBufferSize];
+    private readonly byte[] _bufferV6 = new byte[ReceiveBufferSize];
+
+    // A receive in flight, per family, held across calls. ReceiveAsync returns
+    // one datagram, but two sockets may be waiting; the one that did not finish
+    // stays pending here and is picked up by the next call, so no datagram is
+    // lost between calls.
+    private Task<SocketReceiveMessageFromResult>? _pendingV4;
+    private Task<SocketReceiveMessageFromResult>? _pendingV6;
+
+    // The lifetime of the socket receives, which is the socket's lifetime and
+    // not any one caller's. See the note in ReceiveAsync on why the caller's
+    // token must not reach ReceiveMessageFromAsync.
+    private readonly CancellationTokenSource _receiveLifetime = new();
+
+    // 1 while a caller is inside ReceiveAsync. Guards the shared buffers.
+    private int _receiving;
 
     // Keyed by family AND index, and by family AND address. The platform reports
     // an index per address family and guarantees no relationship between the
@@ -507,7 +561,7 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     }
 
     /// <summary>
-    /// Waits for one datagram, on IPv4 only.
+    /// Waits for one datagram, on whichever family produces one first.
     /// </summary>
     /// <remarks>
     /// Datagrams arriving on an interface the service was not configured for
@@ -515,33 +569,113 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     /// are not silently dropped here because the caller may want to count them;
     /// but a null <c>ArrivedOn</c> means the datagram must not be answered.
     ///
-    /// The IPv6 socket is joined to ff02::fb but is not read here. Until it is,
-    /// a query that arrives only over IPv6 is received by the operating system
-    /// and then discarded when the socket buffer fills - which is precisely the
-    /// fault recorded in docs/findings/2026-09-06-ipv6-mdns-transport.md, now
-    /// one step closer to fixed rather than fixed. REQ-ADV-018 is unmet.
+    /// Both sockets are read. A receive is started on each open socket and left
+    /// pending across calls, so the family that did not win a given call has not
+    /// lost its datagram - it is delivered by the next call. When no binding
+    /// asked for IPv6 there is no second socket and only the IPv4 receive runs.
+    ///
+    /// <see cref="MdnsDatagram.ArrivedOn"/> carries the family the datagram
+    /// actually arrived on, taken from which socket completed rather than
+    /// assumed. That is what lets the responder answer over the transport the
+    /// query came in on.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// Another call is already in progress. The receive buffers are shared
+    /// between calls, so a second concurrent caller would corrupt the first
+    /// one's payload. One loop must own this method.
+    /// </exception>
     [Requirement("REQ-ADV-015",
         "Uses ReceiveMessageFromAsync with IP_PKTINFO to report the true arrival interface of each datagram.")]
+    [Requirement("REQ-ADV-018",
+        "Reads the IPv6 socket as well as the IPv4 one, so a query arriving only over IPv6 is seen. The answering half of this requirement is MdnsResponder.HandleAsync, which answers over the transport recorded here.")]
+    [Requirement("REQ-ADV-020",
+        "Takes the arrival interface from IPV6_PKTINFO and looks it up by address family as well as index, so an IPv6 arrival is attributed to the IPv6 entry rather than to the IPv4 entry that may share its number.")]
     public async Task<MdnsDatagram> ReceiveAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var buffer = new byte[ReceiveBufferSize];
+        if (Interlocked.CompareExchange(ref _receiving, 1, 0) != 0)
+        {
+            throw new InvalidOperationException(
+                "ReceiveAsync is already in progress on another call. The receive buffers are "
+                + "shared between calls, so concurrent callers would overwrite each other's "
+                + "payloads. MdnsResponder.ServeAsync is the single intended caller.");
+        }
 
-        SocketReceiveMessageFromResult result = await _socket.ReceiveMessageFromAsync(
-            buffer,
-            SocketFlags.None,
-            new IPEndPoint(IPAddress.Any, 0),
-            cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // The caller's token is deliberately NOT passed to the socket. A
+            // receive started under one call's token is still pending during the
+            // next call, which may carry a different token; cancelling the first
+            // caller would then kill a receive the second is relying on. The
+            // socket receives take the socket's own lifetime token instead,
+            // which is what their lifetime actually is.
+            _pendingV4 ??= _socket.ReceiveMessageFromAsync(
+                _bufferV4,
+                SocketFlags.None,
+                new IPEndPoint(IPAddress.Any, 0),
+                _receiveLifetime.Token).AsTask();
 
-        var payload = new byte[result.ReceivedBytes];
-        Array.Copy(buffer, payload, result.ReceivedBytes);
+            if (_socket6 is not null)
+            {
+                // IPv6Any, not IPAddress.Any: an IPv4 endpoint handed to an IPv6
+                // socket is rejected on the address family.
+                _pendingV6 ??= _socket6.ReceiveMessageFromAsync(
+                    _bufferV6,
+                    SocketFlags.None,
+                    new IPEndPoint(IPAddress.IPv6Any, 0),
+                    _receiveLifetime.Token).AsTask();
+            }
 
-        int index = result.PacketInformation.Interface;
-        _byIndex.TryGetValue((AddressFamily.InterNetwork, index), out MdnsInterface? arrivedOn);
+            // WhenAny is used even for the single-socket case, because its outer
+            // task completes successfully whatever the inner one does. That
+            // keeps a faulted receive from throwing here, before its slot has
+            // been cleared. The caller's token is honoured on the WAIT, so
+            // cancelling a call abandons the wait and not the receives.
+            Task<SocketReceiveMessageFromResult> completed = _pendingV6 is null
+                ? await Task.WhenAny(_pendingV4).WaitAsync(cancellationToken).ConfigureAwait(false)
+                : await Task.WhenAny(_pendingV4, _pendingV6).WaitAsync(cancellationToken).ConfigureAwait(false);
 
-        return new MdnsDatagram(payload, (IPEndPoint)result.RemoteEndPoint, index, arrivedOn);
+            bool arrivedOverIPv6 = ReferenceEquals(completed, _pendingV6);
+
+            // Clear the slot BEFORE the result is observed. A transient
+            // SocketException completes that task faulted; ServeAsync catches,
+            // counts and loops. If the slot still held the faulted task, the
+            // next call would re-await it and fault forever on a fault that has
+            // already passed.
+            if (arrivedOverIPv6)
+            {
+                _pendingV6 = null;
+            }
+            else
+            {
+                _pendingV4 = null;
+            }
+
+            // Rethrows a faulted receive, now that the slot is clear.
+            SocketReceiveMessageFromResult result = await completed.ConfigureAwait(false);
+
+            byte[] buffer = arrivedOverIPv6 ? _bufferV6 : _bufferV4;
+            AddressFamily family = arrivedOverIPv6
+                ? AddressFamily.InterNetworkV6
+                : AddressFamily.InterNetwork;
+
+            var payload = new byte[result.ReceivedBytes];
+            Array.Copy(buffer, payload, result.ReceivedBytes);
+
+            // The family comes from which socket completed, never from a
+            // constant. Keying on the index alone would attribute an IPv6
+            // arrival to an IPv4 interface on any machine where the two families
+            // number an adapter alike - which is every machine this project has.
+            int index = result.PacketInformation.Interface;
+            _byIndex.TryGetValue((family, index), out MdnsInterface? arrivedOn);
+
+            return new MdnsDatagram(payload, (IPEndPoint)result.RemoteEndPoint, index, arrivedOn);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _receiving, 0);
+        }
     }
 
     /// <summary>
@@ -703,6 +837,17 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
 
         _disposed = true;
 
+        // Cancel the receives before the sockets close, so they complete with
+        // OperationCanceledException rather than racing socket disposal into an
+        // ObjectDisposedException. Either way nobody is awaiting them, so both
+        // are observed below - an unobserved faulted task is a finalizer-thread
+        // surprise in a service meant to shut down quietly.
+        _receiveLifetime.Cancel();
+        Observe(_pendingV4);
+        Observe(_pendingV6);
+        _pendingV4 = null;
+        _pendingV6 = null;
+
         foreach (MdnsInterface joined in IPv4Interfaces)
         {
             try
@@ -750,5 +895,17 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
 
         _socket.Dispose();
         _sendLock.Dispose();
+        _receiveLifetime.Dispose();
     }
+
+    /// <summary>
+    /// Reads the exception of a pending receive nobody will await, so it is not
+    /// left unobserved.
+    /// </summary>
+    private static void Observe(Task? pending) =>
+        pending?.ContinueWith(
+            static faulted => _ = faulted.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
 }

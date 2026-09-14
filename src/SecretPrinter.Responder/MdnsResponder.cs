@@ -12,6 +12,10 @@
 // at the direction of Edwin West, 2026-09-13. Comment only; no behaviour
 // changed. Reviewed by a human before merge.
 //
+// Answering keyed by address family, with an explicit IPv6 companion, by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-14.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -36,6 +40,7 @@
 // -----------------------------------------------------------------------------
 
 using System.Net;
+using System.Net.Sockets;
 using SecretPrinter.Advertising;
 using SecretPrinter.Dns;
 using SecretPrinter.Mdns;
@@ -49,7 +54,29 @@ namespace SecretPrinter.Responder;
 /// proxy's address on the interface the answer leaves by. One advertisement
 /// reused across interfaces would publish the wrong address on all but one.
 /// </remarks>
-public sealed record AdvertisedInterface(MdnsInterface Interface, Advertisement Advertisement);
+/// <param name="Interface">
+/// The IPv4 entry for the adapter. Announcements and goodbyes go out by this
+/// one and only this one.
+/// </param>
+/// <param name="Advertisement">
+/// What to publish here. Shared with <paramref name="IPv6Interface"/> on
+/// purpose: the same records, delivered over whichever transport the query
+/// arrived on, which is what REQ-ADV-018 asks for. The A record carries the
+/// adapter's IPv4 address in both cases, and REQ-ADV-021 forbids an AAAA.
+/// </param>
+/// <param name="IPv6Interface">
+/// The adapter's IPv6 entry, when this interface also answers over IPv6, or
+/// null when it does not.
+///
+/// Stated explicitly rather than inferred by matching addresses at answer time.
+/// The pairing is decided once, by the caller that knows which interface plays
+/// which role, and is then checked in the constructor - so an answer cannot go
+/// out over a transport nobody chose.
+/// </param>
+public sealed record AdvertisedInterface(
+    MdnsInterface Interface,
+    Advertisement Advertisement,
+    MdnsInterface? IPv6Interface = null);
 
 /// <summary>What a responder did, for logging and for tests.</summary>
 public sealed record ResponderActivity(
@@ -79,7 +106,26 @@ public sealed class MdnsResponder
 
     private readonly IMdnsTransport _transport;
     private readonly IReadOnlyList<AdvertisedInterface> _advertised;
-    private readonly Dictionary<int, AdvertisedInterface> _byIndex;
+
+    // What to answer with, and which interface to answer through, for a query
+    // that arrived on a given family and index.
+    //
+    // Keyed by family AND index. The platform numbers interfaces per address
+    // family and guarantees no relationship between the two numbers, and on
+    // every machine this project has measured they happen to be equal - so an
+    // index-only key would find the IPv4 entry for an IPv6 arrival, HIT, and
+    // answer over IPv4. That would look exactly like working IPv6 receive while
+    // being an IPv4 answer to a question asked over IPv6. See
+    // docs/findings/2026-09-13-interface-index-parity.md.
+    //
+    // Separate from _advertised on purpose. _advertised stays the source for
+    // AnnounceAsync and SendGoodbyeAsync, which iterate entry.Interface only.
+    // Adding IPv6 entries there would silently start announcing and sending
+    // goodbyes over IPv6 - a change to REQ-ADV-001, REQ-ADV-002 and REQ-LIF-003,
+    // all already marked covered, smuggled into a commit scoped to REQ-ADV-018
+    // and REQ-ADV-020. IPv6 announcements may well be worth having; that is a
+    // separate, measured decision.
+    private readonly Dictionary<(AddressFamily Family, int Index), AnsweringInterface> _answering;
 
     private int _announcements;
     private int _queriesSeen;
@@ -116,11 +162,94 @@ public sealed class MdnsResponder
                     + "nothing.",
                     nameof(advertised));
             }
+
+            if (entry.IPv6Interface is not { } companion)
+            {
+                continue;
+            }
+
+            if (!transport.Interfaces.Any(i => i.Matches(companion)))
+            {
+                throw new ArgumentException(
+                    $"IPv6 companion {companion} is not held by the transport. Answering over it "
+                    + "would be refused by the socket at the moment a query arrived, which is a "
+                    + "worse place to find out than startup.",
+                    nameof(advertised));
+            }
+
+            if (!companion.IsIPv6)
+            {
+                throw new ArgumentException(
+                    $"IPv6 companion {companion} is not an IPv6 entry. Keying it by its stated "
+                    + "family would file an IPv4 interface under IPv6 and answer IPv6 queries "
+                    + "over IPv4.",
+                    nameof(advertised));
+            }
+
+            if (!companion.Address.Equals(entry.Interface.Address))
+            {
+                // MdnsInterfaceResolver.ResolveIPv6 builds the companion with the
+                // adapter's IPv4 address and its IPv6 index - deliberately, since
+                // the transport decides how a datagram travels and the A record
+                // decides what it says. Asserted here, at the point that invariant
+                // is relied on, rather than trusted silently across two projects.
+                throw new ArgumentException(
+                    $"IPv6 companion {companion} does not carry the same address as "
+                    + $"{entry.Interface}. They must describe one adapter: the shared advertisement "
+                    + "publishes that address in its A record whichever transport answers.",
+                    nameof(advertised));
+            }
         }
 
         _transport = transport;
         _advertised = advertised;
-        _byIndex = advertised.ToDictionary(entry => entry.Interface.Index);
+        _answering = BuildAnswering(advertised);
+    }
+
+    /// <summary>What to answer with, and which interface to answer through.</summary>
+    private sealed record AnsweringInterface(Advertisement Advertisement, MdnsInterface Via);
+
+    /// <summary>
+    /// Builds the family-keyed answering table: the IPv4 entry answers through
+    /// itself, and its IPv6 companion answers through the companion, both from
+    /// the same advertisement.
+    /// </summary>
+    /// <remarks>
+    /// An explicit loop rather than ToDictionary, whose ArgumentException on a
+    /// duplicate key names neither the key nor the entries that collided. A
+    /// collision here means two interfaces were configured with the same family
+    /// and index, which is worth saying out loud.
+    /// </remarks>
+    private static Dictionary<(AddressFamily, int), AnsweringInterface> BuildAnswering(
+        IReadOnlyList<AdvertisedInterface> advertised)
+    {
+        var answering = new Dictionary<(AddressFamily, int), AnsweringInterface>();
+
+        foreach (AdvertisedInterface entry in advertised)
+        {
+            Add(answering, entry.Interface, entry.Advertisement);
+
+            if (entry.IPv6Interface is { } companion)
+            {
+                Add(answering, companion, entry.Advertisement);
+            }
+        }
+
+        return answering;
+
+        static void Add(
+            Dictionary<(AddressFamily, int), AnsweringInterface> into,
+            MdnsInterface via,
+            Advertisement advertisement)
+        {
+            if (!into.TryAdd((via.Transport, via.Index), new AnsweringInterface(advertisement, via)))
+            {
+                throw new ArgumentException(
+                    $"Two advertised interfaces both claim {via}. An arriving query could not be "
+                    + "attributed to one of them, so the answer would depend on ordering.",
+                    nameof(advertised));
+            }
+        }
     }
 
     public ResponderActivity Activity => new(
@@ -180,13 +309,20 @@ public sealed class MdnsResponder
         "Answers a legacy unicast querier by unicast, echoing its query identifier and capping TTLs.")]
     [Requirement("REQ-SEC-001",
         "Every record sent comes from this responder's own Advertisement. Received datagrams are read for their questions only; no byte of a received packet is ever re-emitted, so nothing is forwarded or reflected between networks.")]
+    [Requirement("REQ-ADV-018",
+        "Answers over the transport the query arrived on: the advertisement is looked up by the arrival interface's address family as well as its index, and the answer is sent through the entry for that family. The receiving half of this requirement is MdnsSocket.ReceiveAsync.")]
     [Requirement("REQ-SEC-002",
         "Answers are drawn only from the advertisement, which contains printing service types alone. A service seen on the printer network cannot become answerable on the client network, because seeing it changes nothing about what this responder holds.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
 
-        if (datagram.ArrivedOn is null || !_byIndex.TryGetValue(datagram.InterfaceIndex, out AdvertisedInterface? entry))
+        // Keyed off ArrivedOn, which already carries both the transport and the
+        // index the socket attributed the datagram to, rather than off
+        // InterfaceIndex alone. One lookup replaces a two-part check and cannot
+        // lose the address family on the way.
+        if (datagram.ArrivedOn is not { } arrivedOn
+            || !_answering.TryGetValue((arrivedOn.Transport, arrivedOn.Index), out AnsweringInterface? entry))
         {
             _ignoredWrongInterface++;
             return false;
@@ -257,13 +393,13 @@ public sealed class MdnsResponder
         if (legacyUnicast)
         {
             await _transport
-                .SendUnicastAsync(response, datagram.Source, entry.Interface, cancellationToken)
+                .SendUnicastAsync(response, datagram.Source, entry.Via, cancellationToken)
                 .ConfigureAwait(false);
         }
         else
         {
             await _transport
-                .SendMulticastAsync(response, entry.Interface, cancellationToken)
+                .SendMulticastAsync(response, entry.Via, cancellationToken)
                 .ConfigureAwait(false);
         }
 
