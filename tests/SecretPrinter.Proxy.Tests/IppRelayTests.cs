@@ -379,6 +379,113 @@ internal static class IppRelayTests
             "the reason should say the printer could not be located");
     }
 
+    // ---- Naming the side that failed ----------------------------------------
+
+    // Against the real ET-3760, roughly half of all relayed connections ended
+    // with "Relay ended early: ... forcibly closed by the remote host" and that
+    // was the whole of what the log could say. A printer refusing a concurrent
+    // connection and a client abandoning one produce that identical sentence,
+    // and they have nothing to do with each other. These four tests pin down
+    // the four things that sentence was hiding.
+    //
+    // Note what each one injects. A direction touches BOTH peers - the
+    // client-to-printer direction reads from the client and writes to the
+    // printer - so naming the direction would still leave each pair of cases
+    // indistinguishable. It is the operation that identifies the peer.
+
+    private static IOException PeerReset() =>
+        new IOException(
+            "An existing connection was forcibly closed by the remote host.",
+            new System.Net.Sockets.SocketException(10054)); // WSAECONNRESET
+
+    [TestCase("A client that stops being readable is named as the failing side")]
+    [Requirement("REQ-OBS-006")]
+    public static void Read_failure_names_the_client()
+    {
+        Harness harness = Build();
+        harness.ToClient.FailReadWith = PeerReset();
+
+        RelayOutcome outcome = Run(harness, () => { });
+
+        AssertFailureSays(outcome, harness, "while reading from the client");
+    }
+
+    [TestCase("A printer that stops accepting writes is named as the failing side")]
+    [Requirement("REQ-OBS-006")]
+    public static void Write_failure_names_the_printer()
+    {
+        Harness harness = Build();
+        harness.ToPrinter.FailWriteWith = PeerReset();
+
+        byte[] job = Encoding.UTF8.GetBytes("POST /ipp/print HTTP/1.1\r\n\r\njob bytes");
+
+        RelayOutcome outcome = Run(harness, () => harness.ClientSide.Write(job, 0, job.Length));
+
+        AssertFailureSays(outcome, harness, "while writing to the printer");
+    }
+
+    [TestCase("A printer that stops being readable is named as the failing side")]
+    [Requirement("REQ-OBS-006")]
+    public static void Read_failure_names_the_printer()
+    {
+        Harness harness = Build();
+        harness.ToPrinter.FailReadWith = PeerReset();
+
+        RelayOutcome outcome = Run(harness, () => { });
+
+        AssertFailureSays(outcome, harness, "while reading from the printer");
+    }
+
+    [TestCase("A client that stops accepting writes is named as the failing side")]
+    [Requirement("REQ-OBS-006")]
+    public static void Write_failure_names_the_client()
+    {
+        Harness harness = Build();
+        harness.ToClient.FailWriteWith = PeerReset();
+
+        byte[] reply = Encoding.UTF8.GetBytes("HTTP/1.1 200 OK\r\n\r\n");
+
+        RelayOutcome outcome = Run(harness, () => harness.PrinterSide.Write(reply, 0, reply.Length));
+
+        AssertFailureSays(outcome, harness, "while writing to the client");
+    }
+
+    [TestCase("A failure reason carries nothing from the job itself")]
+    [Requirement("REQ-OBS-006")]
+    public static void Failure_reason_carries_no_job_content()
+    {
+        // The reason string is the one thing in this file that is built rather
+        // than copied, so it is the one place job bytes could reach a log. It
+        // is assembled from two fixed labels and the exception's own message,
+        // and this is what holds that true.
+        Harness harness = Build();
+        harness.ToPrinter.FailWriteWith = PeerReset();
+
+        const string Confidential = "PATIENT-RECORD-7741";
+        byte[] job = Encoding.UTF8.GetBytes($"POST /ipp/print HTTP/1.1\r\n\r\n{Confidential}");
+
+        RelayOutcome outcome = Run(harness, () => harness.ClientSide.Write(job, 0, job.Length));
+
+        Assert.False(outcome.Succeeded, "the write failed, so the job did");
+        Assert.False(outcome.Failure!.Contains(Confidential, StringComparison.Ordinal),
+            "no part of the failure reason may come from the bytes in flight");
+        Assert.False(
+            harness.Observer.Events.Any(e => e.Contains(Confidential, StringComparison.Ordinal)),
+            "and nothing carrying job content may reach the observer, which is what reaches the log");
+    }
+
+    private static void AssertFailureSays(RelayOutcome outcome, Harness harness, string expected)
+    {
+        Assert.False(outcome.Succeeded, "a broken stream is a failed job");
+        Assert.NotNull(outcome.Failure, "the failure must carry a reason");
+        Assert.True(
+            outcome.Failure!.Contains(expected, StringComparison.Ordinal),
+            $"the reason must say '{expected}' so the two peers are not confused with each other; it said: {outcome.Failure}");
+        Assert.True(
+            harness.Observer.Events.Any(e => e.Contains(expected, StringComparison.Ordinal)),
+            "and the observer must be told the same thing, since that is what reaches the log");
+    }
+
     // ---- Access control -----------------------------------------------------
 
     [TestCase("A connection from outside the permitted networks is refused")]

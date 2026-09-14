@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// Per-operation failure injection added by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-14, for REQ-OBS-006.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   In-memory stand-ins for TCP, so the relay's behaviour can be asserted
 //   exactly and deterministically: bytes in equal bytes out, closing one side
@@ -108,6 +112,18 @@ internal sealed class RecordingStream(SharedBuffer readFrom, SharedBuffer writeT
 
     public List<byte> Written { get; } = [];
 
+    /// <summary>
+    /// If set, reads from this stream throw instead of returning bytes. A
+    /// socket whose peer has gone away behaves this way, and read and write are
+    /// separate here because they say different things: a read that fails means
+    /// the peer this stream talks to has gone, a write that fails means the
+    /// same about the other one.
+    /// </summary>
+    public Exception? FailReadWith { get; set; }
+
+    /// <summary>If set, writes to this stream throw instead of accepting bytes.</summary>
+    public Exception? FailWriteWith { get; set; }
+
     /// <summary>Largest single read the relay requested.</summary>
     public int LargestRead => _readSizes.Count == 0 ? 0 : _readSizes.Max();
 
@@ -135,6 +151,11 @@ internal sealed class RecordingStream(SharedBuffer readFrom, SharedBuffer writeT
     public override async ValueTask<int> ReadAsync(
         Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
+        if (FailReadWith is { } failure)
+        {
+            throw failure;
+        }
+
         _readSizes.Add(buffer.Length);
         return await readFrom.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
     }
@@ -142,6 +163,11 @@ internal sealed class RecordingStream(SharedBuffer readFrom, SharedBuffer writeT
     public override ValueTask WriteAsync(
         ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
+        if (FailWriteWith is { } failure)
+        {
+            throw failure;
+        }
+
         Written.AddRange(buffer.ToArray());
         writeTo.Write(buffer.Span);
         return ValueTask.CompletedTask;

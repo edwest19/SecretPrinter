@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// Failure reporting narrowed to name the peer and the operation by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-14,
+// for REQ-OBS-006. Reviewed by a human before merge.
+//
 // Purpose:
 //   Moves print job bytes between a client and the printer, and does nothing
 //   else with them.
@@ -23,6 +27,10 @@
 //     - The payload is never logged. The observer interface below has no
 //       parameter capable of carrying job content - only endpoints, counts and
 //       durations (REQ-PXY-009).
+//     - A failed relay reports which peer the failure came from and whether it
+//       happened while reading or writing (REQ-OBS-006). That reason is built
+//       from two fixed labels and the exception's own message. Nothing in it is
+//       derived from the bytes in flight.
 //     - The payload is streamed through a pooled fixed-size buffer, so a large
 //       job does not become a large allocation (REQ-PXY-005).
 //
@@ -95,6 +103,16 @@ public sealed class RelayOptions
 /// <summary>Streams IPP bytes between a client and the printer.</summary>
 public sealed class IppRelay
 {
+    /// <summary>
+    /// The two names a failure can be attributed to. Constants rather than
+    /// interpolated endpoints: a reason string is the one place job bytes could
+    /// plausibly leak into a log, so everything in it that is not the
+    /// exception's own message comes from this file (REQ-OBS-006, REQ-OBS-004).
+    /// </summary>
+    private const string ClientPeer = "client";
+
+    private const string PrinterPeer = "printer";
+
     private readonly IConnectionListener _listener;
     private readonly IConnectionFactory _factory;
     private readonly Func<CancellationToken, Task<IPEndPoint>> _resolvePrinter;
@@ -190,6 +208,8 @@ public sealed class IppRelay
         "A client whose address is outside the permitted networks is refused and reported before any connection to the printer is opened.")]
     [Requirement("REQ-PXY-009",
         "Reports endpoints, byte counts and elapsed time to the observer, and has no means of reporting content.")]
+    [Requirement("REQ-OBS-006",
+        "Builds the failure reason from the failing direction's own account of what it was doing, rather than from whichever exception happened to surface when both directions were awaited.")]
     [Requirement("REQ-SEC-011",
         "The destination comes solely from the resolvePrinter delegate supplied at construction. Nothing a client sends can influence where the relay connects, so this cannot be used as a general-purpose proxy.")]
     public async Task<RelayOutcome> RelayOneAsync(IDuplexConnection client, CancellationToken cancellationToken)
@@ -249,10 +269,22 @@ public sealed class IppRelay
                 // end-of-stream.
                 var counters = new RelayCounters();
 
-                Task toPrinter = PumpAsync(client.Stream, upstream.Stream, bothDirections, counters.AddSent);
-                Task toClient = PumpAsync(upstream.Stream, client.Stream, bothDirections, counters.AddReceived);
+                // Each direction returns its own account of how it ended:
+                // null for a clean end, or a description of the operation that
+                // failed. It is returned rather than thrown because the
+                // direction that fails almost always cancels the other, and a
+                // cancellation is then what arrives at the await below - so the
+                // exception that surfaces there is frequently not the one that
+                // explains anything.
+                Task<string?> toPrinter = PumpAsync(
+                    client.Stream, upstream.Stream, bothDirections, counters.AddSent,
+                    readingFrom: ClientPeer, writingTo: PrinterPeer);
 
-                string? failure = null;
+                Task<string?> toClient = PumpAsync(
+                    upstream.Stream, client.Stream, bothDirections, counters.AddReceived,
+                    readingFrom: PrinterPeer, writingTo: ClientPeer);
+
+                string? unexpected = null;
 
                 try
                 {
@@ -274,8 +306,14 @@ public sealed class IppRelay
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    failure = $"Relay ended early: {ex.Message}";
+                    // A stream failure is reported by returning, so reaching
+                    // here means something outside the copy loop went wrong.
+                    // There is no direction to name, and saying so is better
+                    // than naming one on a guess.
+                    unexpected = $"Relay ended early: {ex.Message}";
                 }
+
+                string? failure = DescribeFailures(toPrinter, toClient) ?? unexpected;
 
                 long sent = counters.Sent;
                 long received = counters.Received;
@@ -312,7 +350,15 @@ public sealed class IppRelay
         "Streams through a pooled fixed-size buffer; job size does not affect memory held.")]
     [Requirement("REQ-PXY-004",
         "The only destination for bytes read here is the opposite stream. Nothing is written to disk, and this project references no file-writing type.")]
-    private async Task PumpAsync(Stream from, Stream to, CancellationTokenSource stopBoth, Action<int> count)
+    [Requirement("REQ-OBS-006",
+        "Read and write are attempted separately, so a failure is attributed to the peer it involved and to the operation that failed, rather than to the direction as a whole.")]
+    private async Task<string?> PumpAsync(
+        Stream from,
+        Stream to,
+        CancellationTokenSource stopBoth,
+        Action<int> count,
+        string readingFrom,
+        string writingTo)
     {
         byte[] buffer = ArrayPool<byte>.Shared.Rent(_options.BufferSize);
 
@@ -320,20 +366,45 @@ public sealed class IppRelay
         {
             while (true)
             {
-                int read = await from
-                    .ReadAsync(buffer.AsMemory(0, _options.BufferSize), stopBoth.Token)
-                    .ConfigureAwait(false);
+                // Read and write are guarded separately on purpose. One
+                // direction touches both peers - this one reads from
+                // readingFrom and writes to writingTo - so knowing only that
+                // "the client-to-printer direction failed" still leaves the two
+                // cases that matter indistinguishable: the client going away
+                // and the printer going away produce the same sentence. The
+                // operation that threw is what identifies the peer.
+                int read;
+
+                try
+                {
+                    read = await from
+                        .ReadAsync(buffer.AsMemory(0, _options.BufferSize), stopBoth.Token)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    return $"while reading from the {readingFrom}: {ex.Message}";
+                }
 
                 if (read == 0)
                 {
                     break;
                 }
 
-                await to.WriteAsync(buffer.AsMemory(0, read), stopBoth.Token).ConfigureAwait(false);
-                await to.FlushAsync(stopBoth.Token).ConfigureAwait(false);
+                try
+                {
+                    await to.WriteAsync(buffer.AsMemory(0, read), stopBoth.Token).ConfigureAwait(false);
+                    await to.FlushAsync(stopBoth.Token).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    return $"while writing to the {writingTo}: {ex.Message}";
+                }
 
                 count(read);
             }
+
+            return null;
         }
         finally
         {
@@ -347,6 +418,46 @@ public sealed class IppRelay
                 await stopBoth.CancelAsync().ConfigureAwait(false);
             }
         }
+    }
+
+    /// <summary>
+    /// Turns what the two directions reported into a single reason, or null if
+    /// neither failed.
+    /// </summary>
+    /// <remarks>
+    /// A direction that was stopped by the other never reports anything: it
+    /// ends cancelled, and its result cannot be read. That is the ordinary
+    /// case, and it is why this asks each direction separately instead of
+    /// taking whichever exception the combined await produced. Both directions
+    /// can fail at once - a printer reset while a client has already gone - and
+    /// when they do, both are reported rather than one being chosen.
+    /// </remarks>
+    private static string? DescribeFailures(Task<string?> toPrinter, Task<string?> toClient)
+    {
+        string? first = Reported(toPrinter);
+        string? second = Reported(toClient);
+
+        if (first is null && second is null)
+        {
+            return null;
+        }
+
+        if (first is null)
+        {
+            return $"Relay ended early {second}";
+        }
+
+        if (second is null)
+        {
+            return $"Relay ended early {first}";
+        }
+
+        return $"Relay ended early {first}; and {second}";
+
+        // Only a direction that ran to completion has a report to give. A
+        // faulted or cancelled one is silent here by design.
+        static string? Reported(Task<string?> direction) =>
+            direction.Status == TaskStatus.RanToCompletion ? direction.Result : null;
     }
 
     /// <summary>
