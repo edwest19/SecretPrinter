@@ -719,6 +719,38 @@ internal static class MdnsSocketTests
             "the datagram must be attributed to the IPv6 entry for the adapter it arrived on");
     }
 
+    [TestCase("Two callers may receive at once without either being refused")]
+    [RequiresNetwork]
+    public static void Concurrent_receivers_are_serialised_not_refused()
+    {
+        // The responder's ServeAsync loop and PrinterResolver read the same
+        // socket, and the relay makes the resolver query while the responder is
+        // blocked in ReceiveAsync. A guard that refused the second caller killed
+        // both - see docs/findings/2026-09-14-shared-receive-loop.md. This test
+        // exists because that regression reached main without one.
+        using MdnsSocket socket = OpenIPv6OrSkip();
+
+        MdnsInterface ipv6 = socket.IPv6Interfaces[0];
+
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        Task<MdnsDatagram> first = socket.ReceiveAsync(deadline.Token);
+        Task<MdnsDatagram> second = socket.ReceiveAsync(deadline.Token);
+
+        // Two datagrams, so neither caller is waiting on the other's.
+        SendLocalIPv6Probe(ipv6.Index);
+        SendLocalIPv6Probe(ipv6.Index);
+
+        // Asserts only that both calls completed. Which caller got which
+        // datagram is deliberately not asserted: two components reading one
+        // socket take each other's traffic, and pinning that down here would
+        // freeze the behaviour the resolver's own socket is meant to remove.
+        Task.WhenAll(first, second).GetAwaiter().GetResult();
+
+        Assert.NotNull(first.Result, "the first caller must receive a datagram");
+        Assert.NotNull(second.Result, "the second caller must not be refused because the first was reading");
+    }
+
     // ---- Cross-family identity ------------------------------------------------
 
     [TestCase("Matches distinguishes two families that share an index")]

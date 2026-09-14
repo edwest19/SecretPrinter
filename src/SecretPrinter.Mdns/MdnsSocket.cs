@@ -22,6 +22,10 @@
 // IPv6 receive path added by Claude (Anthropic model, Claude Opus 5) at the
 // direction of Edwin West, 2026-09-14. Reviewed by a human before merge.
 //
+// Receive serialised rather than refused by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-14, correcting a regression
+// introduced the same day. Reviewed by a human before merge.
+//
 // Purpose:
 //   The service's single point of contact with the network for mDNS. It binds
 //   UDP 5353, joins the multicast group on configured interfaces, receives
@@ -249,12 +253,12 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
 
     // One receive buffer per family, allocated once and reused.
     //
-    // Reuse is safe only because a single caller is in ReceiveAsync at a time:
+    // Reuse is safe only because one caller is inside ReceiveAsync at a time:
     // the payload is copied to a right-sized array the moment a result is taken,
-    // and no new receive starts on that socket until then. Two concurrent
-    // callers would corrupt each other's payloads. That assumption is enforced
-    // by _receiving below rather than left to this comment - this project does
-    // not rely on a comment where a throw will do.
+    // and no new receive starts on that socket until then. Concurrent callers
+    // would corrupt each other's payloads, and would race on the pending slots
+    // below as well. _receiveLock enforces that rather than leaving it to this
+    // comment.
     //
     // Both are allocated whether or not an IPv6 socket exists. Nine kilobytes in
     // the printer-only case buys a receive path with no nullable buffer in it.
@@ -273,8 +277,22 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     // token must not reach ReceiveMessageFromAsync.
     private readonly CancellationTokenSource _receiveLifetime = new();
 
-    // 1 while a caller is inside ReceiveAsync. Guards the shared buffers.
-    private int _receiving;
+    // Serialises ReceiveAsync. There is genuinely more than one caller: the
+    // responder's ServeAsync loop reads continuously, and PrinterResolver reads
+    // the same socket whenever it has to query for the printer - which the relay
+    // triggers on a print job once its cached answer has expired.
+    //
+    // This was a throw until 2026-09-14, on the stated belief that ServeAsync
+    // was the only caller. That belief was wrong and the throw would have killed
+    // the responder and the print job together. See
+    // docs/findings/2026-09-14-shared-receive-loop.md.
+    //
+    // Serialising makes concurrent use safe. It does NOT make it correct: two
+    // callers reading one socket still take each other's datagrams, so a reply
+    // meant for the resolver can be consumed by the responder and discarded.
+    // That behaviour predates the lock and is unchanged by it. The fix is to
+    // give the resolver its own socket, which is a separate piece of work.
+    private readonly SemaphoreSlim _receiveLock = new(1, 1);
 
     // Keyed by family AND index, and by family AND address. The platform reports
     // an index per address family and guarantees no relationship between the
@@ -579,11 +597,16 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     /// assumed. That is what lets the responder answer over the transport the
     /// query came in on.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">
-    /// Another call is already in progress. The receive buffers are shared
-    /// between calls, so a second concurrent caller would corrupt the first
-    /// one's payload. One loop must own this method.
-    /// </exception>
+    /// <remarks>
+    /// Calls are serialised. A second caller waits its turn rather than sharing
+    /// the buffers, and its own cancellation token governs that wait - so a
+    /// caller with a deadline, such as PrinterResolver, still gives up on time.
+    ///
+    /// Waiting does not make the datagram it wanted arrive: whoever holds the
+    /// lock takes the next datagram whether or not it is theirs. Two components
+    /// reading one socket is the underlying problem, recorded in
+    /// docs/findings/2026-09-14-shared-receive-loop.md.
+    /// </remarks>
     [Requirement("REQ-ADV-015",
         "Uses ReceiveMessageFromAsync with IP_PKTINFO to report the true arrival interface of each datagram.")]
     [Requirement("REQ-ADV-018",
@@ -594,13 +617,7 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (Interlocked.CompareExchange(ref _receiving, 1, 0) != 0)
-        {
-            throw new InvalidOperationException(
-                "ReceiveAsync is already in progress on another call. The receive buffers are "
-                + "shared between calls, so concurrent callers would overwrite each other's "
-                + "payloads. MdnsResponder.ServeAsync is the single intended caller.");
-        }
+        await _receiveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -674,7 +691,7 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
         }
         finally
         {
-            Interlocked.Exchange(ref _receiving, 0);
+            _receiveLock.Release();
         }
     }
 
@@ -895,6 +912,7 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
 
         _socket.Dispose();
         _sendLock.Dispose();
+        _receiveLock.Dispose();
         _receiveLifetime.Dispose();
     }
 
