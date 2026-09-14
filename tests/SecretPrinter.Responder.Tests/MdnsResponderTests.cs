@@ -8,6 +8,10 @@
 // Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
 // before merge.
 //
+// Per-transport counting tests added by Claude (Anthropic model, Claude Opus 5)
+// at the direction of Edwin West, 2026-09-14, for REQ-OBS-007. Reviewed by a
+// human before merge.
+//
 // Purpose:
 //   Verifies which queries get answered, which are ignored, what the answers
 //   contain, and how they are addressed.
@@ -412,6 +416,63 @@ internal static class MdnsResponderTests
         Assert.False(
             transport.Sent[1].Parsed.AllRecords.Any(r => r.Type == DnsRecordType.Aaaa),
             "REQ-ADV-021: answering over IPv6 must not publish an AAAA record");
+    }
+
+    // ---- Counting by transport ----------------------------------------------
+
+    // The reason these exist: on FIOS-STB-01 the responder answered 8 of 24 and
+    // then 10 of 41 real queries, and there was no way to tell from that whether
+    // a single one of those answers went out over IPv6. A client discovering the
+    // proxy over IPv4 produces the identical line.
+
+    [TestCase("A query answered over IPv6 is counted against IPv6")]
+    [Requirement("REQ-OBS-007")]
+    public static void IPv6_answers_are_counted_separately()
+    {
+        (MdnsResponder responder, _) = BuildDualStack();
+
+        Handle(responder, Query("_ipp._tcp.local", arrivedOn: ClientNicV6));
+
+        ResponderActivity activity = responder.Activity;
+
+        Assert.Equal(1, activity.QueriesSeenOverIPv6, "the query arrived over IPv6");
+        Assert.Equal(1, activity.QueriesAnsweredOverIPv6, "and the answer left over IPv6");
+        Assert.Equal(0, activity.QueriesSeenOverIPv4, "nothing arrived over IPv4");
+        Assert.Equal(0, activity.QueriesAnsweredOverIPv4, "and nothing left over it either");
+    }
+
+    [TestCase("A query answered over IPv4 is counted against IPv4")]
+    [Requirement("REQ-OBS-007")]
+    public static void IPv4_answers_are_counted_separately()
+    {
+        (MdnsResponder responder, _) = BuildDualStack();
+
+        Handle(responder, Query("_ipp._tcp.local", arrivedOn: ClientNic));
+
+        ResponderActivity activity = responder.Activity;
+
+        Assert.Equal(1, activity.QueriesAnsweredOverIPv4, "an IPv4 query answered over IPv4");
+        Assert.Equal(0, activity.QueriesAnsweredOverIPv6,
+            "an IPv6 companion being configured must not make IPv4 answers look like IPv6 ones");
+        Assert.Equal(1, activity.QueriesAnswered, "and the total is still the total");
+    }
+
+    [TestCase("The summary names both transports, including one that served nothing")]
+    [Requirement("REQ-OBS-007")]
+    public static void Summary_names_both_transports()
+    {
+        (MdnsResponder responder, _) = BuildDualStack();
+
+        Handle(responder, Query("_ipp._tcp.local", arrivedOn: ClientNic));
+        Handle(responder, Query("_airplay._tcp.local", arrivedOn: ClientNic));
+
+        string summary = responder.Activity.DescribeByTransport();
+
+        Assert.True(summary.Contains("IPv4 answered 1 of 2 seen", StringComparison.Ordinal),
+            $"the IPv4 counts must appear as counted; the line said: {summary}");
+        Assert.True(summary.Contains("IPv6 answered 0 of 0 seen", StringComparison.Ordinal),
+            "IPv6 must be named even when it served nothing - otherwise an operator "
+            + $"cannot tell silence from a line that simply omits it; the line said: {summary}");
     }
 
     [TestCase("Announcements and goodbyes stay on IPv4 only")]

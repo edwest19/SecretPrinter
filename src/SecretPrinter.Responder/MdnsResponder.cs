@@ -16,6 +16,10 @@
 // (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-14.
 // Reviewed by a human before merge.
 //
+// Query and answer counts broken down by transport by Claude (Anthropic model,
+// Claude Opus 5) at the direction of Edwin West, 2026-09-14, for REQ-OBS-007.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -79,14 +83,44 @@ public sealed record AdvertisedInterface(
     MdnsInterface? IPv6Interface = null);
 
 /// <summary>What a responder did, for logging and for tests.</summary>
+/// <remarks>
+/// Queries seen and answered are held per transport rather than as totals.
+/// A single pair of totals cannot answer the question the IPv6 work exists to
+/// settle - whether anything was actually served over IPv6 - because a client
+/// that discovers the proxy over IPv4 produces an identical count. The totals
+/// remain available below, computed from the parts, so they cannot drift.
+/// </remarks>
 public sealed record ResponderActivity(
     int AnnouncementsSent,
-    int QueriesSeen,
-    int QueriesAnswered,
+    int QueriesSeenOverIPv4,
+    int QueriesSeenOverIPv6,
+    int QueriesAnsweredOverIPv4,
+    int QueriesAnsweredOverIPv6,
     int IgnoredWrongInterface,
     int IgnoredNotOurs,
     int Unparseable,
-    int GoodbyesSent);
+    int GoodbyesSent)
+{
+    /// <summary>Queries seen over either transport.</summary>
+    public int QueriesSeen => QueriesSeenOverIPv4 + QueriesSeenOverIPv6;
+
+    /// <summary>Queries answered over either transport.</summary>
+    public int QueriesAnswered => QueriesAnsweredOverIPv4 + QueriesAnsweredOverIPv6;
+
+    /// <summary>
+    /// One line naming both transports and their counts, for the operator.
+    /// </summary>
+    /// <remarks>
+    /// Both transports are always named, including when a count is zero. A line
+    /// that mentioned IPv6 only when it had been used would leave silence and
+    /// absence looking the same, which is the ambiguity this exists to remove.
+    /// </remarks>
+    [Requirement("REQ-OBS-007",
+        "Reports queries seen and answered for each transport by name, including zeroes, so IPv6 having served nothing is distinguishable from IPv6 not being reported.")]
+    public string DescribeByTransport() =>
+        $"By transport: IPv4 answered {QueriesAnsweredOverIPv4} of {QueriesSeenOverIPv4} seen; "
+        + $"IPv6 answered {QueriesAnsweredOverIPv6} of {QueriesSeenOverIPv6} seen.";
+}
 
 /// <summary>Answers mDNS queries for the names the proxy advertises, and nothing else.</summary>
 public sealed class MdnsResponder
@@ -128,8 +162,10 @@ public sealed class MdnsResponder
     private readonly Dictionary<(AddressFamily Family, int Index), AnsweringInterface> _answering;
 
     private int _announcements;
-    private int _queriesSeen;
-    private int _queriesAnswered;
+    private int _queriesSeenOverIPv4;
+    private int _queriesSeenOverIPv6;
+    private int _queriesAnsweredOverIPv4;
+    private int _queriesAnsweredOverIPv6;
     private int _ignoredWrongInterface;
     private int _ignoredNotOurs;
     private int _unparseable;
@@ -253,7 +289,9 @@ public sealed class MdnsResponder
     }
 
     public ResponderActivity Activity => new(
-        _announcements, _queriesSeen, _queriesAnswered,
+        _announcements,
+        _queriesSeenOverIPv4, _queriesSeenOverIPv6,
+        _queriesAnsweredOverIPv4, _queriesAnsweredOverIPv6,
         _ignoredWrongInterface, _ignoredNotOurs, _unparseable, _goodbyes);
 
     /// <summary>
@@ -313,6 +351,8 @@ public sealed class MdnsResponder
         "Answers over the transport the query arrived on: the advertisement is looked up by the arrival interface's address family as well as its index, and the answer is sent through the entry for that family. The receiving half of this requirement is MdnsSocket.ReceiveAsync.")]
     [Requirement("REQ-SEC-002",
         "Answers are drawn only from the advertisement, which contains printing service types alone. A service seen on the printer network cannot become answerable on the client network, because seeing it changes nothing about what this responder holds.")]
+    [Requirement("REQ-OBS-007",
+        "Counts a query against the transport it arrived on and an answer against the transport it left on, so the two can be compared rather than one being inferred from the other.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
@@ -345,7 +385,20 @@ public sealed class MdnsResponder
             return false;
         }
 
-        _queriesSeen++;
+        // Counted against the transport the query ARRIVED on. The answer is
+        // counted separately, against the transport it LEFT on, further down.
+        // Those are two different claims: one says IPv6 receive is working, the
+        // other says an IPv6 answer actually went out. Deriving either from the
+        // other would make the pair unable to disagree, and disagreeing is
+        // exactly what they would need to do if the family keying were wrong.
+        if (arrivedOn.IsIPv6)
+        {
+            _queriesSeenOverIPv6++;
+        }
+        else
+        {
+            _queriesSeenOverIPv4++;
+        }
 
         bool legacyUnicast = datagram.IsLegacyUnicastQuerier;
         var builder = new DnsResponseBuilder(legacyUnicast ? query.Id : (ushort)0);
@@ -403,7 +456,15 @@ public sealed class MdnsResponder
                 .ConfigureAwait(false);
         }
 
-        _queriesAnswered++;
+        if (entry.Via.IsIPv6)
+        {
+            _queriesAnsweredOverIPv6++;
+        }
+        else
+        {
+            _queriesAnsweredOverIPv4++;
+        }
+
         return true;
     }
 

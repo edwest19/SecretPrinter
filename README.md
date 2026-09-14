@@ -264,6 +264,7 @@ How print jobs are moved.
 | REQ-OBS-004 | MUST NOT | Logs contain print job content, at any log level. |
 | REQ-OBS-005 | SHOULD | Logs note that observed mDNS traffic may contain device names, so operators handle captures accordingly. |
 | REQ-OBS-006 | MUST | When a relayed connection fails, the logged reason names which peer the failure came from and whether it happened while reading or writing — and carries nothing derived from job content. |
+| REQ-OBS-007 | MUST | The shutdown summary reports queries seen and answered for each transport separately, naming both even when a count is zero, so an operator can tell whether anything was served over IPv6. |
 
 ## 10. Requirements: build and distribution (DIST)
 

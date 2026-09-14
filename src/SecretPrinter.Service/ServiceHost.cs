@@ -8,6 +8,10 @@
 // Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
 // before merge.
 //
+// Per-transport line added to the shutdown summary by Claude (Anthropic model,
+// Claude Opus 5) at the direction of Edwin West, 2026-09-14, for REQ-OBS-007.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -218,6 +222,7 @@ public sealed class ServiceHost
             ResponderActivity activity = responder.Activity;
             _log.Info($"Served {activity.QueriesAnswered} quer(ies) of {activity.QueriesSeen} seen; "
                       + $"{activity.IgnoredNotOurs} were for other services and were ignored.");
+            _log.Info(activity.DescribeByTransport());
             _log.Info("SecretPrinter stopped.");
         }
     }
