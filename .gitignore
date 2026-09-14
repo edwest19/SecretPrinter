@@ -3,6 +3,9 @@
 # Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 # Edwin West, for the SecretPrinter project.
 #
+# Session handoffs added by Claude (Anthropic model, Claude Opus 5) at the
+# direction of Edwin West, 2026-09-14.
+#
 # Kept short on purpose. A sprawling ignore file copied from a template makes it
 # hard to notice when something that SHOULD be committed is being silently
 # excluded. Every rule below is here because this repository actually produces
@@ -78,3 +81,22 @@ local.settings.json
 # deliberately, after review, rather than by accident.
 captures/
 *.mdns-capture.txt
+
+# ---- Session handoffs -------------------------------------------------------
+# Working notes written at the end of one session and read at the start of the
+# next. They are kept outside the repository for two reasons.
+#
+# They describe the operator's own network - machine names, both subnets, the
+# printer's address, and hardware identifiers including MAC addresses. That is
+# the same category of detail the pre-publication audit redacted from test data
+# (docs/findings/2026-09-04-pre-publication-audit.md), and it does not become
+# safe to publish by arriving in a different file.
+#
+# And they are deliberately speculative: they carry hypotheses, half-tested
+# theories, and next steps that may not survive contact with the next
+# measurement. docs/findings/ is curated and is meant to be trustworthy on
+# sight. Mixing the two would cost the findings that property.
+#
+# Anything in a handoff that turns out to matter belongs in a finding or in the
+# README, where it is subject to the same standards as everything else here.
+secretprinter-handoff-*.md
