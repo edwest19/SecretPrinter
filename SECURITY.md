@@ -77,10 +77,15 @@ demands of people doing it a favour.
 - Your router's multicast handling. Consumer ISP gateways commonly filter
   multicast between wireless clients and the wired LAN; nothing in this software
   can change that, and it is recorded in `docs/findings/`.
-- IPP is plaintext. SecretPrinter advertises `_ipp._tcp` without TLS, deliberately
-  and as documented, so a job crossing the network is readable by anything on the
-  path. That is a stated property, not a vulnerability report. Whether to
-  implement IPPS is an open question in `README.md` Section 14.
+- IPP is plaintext on the client side. SecretPrinter advertises `_ipp._tcp`
+  without TLS, deliberately and as documented, so a job crossing the client
+  network is readable by anything on that path. Toward the printer the
+  connection is TLS with the certificate pinned by fingerprint, because the
+  printer refuses jobs any other way. Both halves of that are stated properties,
+  not vulnerability reports; they are the fourth disclosure in `README.md` and
+  the resolution of open question 8 there. A report that the pinned check can be
+  bypassed, or that a job reaches the printer unencrypted, is in scope and
+  wanted.
 - Running the service on a network you do not control, or exposing it to the
   internet. It is designed for two home networks and nothing else.
 

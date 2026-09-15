@@ -32,7 +32,7 @@ correction.
 
 ## Read this before installing
 
-Three things about this software that you should know before it runs on your
+Four things about this software that you should know before it runs on your
 machine. They are here, at the top, because burying them would defeat the
 purpose of the project.
 
@@ -56,6 +56,18 @@ The service does not copy the printer's advertisement wholesale. It publishes a
 narrower one describing what the proxy will actually deliver. Capabilities the
 proxy does not relay — scanning, faxing — are not advertised, even though the
 printer supports them.
+
+**4. Your job is encrypted on one side and not the other.**
+Between your phone and this service, the job travels as plain IPP over TCP, the
+same way it would to many printers on a home network. Between this service and
+the printer it is TLS, because this printer refuses to accept a job any other
+way. So the document is readable by anything that can see traffic on the client
+network, and the proxy is the point where it becomes encrypted. That is a
+deliberate choice for a home LAN rather than an oversight, and it is stated here
+so that anyone for whom it is not acceptable finds out before installing rather
+than after. The certificate the proxy will accept is pinned by fingerprint in
+configuration and checked on every connection; see
+[Section 8](#8-requirements-security-and-trust-sec).
 
 ---
 
@@ -148,7 +160,7 @@ networks, not only printers.
   │          │  4. IPP job    │  (mDNS)      │ <─────────────│          │
   │          │ ──────────────>│              │               │          │
   │          │                │  Relay       │  5. IPP job   │          │
-  │          │                │  (TCP)       │ ─────────────>│          │
+  │          │                │  (TCP)       │ ═══TLS═══════>│          │
   └──────────┘                └──────────────┘               └──────────┘
 ```
 
@@ -157,7 +169,15 @@ networks, not only printers.
 3. On receiving a connection, SecretPrinter resolves the real printer's current
    address by mDNS on the printer network.
 4. The phone sends the IPP job to SecretPrinter.
-5. SecretPrinter opens a TCP connection to the printer and relays the job.
+5. SecretPrinter opens a TLS connection to the printer and relays the job.
+
+Step 4 is plaintext and step 5 is encrypted. That is not a preference; the
+ET-3760 answers `Get-Printer-Attributes` over plain IPP but refuses
+`Validate-Job` with `426 Upgrade Required`, so a job cannot be submitted without
+TLS. The printer advertises `_ipps._tcp` on the same port 631 and accepts TLS
+from the first byte, which is why the relay needs no HTTP upgrade handshake and
+still parses nothing it carries. Measured on 2026-09-15; see
+[findings](docs/findings/2026-09-15-printer-requires-tls-for-job-operations.md).
 
 Address resolution happens at connection time, not at startup, because printers
 receive their addresses by DHCP and those addresses change. During development
@@ -220,6 +240,9 @@ How print jobs are moved.
 | REQ-PXY-007 | MUST | Connections that cannot be established to the printer are refused promptly, with a logged reason, rather than left hanging. |
 | REQ-PXY-008 | MUST | Concurrent relayed connections are supported; one client must not block another. |
 | REQ-PXY-009 | MUST | Log entries about a relayed connection record endpoints, byte counts, and timing — never job content. |
+| REQ-PXY-010 | MUST | The connection to the printer is TLS from its first byte. No part of a print job is sent to the printer over an unencrypted connection. |
+| REQ-PXY-011 | MUST NOT | The service parses, interprets, or emits HTTP in order to establish that TLS connection. It does not use the in-band `Upgrade: TLS/1.0` mechanism, so nothing in the relay reads the traffic it carries. |
+| REQ-PXY-012 | MUST | A failed TLS handshake or a failed certificate check ends the relayed connection with a logged reason, before any job byte reaches the printer. There is no unencrypted fallback. |
 
 ## 7. Requirements: configuration (CFG)
 
@@ -231,6 +254,7 @@ How print jobs are moved.
 | REQ-CFG-004 | MUST | Interface names given in configuration are resolved to addresses at startup, and the resolution is logged. |
 | REQ-CFG-005 | MUST NOT | The service starts in a partially working state. Either every configured interface is usable, or startup fails. |
 | REQ-CFG-006 | MUST | The service refuses to start if a client interface and the printer interface resolve to the same interface. |
+| REQ-CFG-007 | MUST | The printer's expected certificate fingerprint is explicit configuration. The service refuses to start without it, and names the setting when it refuses. |
 
 ## 8. Requirements: security and trust (SEC)
 
@@ -248,6 +272,9 @@ How print jobs are moved.
 | REQ-SEC-010 | MUST | The documentation states, prominently, that print job data passes through the proxy host. |
 | REQ-SEC-011 | MUST NOT | The service acts as a general-purpose proxy, router, or NAT for any traffic. |
 | REQ-SEC-012 | MUST | Relayed connections are accepted only from the configured client networks; connections from elsewhere are refused and logged. |
+| REQ-SEC-013 | MUST | The printer's certificate is compared against the configured fingerprint on every connection, and the connection is abandoned if it does not match. The certificate is self-signed, so no chain and no hostname check can stand in for this. |
+| REQ-SEC-014 | MUST NOT | Any configuration setting, command-line flag, build switch, or environment variable disables or weakens that comparison. There is no permissive mode. |
+| REQ-SEC-015 | MUST | The documentation states, prominently, that print jobs travel unencrypted on the client network and are encrypted only between the proxy and the printer. |
 
 ## 9. Requirements: lifecycle and observability (LIF, OBS)
 
@@ -265,6 +292,7 @@ How print jobs are moved.
 | REQ-OBS-005 | SHOULD | Logs note that observed mDNS traffic may contain device names, so operators handle captures accordingly. |
 | REQ-OBS-006 | MUST | When a relayed connection fails, the logged reason names which peer the failure came from and whether it happened while reading or writing — and carries nothing derived from job content. |
 | REQ-OBS-007 | MUST | The shutdown summary reports queries seen and answered for each transport separately, naming both even when a count is zero, so an operator can tell whether anything was served over IPv6. |
+| REQ-OBS-008 | MUST | Startup logs record the fingerprint the service will require of the printer, and each relayed connection logs the TLS protocol negotiated with it, so an operator can confirm from logs alone that the job went encrypted and to which device. |
 
 ## 10. Requirements: build and distribution (DIST)
 
@@ -587,7 +615,7 @@ Recorded here rather than resolved silently.
 | 5 | **What privileges does the service actually need?** | Resolved: none beyond standard user. Measured on 2026-09-04 by running unelevated and confirming every bind, join and relay succeeded. Running under `LocalService` remains unmeasured. See [findings](docs/findings/2026-09-04-service-runs-unelevated.md). |
 | 6 | **How should the service register with Windows?** | Resolved: `System.ServiceProcess.ServiceController` is referenced for `ServiceBase`, documented under [Dependencies](#dependencies) as REQ-SEC-009 requires. Run with `--service` to register with the control manager, or without it as a console application. |
 | 7 | **Will iOS accept an `A` record delivered over IPv6 mDNS transport, and then connect over IPv4?** | Resolved: yes. An iPhone accepted an `A` record and an `NSEC` denying `AAAA`, both delivered over `ff02::fb`, and sent IPv4 SYNs to port 631 seventy milliseconds later. IPv6 is therefore mostly a transport addition to `SecretPrinter.Mdns`. Resolution and relay are unaffected; advertisement content is not, because REQ-ADV-021 forbids publishing an `AAAA` record and REQ-ADV-022 requires the `NSEC` record that denies one. Specified as REQ-ADV-018 to REQ-ADV-022. See [findings](docs/findings/2026-09-06-ipv6-mdns-transport.md). |
-| 8 | **Should the proxy originate TLS toward the printer?** Open question 1 establishes that this printer will not accept a job without it, so printing depends on the answer. | Open, and deliberately not decided alongside the measurement that raised it. Whatever is chosen has to be stated rather than arranged quietly: a proxy accepting plaintext from the client and encrypting only toward the printer leaves job data in the clear on the client network, which the README would have to disclose as plainly as it discloses that the data passes through this machine. Also unsettled: whether the client side should be offered TLS too, and what REQ-ADV-006's "the proxy does not terminate TLS" becomes. See [findings](docs/findings/2026-09-15-printer-requires-tls-for-job-operations.md). |
+| 8 | **Should the proxy originate TLS toward the printer?** Open question 1 establishes that this printer will not accept a job without it, so printing depends on the answer. | Resolved 2026-09-15: yes, and by implicit TLS on port 631, where the printer advertises `_ipps._tcp` and accepts a handshake from the first byte. The client side stays plaintext, which is a considered choice for a home LAN and is disclosed as the fourth item under [Read this before installing](#read-this-before-installing). The certificate is self-signed — subject and issuer both `CN=EPSON3EA18A` — so it is pinned by fingerprint in configuration and checked on every connection, with no permissive mode. Trust-on-first-use was rejected because remembering a certificate means writing state to disk, and several tests enforce that this project references no file-writing type. Specified as REQ-PXY-010 to REQ-PXY-012, REQ-CFG-007, REQ-SEC-013 to REQ-SEC-015 and REQ-OBS-008. See [findings](docs/findings/2026-09-15-printer-requires-tls-for-job-operations.md). |
 
 ## 15. License
 

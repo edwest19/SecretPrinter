@@ -113,3 +113,50 @@ this measurement: a proxy that accepts plaintext from the client and encrypts
 only toward the printer leaves job data in the clear on the client network, and
 the README would have to say so as plainly as it says the data passes through
 this machine at all.
+
+## Follow-up measurements, same evening
+
+Two further measurements were taken to answer how TLS would have to be spoken,
+before any decision about whether to speak it. Both are recorded here because
+the pin that ends up in configuration should have a traceable origin rather than
+appearing in a settings file from nowhere.
+
+**The printer advertises `_ipps._tcp`.** `SecretPrinter.Probe`, run on
+`192.168.12.186`, found `EPSON ET-3760 Series._ipps._tcp.local` with an SRV
+record naming host `EPSON3EA18A.local` and port **631** — the same port as
+`_ipp._tcp`. Its TXT record was not returned. The same probe also shows the
+printer advertising `_pdl-datastream._tcp` on port 9100 and `_printer._tcp` on
+port 515, both raw and both unencrypted: this printer demands TLS for IPP job
+operations while accepting plaintext jobs on two other ports. That is a fact
+about the device, not an argument for or against anything.
+
+**Implicit TLS on 631 works.** A one-line PowerShell diagnostic opened a TCP
+connection to `192.168.12.180:631` and called `AuthenticateAsClient`. The
+handshake succeeded:
+
+```
+Tls12
+Subject     O=SEIKO EPSON CORP., CN=EPSON3EA18A
+Issuer      O=SEIKO EPSON CORP., CN=EPSON3EA18A
+Thumbprint  201B4A53AF65255258D0FE5AC8115E2073A16675
+Validity    2009-12-31 19:00 to 2037-12-31 19:00 (local time as reported)
+```
+
+So the printer accepts TLS from the first byte and no in-band
+`Upgrade: TLS/1.0` handshake is required. That matters beyond convenience: it
+means a relay can wrap its upstream stream and go on copying opaque bytes, where
+the in-band mechanism would have required the relay to speak HTTP and would have
+collided with REQ-PXY-003.
+
+Two properties of that certificate constrain what verification is possible.
+Subject equals issuer, so it is self-signed and no chain will ever validate.
+The common name is `EPSON3EA18A`, without the `.local` suffix, and the relay
+connects by address rather than by name, so hostname verification does not apply
+either. Both standard checks are unavailable, which is why a policy had to be
+chosen deliberately.
+
+The diagnostic accepted the certificate unconditionally, which is appropriate
+for a tool whose only purpose is to discover what the printer presents, and is
+not what the product does. What the product does is recorded as the resolution
+of open question 8 in the README, which was decided after these measurements,
+not alongside them.
