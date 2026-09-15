@@ -12,6 +12,10 @@
 // Claude Opus 5) at the direction of Edwin West, 2026-09-14, for REQ-OBS-007.
 // Reviewed by a human before merge.
 //
+// Byte counts and duration added to the failed-job log line by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-14,
+// for REQ-PXY-009. Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -303,8 +307,15 @@ internal sealed class RelayLogger(IServiceLog log) : IRelayObserver
                  + $"{bytesToPrinter} bytes sent, {bytesToClient} received, "
                  + $"{duration.TotalSeconds:0.##}s.");
 
-    public void RelayFailed(EndPoint? client, string reason) =>
-        log.Error($"Job: failed for {Describe(client)}: {reason}");
+    // The counts are printed on every failure, including those that happen
+    // before a connection exists and therefore read as zero. A uniform line is
+    // easier to read across a run than one that sometimes carries numbers: the
+    // reason says what went wrong, and the numbers always say how far it got.
+    public void RelayFailed(
+        EndPoint? client, string reason, long bytesToPrinter, long bytesToClient, TimeSpan duration) =>
+        log.Error($"Job: failed for {Describe(client)}: {reason} "
+                  + $"({bytesToPrinter} bytes sent, {bytesToClient} received, "
+                  + $"{duration.TotalSeconds:0.##}s)");
 
     private static string Describe(EndPoint? endpoint) => endpoint?.ToString() ?? "(unknown)";
 }

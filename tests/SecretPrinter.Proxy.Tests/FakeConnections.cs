@@ -8,6 +8,10 @@
 // Opus 5) at the direction of Edwin West, 2026-09-14, for REQ-OBS-006.
 // Reviewed by a human before merge.
 //
+// Recording of the counts and duration a failure reports added by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-14,
+// for REQ-PXY-009. Reviewed by a human before merge.
+//
 // Purpose:
 //   In-memory stand-ins for TCP, so the relay's behaviour can be asserted
 //   exactly and deterministically: bytes in equal bytes out, closing one side
@@ -238,6 +242,18 @@ internal sealed class RecordingObserver : IRelayObserver
 
     public long LastToClient { get; private set; }
 
+    /// <summary>What the last reported failure said it had carried.</summary>
+    /// <remarks>
+    /// Held separately from the completed counts rather than shared with them,
+    /// so a test asserting on a failure cannot accidentally be reading a number
+    /// a completion left behind.
+    /// </remarks>
+    public long FailedToPrinter { get; private set; }
+
+    public long FailedToClient { get; private set; }
+
+    public TimeSpan FailedDuration { get; private set; }
+
     public void ConnectionAccepted(EndPoint? client) => Events.Add($"accepted {client}");
 
     public void ConnectionRefused(EndPoint? client, string reason) => Events.Add($"refused {client}: {reason}");
@@ -252,5 +268,12 @@ internal sealed class RecordingObserver : IRelayObserver
         Events.Add($"completed {client} -> {printer} up={bytesToPrinter} down={bytesToClient}");
     }
 
-    public void RelayFailed(EndPoint? client, string reason) => Events.Add($"failed {client}: {reason}");
+    public void RelayFailed(
+        EndPoint? client, string reason, long bytesToPrinter, long bytesToClient, TimeSpan duration)
+    {
+        FailedToPrinter = bytesToPrinter;
+        FailedToClient = bytesToClient;
+        FailedDuration = duration;
+        Events.Add($"failed {client}: {reason} up={bytesToPrinter} down={bytesToClient}");
+    }
 }

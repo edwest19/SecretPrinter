@@ -8,6 +8,10 @@
 // (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-14,
 // for REQ-OBS-006. Reviewed by a human before merge.
 //
+// Byte counts and duration added to the failure report by Claude (Anthropic
+// model, Claude Opus 5) at the direction of Edwin West, 2026-09-14, for
+// REQ-PXY-009. Reviewed by a human before merge.
+//
 // Purpose:
 //   Moves print job bytes between a client and the printer, and does nothing
 //   else with them.
@@ -31,6 +35,12 @@
 //       happened while reading or writing (REQ-OBS-006). That reason is built
 //       from two fixed labels and the exception's own message. Nothing in it is
 //       derived from the bytes in flight.
+//     - A failed relay also reports how many bytes it carried and how long it
+//       lasted, exactly as a completed one does (REQ-PXY-009). A connection
+//       that opened and moved nothing, and a connection that carried a whole
+//       job the printer then cut off, are different events; a count is what
+//       tells them apart. Counts are magnitudes, not content: they say how
+//       much, never what.
 //     - The payload is streamed through a pooled fixed-size buffer, so a large
 //       job does not become a large allocation (REQ-PXY-005).
 //
@@ -69,7 +79,33 @@ public interface IRelayObserver
     void RelayCompleted(
         EndPoint? client, IPEndPoint printer, long bytesToPrinter, long bytesToClient, TimeSpan duration);
 
-    void RelayFailed(EndPoint? client, string reason);
+    /// <summary>Reports a relayed connection that ended without completing.</summary>
+    /// <remarks>
+    /// Carries the same counts and duration as <see cref="RelayCompleted"/>.
+    /// REQ-PXY-009 is about relayed connections, and one that failed is still
+    /// one that was relayed: it may have carried a whole document before the
+    /// printer cut it off, or nothing at all, and those are not the same event.
+    /// <para>
+    /// A failure that happens before any byte could move - a refused accept, a
+    /// printer that cannot be located, a printer that cannot be reached -
+    /// reports zero counts. That is a measurement and not a placeholder:
+    /// nothing was carried, and zero is what was carried. The duration is how
+    /// long the attempt took, which for an unreachable printer is the connect
+    /// timeout. The one exception is a failed accept, where there was no
+    /// connection to time and the duration is <see cref="TimeSpan.Zero"/>;
+    /// that zero is the absence of a measurement rather than one, and is the
+    /// reason this remark exists.
+    /// </para>
+    /// <para>
+    /// The counts are two <see langword="long"/>s and a
+    /// <see cref="TimeSpan"/> rather than an object holding them, so that the
+    /// test behind REQ-OBS-004 - which reads this interface's parameter types -
+    /// keeps seeing every type an implementation is handed. A record passed
+    /// here would hide its properties from that scan.
+    /// </para>
+    /// </remarks>
+    void RelayFailed(
+        EndPoint? client, string reason, long bytesToPrinter, long bytesToClient, TimeSpan duration);
 }
 
 /// <summary>How a single relayed connection ended.</summary>
@@ -181,7 +217,12 @@ public sealed class IppRelay
             catch (SocketException ex)
             {
                 // A failed accept is not a reason to stop accepting.
-                _observer.RelayFailed(null, $"Accept failed: {ex.SocketErrorCode}");
+                //
+                // Zero counts and zero duration: no connection was accepted,
+                // so nothing was carried and nothing was timed. See the remark
+                // on IRelayObserver.RelayFailed - this is the one call site
+                // where the duration is an absence rather than a measurement.
+                _observer.RelayFailed(null, $"Accept failed: {ex.SocketErrorCode}", 0, 0, TimeSpan.Zero);
                 continue;
             }
 
@@ -207,7 +248,8 @@ public sealed class IppRelay
     [Requirement("REQ-SEC-012",
         "A client whose address is outside the permitted networks is refused and reported before any connection to the printer is opened.")]
     [Requirement("REQ-PXY-009",
-        "Reports endpoints, byte counts and elapsed time to the observer, and has no means of reporting content.")]
+        "Reports endpoints, byte counts and elapsed time to the observer whether the connection completed or failed, "
+        + "and has no means of reporting content.")]
     [Requirement("REQ-OBS-006",
         "Builds the failure reason from the failing direction's own account of what it was doing, rather than from whichever exception happened to surface when both directions were awaited.")]
     [Requirement("REQ-SEC-011",
@@ -234,9 +276,14 @@ public sealed class IppRelay
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // Read once and used twice. Two reads of a running stopwatch
+                // are two different numbers, and the observer and the caller
+                // are describing the same attempt.
+                TimeSpan elapsed = stopwatch.Elapsed;
                 string reason = $"Could not locate the printer: {ex.Message}";
-                _observer.RelayFailed(client.RemoteEndPoint, reason);
-                return new RelayOutcome(false, 0, 0, stopwatch.Elapsed, reason);
+
+                _observer.RelayFailed(client.RemoteEndPoint, reason, 0, 0, elapsed);
+                return new RelayOutcome(false, 0, 0, elapsed, reason);
             }
 
             IDuplexConnection upstream;
@@ -248,9 +295,11 @@ public sealed class IppRelay
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                TimeSpan elapsed = stopwatch.Elapsed;
                 string reason = $"Could not connect to the printer at {printer}: {ex.Message}";
-                _observer.RelayFailed(client.RemoteEndPoint, reason);
-                return new RelayOutcome(false, 0, 0, stopwatch.Elapsed, reason);
+
+                _observer.RelayFailed(client.RemoteEndPoint, reason, 0, 0, elapsed);
+                return new RelayOutcome(false, 0, 0, elapsed, reason);
             }
 
             await using (upstream.ConfigureAwait(false))
@@ -327,7 +376,12 @@ public sealed class IppRelay
                     return new RelayOutcome(true, sent, received, stopwatch.Elapsed, null);
                 }
 
-                _observer.RelayFailed(client.RemoteEndPoint, failure);
+                // The same three numbers the outcome carries, from the same
+                // variables. A reader comparing the log with a caller's
+                // RelayOutcome is looking at one measurement, not two.
+                _observer.RelayFailed(
+                    client.RemoteEndPoint, failure, sent, received, stopwatch.Elapsed);
+
                 return new RelayOutcome(false, sent, received, stopwatch.Elapsed, failure);
             }
         }

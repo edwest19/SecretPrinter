@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// Tests for the counts and duration reported on a failed relay added by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-14,
+// for REQ-PXY-009. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the print path: that bytes arrive unchanged, that both sides close
 //   together, that failures are prompt and reported, and - the two claims the
@@ -245,6 +249,77 @@ internal static class IppRelayTests
             "bytes sent must be counted even though that direction ended first");
         Assert.Equal(reply.Length, (int)harness.Observer.LastToClient,
             "and bytes received must survive that direction being stopped");
+    }
+
+    [TestCase("A failed job reports what it carried before it failed")]
+    [Requirement("REQ-PXY-009")]
+    public static void Counts_are_reported_when_the_relay_fails()
+    {
+        // Why this test exists: against the real ET-3760, twenty-two connections
+        // ended with "Relay ended early while reading from the printer" and the
+        // log could not say whether any of them had carried a byte. A printer
+        // reaping idle connections and a printer rejecting a job in progress
+        // look identical without a count, and they are not the same fault.
+        Harness harness = Build();
+
+        byte[] accepted = Encoding.UTF8.GetBytes("POST /ipp/print HTTP/1.1\r\n\r\njob bytes");
+        byte[] refused = Encoding.UTF8.GetBytes("more of the same job");
+
+        RelayOutcome outcome = Run(harness, () =>
+        {
+            harness.ClientSide.Write(accepted, 0, accepted.Length);
+
+            // Waits until the relay has actually delivered those bytes, which
+            // makes the ordering below a fact rather than a sleep. The relay
+            // counts each read immediately after the write that carried it, so
+            // by the time the next write is attempted the count is in.
+            //
+            // Bounded rather than a plain blocking read: if a regression stops
+            // the bytes arriving, this must fail the test rather than hang it.
+            byte[] arrived = new byte[accepted.Length];
+            Task delivery = Task.Run(() => harness.PrinterSide.ReadExactly(arrived));
+
+            if (!delivery.Wait(Patience))
+            {
+                throw new AssertionException(
+                    "the relay never delivered the first bytes to the printer, so there is nothing to count");
+            }
+
+            // Now the printer stops accepting, mid-job.
+            harness.ToPrinter.FailWriteWith = PeerReset();
+            harness.ClientSide.Write(refused, 0, refused.Length);
+        });
+
+        Assert.False(outcome.Succeeded, "a printer that stops accepting bytes is a failed job");
+        Assert.Equal(accepted.Length, (int)harness.Observer.FailedToPrinter,
+            "the failure must report the bytes that did reach the printer, not zero");
+        Assert.Equal(0, (int)harness.Observer.FailedToClient,
+            "and nothing came back, which is itself worth reporting");
+        Assert.True(harness.Observer.FailedDuration > TimeSpan.Zero,
+            "a relay that moved bytes took measurable time, and the failure must say how long");
+        Assert.Equal(outcome.BytesToPrinter, harness.Observer.FailedToPrinter,
+            "the observer and the caller must be given the same count, not two counts");
+    }
+
+    [TestCase("A failure before any bytes move reports zero, not nothing")]
+    [Requirement("REQ-PXY-009")]
+    public static void Failure_before_any_bytes_reports_zero_counts()
+    {
+        // The counterpart to the test above, and the reason zero is worth
+        // reporting: a connection that never carried anything is distinguishable
+        // from one that carried a job only if both report a number.
+        Harness harness = Build();
+        harness.Factory.FailWith = new System.Net.Sockets.SocketException(10061); // refused
+
+        RelayOutcome outcome = harness.Relay
+            .RelayOneAsync(harness.Client, CancellationToken.None).GetAwaiter().GetResult();
+
+        Assert.False(outcome.Succeeded, "no printer, no job");
+        Assert.Equal(0, (int)harness.Observer.FailedToPrinter,
+            "nothing could have reached a printer that was never connected to");
+        Assert.Equal(0, (int)harness.Observer.FailedToClient, "and nothing could have come back");
+        Assert.Equal(outcome.Duration, harness.Observer.FailedDuration,
+            "the duration reported must be the one measurement of the attempt, not a second reading of the clock");
     }
 
     // ---- Structural claims --------------------------------------------------
