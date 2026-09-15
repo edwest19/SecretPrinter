@@ -254,7 +254,7 @@ How print jobs are moved.
 | REQ-CFG-004 | MUST | Interface names given in configuration are resolved to addresses at startup, and the resolution is logged. |
 | REQ-CFG-005 | MUST NOT | The service starts in a partially working state. Either every configured interface is usable, or startup fails. |
 | REQ-CFG-006 | MUST | The service refuses to start if a client interface and the printer interface resolve to the same interface. |
-| REQ-CFG-007 | MUST | The printer's expected certificate fingerprint is explicit configuration. The service refuses to start without it, and names the setting when it refuses. |
+| REQ-CFG-007 | MUST | The printer's expected certificate fingerprint is explicit configuration: the SHA-256 hash of the DER-encoded certificate, written as exactly 64 hexadecimal digits in either case, with no separators and no whitespace. The service refuses to start without it or with a value in any other form, and names the setting when it refuses. |
 
 ## 8. Requirements: security and trust (SEC)
 
@@ -272,7 +272,7 @@ How print jobs are moved.
 | REQ-SEC-010 | MUST | The documentation states, prominently, that print job data passes through the proxy host. |
 | REQ-SEC-011 | MUST NOT | The service acts as a general-purpose proxy, router, or NAT for any traffic. |
 | REQ-SEC-012 | MUST | Relayed connections are accepted only from the configured client networks; connections from elsewhere are refused and logged. |
-| REQ-SEC-013 | MUST | The printer's certificate is compared against the configured fingerprint on every connection, and the connection is abandoned if it does not match. The certificate is self-signed, so no chain and no hostname check can stand in for this. |
+| REQ-SEC-013 | MUST | The printer's certificate is compared against the configured SHA-256 fingerprint on every connection, and the connection is abandoned if it does not match. No other hash algorithm is accepted in its place. The certificate is self-signed, so no chain and no hostname check can stand in for this. |
 | REQ-SEC-014 | MUST NOT | Any configuration setting, command-line flag, build switch, or environment variable disables or weakens that comparison. There is no permissive mode. |
 | REQ-SEC-015 | MUST | The documentation states, prominently, that print jobs travel unencrypted on the client network and are encrypted only between the proxy and the printer. |
 
