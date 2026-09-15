@@ -4,6 +4,12 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// PrinterCertificateSha256 added by Claude (Anthropic model, Claude Opus 5) at
+// the direction of Edwin West, 2026-09-15, for REQ-CFG-007. Its line in
+// Describe() is the startup half of REQ-OBS-008 and deliberately carries no
+// marker: the per-connection half does not exist yet, and a marker is placed
+// only when a whole requirement is met. Reviewed by a human before merge.
+//
 // Purpose:
 //   The service's settings, after loading and validation. A value of this type
 //   is a promise that every interface named has been resolved to a real adapter,
@@ -12,8 +18,9 @@
 //
 // The rule this file exists to enforce:
 //   No default may change what is advertised or where traffic is sent
-//   (REQ-CFG-001). Interfaces, the printer's identity, the advertised identity,
-//   the UUID and the port are all required. There is no "sensible default" for
+//   (REQ-CFG-001). Interfaces, the printer's identity, the printer's
+//   certificate fingerprint, the advertised identity, the UUID and the port are
+//   all required. There is no "sensible default" for
 //   any of them, because a sensible default is exactly how a service ends up
 //   advertising something the operator did not intend on a network they did not
 //   expect.
@@ -79,6 +86,7 @@ public sealed class ServiceConfiguration
         IReadOnlyList<MdnsInterface> clientInterfaces,
         MdnsInterface printerInterface,
         string printerInstance,
+        string printerCertificateSha256,
         string advertisedInstanceName,
         string advertisedHostLabel,
         Guid advertisedUuid,
@@ -88,6 +96,7 @@ public sealed class ServiceConfiguration
         ClientInterfaces = clientInterfaces;
         PrinterInterface = printerInterface;
         PrinterInstance = printerInstance;
+        PrinterCertificateSha256 = printerCertificateSha256;
         AdvertisedInstanceName = advertisedInstanceName;
         AdvertisedHostLabel = advertisedHostLabel;
         AdvertisedUuid = advertisedUuid;
@@ -103,6 +112,14 @@ public sealed class ServiceConfiguration
 
     /// <summary>The printer's DNS-SD instance name, e.g. "EPSON ET-3760 Series._ipp._tcp.local".</summary>
     public string PrinterInstance { get; }
+
+    /// <summary>
+    /// The SHA-256 fingerprint the printer's TLS certificate is required to
+    /// match (REQ-CFG-007, REQ-SEC-013): the hash of the DER-encoded certificate
+    /// as 64 hexadecimal digits, always upper case here whatever case was
+    /// configured. A certificate fingerprint is public, not a secret.
+    /// </summary>
+    public string PrinterCertificateSha256 { get; }
 
     /// <summary>What the proxy calls itself in a client's printer list.</summary>
     public string AdvertisedInstanceName { get; }
@@ -137,6 +154,10 @@ public sealed class ServiceConfiguration
         lines.Add($"printer interface: {PrinterInterface.Name} -> {PrinterInterface.Address} "
                   + $"(index {PrinterInterface.Index})");
         lines.Add($"printer instance : {PrinterInstance}");
+
+        // The startup half of REQ-OBS-008. No marker here until the relay logs
+        // the negotiated TLS protocol per connection; see the file header.
+        lines.Add($"certificate pin  : SHA-256 {PrinterCertificateSha256}");
         lines.Add($"advertised as    : {AdvertisedInstanceName} on {AdvertisedHostLabel}.local:{ListenPort}");
         lines.Add($"advertised uuid  : {AdvertisedUuid}");
         lines.Add($"relay buffer     : {Tuning.RelayBufferBytes} bytes");

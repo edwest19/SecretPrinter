@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// Certificate fingerprint tests for REQ-CFG-007, the ValidExampleJson helper and
+// its use throughout, added by Claude (Anthropic model, Claude Opus 5) at the
+// direction of Edwin West, 2026-09-15. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that nothing is quietly defaulted, that every mistake is named,
 //   and that a configuration which would leave the service unable to tell a
@@ -30,8 +34,52 @@ internal static class ConfigurationLoaderTests
         new LocalAdapter("Loopback", 1, IsUp: true, SupportsMulticast: false,
             [IPAddress.Parse("127.0.0.1")]));
 
+    /// <summary>
+    /// A well-formed SHA-256 fingerprint that belongs to no real device. It is
+    /// deliberately not the development printer's, so no test depends on one
+    /// particular printer, and it contains letters so that case handling is
+    /// actually exercised.
+    /// </summary>
+    private const string SyntheticFingerprint =
+        "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF";
+
+    /// <summary>The fingerprint entry exactly as ExampleJson prints it: empty.</summary>
+    private const string EmptyFingerprintEntry = "\"printerCertificateSha256\": \"\"";
+
+    /// <summary>
+    /// The example with its fingerprint entry replaced by <paramref name="valueJson"/>,
+    /// which is raw JSON so that a non-string value can be tested too.
+    /// </summary>
+    /// <remarks>
+    /// Throws if the empty entry is not found exactly once. A replacement that
+    /// silently matched nothing would leave the example refused for a reason the
+    /// test did not intend, and a failure test could then pass for the wrong
+    /// reason.
+    /// </remarks>
+    private static string ExampleWithFingerprint(string valueJson)
+    {
+        string example = ConfigurationLoader.ExampleJson;
+        int first = example.IndexOf(EmptyFingerprintEntry, StringComparison.Ordinal);
+
+        if (first < 0 || example.IndexOf(EmptyFingerprintEntry, first + 1, StringComparison.Ordinal) >= 0)
+        {
+            throw new InvalidOperationException(
+                "ExampleJson must contain the empty printerCertificateSha256 entry exactly once.");
+        }
+
+        return example.Replace(
+            EmptyFingerprintEntry, $"\"printerCertificateSha256\": {valueJson}", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The example as an operator would have it after measuring their printer.
+    /// Tests start from this rather than from ExampleJson, which is refused as
+    /// printed, so that each failure test fails only for the mistake it makes.
+    /// </summary>
+    private static string ValidExampleJson => ExampleWithFingerprint($"\"{SyntheticFingerprint}\"");
+
     private static ServiceConfiguration LoadExample() =>
-        ConfigurationLoader.Load(ConfigurationLoader.ExampleJson, RealisticMachine());
+        ConfigurationLoader.Load(ValidExampleJson, RealisticMachine());
 
     private static ConfigurationException LoadExpectingFailure(string json, string because) =>
         Assert.Throws<ConfigurationException>(
@@ -95,7 +143,7 @@ internal static class ConfigurationLoaderTests
             "{}", "an empty configuration cannot possibly describe a network");
 
         foreach (string required in
-            new[] { "clientInterfaces", "printerInterface", "printerInstance", "advertise" })
+            new[] { "clientInterfaces", "printerInterface", "printerInstance", "printerCertificateSha256", "advertise" })
         {
             Assert.True(Mentions(ex, required), $"'{required}' must be reported as required");
         }
@@ -115,7 +163,7 @@ internal static class ConfigurationLoaderTests
         // where .gitattributes normalises to LF - found by CI on its first run,
         // not by any local test. Nothing here should depend on how a file is
         // stored.
-        string example = ConfigurationLoader.ExampleJson;
+        string example = ValidExampleJson;
 
         int tuning = example.IndexOf("\"tuning\"", StringComparison.Ordinal);
         Assert.True(tuning > 0,
@@ -139,7 +187,7 @@ internal static class ConfigurationLoaderTests
     [Requirement("REQ-CFG-001")]
     public static void Uuid_is_required()
     {
-        string json = ConfigurationLoader.ExampleJson.Replace(
+        string json = ValidExampleJson.Replace(
             "\"uuid\": \"b6f4e2a1-9c37-4d58-8e0b-7a1f3d6c5e94\",", string.Empty, StringComparison.Ordinal);
 
         ConfigurationException ex = LoadExpectingFailure(
@@ -178,7 +226,7 @@ internal static class ConfigurationLoaderTests
     [Requirement("REQ-CFG-003")]
     public static void Unknown_interface_lists_alternatives()
     {
-        string json = ConfigurationLoader.ExampleJson.Replace(
+        string json = ValidExampleJson.Replace(
             "\"Ethernet 2\"", "\"Ethernet 47\"", StringComparison.Ordinal);
 
         ConfigurationException ex = LoadExpectingFailure(json, "no such adapter exists");
@@ -198,7 +246,7 @@ internal static class ConfigurationLoaderTests
                 [IPAddress.Parse("192.168.12.245")]));
 
         var ex = Assert.Throws<ConfigurationException>(
-            () => _ = ConfigurationLoader.Load(ConfigurationLoader.ExampleJson, ambiguous),
+            () => _ = ConfigurationLoader.Load(ValidExampleJson, ambiguous),
             "picking one of two addresses would leave the advertised address to chance");
 
         Assert.True(Mentions(ex, "several IPv4"), "the ambiguity must be explained");
@@ -214,13 +262,122 @@ internal static class ConfigurationLoaderTests
         Assert.True(Mentions(ex, "not valid JSON"), "the operator should know it is a syntax problem");
     }
 
+    // ---- The printer's certificate fingerprint ------------------------------
+
+    [TestCase("A missing certificate fingerprint is refused by name")]
+    [Requirement("REQ-CFG-007")]
+    public static void Fingerprint_is_required()
+    {
+        string json = ValidExampleJson.Replace(
+            $"\"printerCertificateSha256\": \"{SyntheticFingerprint}\",", string.Empty, StringComparison.Ordinal);
+        Assert.False(json.Contains("printerCertificateSha256", StringComparison.Ordinal),
+            "the setting must actually be absent for this test to mean anything");
+
+        ConfigurationException ex = LoadExpectingFailure(
+            json, "without a pin there is nothing to check the printer's certificate against");
+
+        Assert.Equal(1, ex.Problems.Count, "the missing fingerprint must be the only problem reported");
+        Assert.True(Mentions(ex, "printerCertificateSha256"), "the missing setting must be named");
+        Assert.True(Mentions(ex, "docs/operating.md"), "and the operator must be told where to learn to measure it");
+    }
+
+    [TestCase("The example configuration as printed is refused until the fingerprint is measured")]
+    [Requirement("REQ-CFG-007")]
+    public static void Printed_example_is_refused_until_measured()
+    {
+        Assert.True(ConfigurationLoader.ExampleJson.Contains(EmptyFingerprintEntry, StringComparison.Ordinal),
+            "the example must print the fingerprint as an empty string, not as a plausible-looking value");
+
+        ConfigurationException ex = LoadExpectingFailure(
+            ConfigurationLoader.ExampleJson,
+            "an unmeasured example must fail at startup, not when the first job is attempted");
+
+        Assert.Equal(1, ex.Problems.Count, "the empty fingerprint must be the only problem in the example");
+        Assert.True(Mentions(ex, "printerCertificateSha256"), "the empty setting must be named");
+        Assert.True(Mentions(ex, "docs/operating.md"), "and the operator must be told where to learn to measure it");
+    }
+
+    [TestCase("A SHA-1 thumbprint is refused, and named as SHA-1")]
+    [Requirement("REQ-CFG-007")]
+    public static void Sha1_thumbprint_is_refused()
+    {
+        // The recorded SHA-1 thumbprint of the development printer's certificate,
+        // from docs/findings/2026-09-15-printer-requires-tls-for-job-operations.md.
+        // It is used because it is the value most likely to be pasted in by
+        // mistake, not because any test depends on that printer.
+        string json = ExampleWithFingerprint("\"201B4A53AF65255258D0FE5AC8115E2073A16675\"");
+
+        ConfigurationException ex = LoadExpectingFailure(
+            json, "SHA-1 is not accepted in place of SHA-256 (REQ-SEC-013)");
+
+        Assert.Equal(1, ex.Problems.Count, "the thumbprint must be the only problem reported");
+        Assert.True(Mentions(ex, "printerCertificateSha256"), "the setting must be named");
+        Assert.True(Mentions(ex, "SHA-1"), "the likely mistake must be identified for what it is");
+    }
+
+    [TestCase("A fingerprint in any other written form is refused")]
+    [Requirement("REQ-CFG-007")]
+    public static void Fingerprint_in_another_form_is_refused()
+    {
+        string[] pairs = [.. SyntheticFingerprint.Chunk(2).Select(pair => new string(pair))];
+
+        var refusedForms = new (string ValueJson, string Why)[]
+        {
+            ($"\"{string.Join(':', pairs)}\"", "colons between byte pairs"),
+            ($"\"{string.Join('-', pairs)}\"", "dashes between byte pairs"),
+            ($"\"{string.Join(' ', pairs)}\"", "spaces between byte pairs"),
+            ($"\" {SyntheticFingerprint} \"", "surrounding whitespace"),
+            ($"\"{SyntheticFingerprint[..^1]}G\"", "a character that is not a hexadecimal digit"),
+            ($"\"{SyntheticFingerprint[..^1]}\"", "63 digits"),
+            ($"\"{SyntheticFingerprint}0\"", "65 digits"),
+            ("1234", "a number instead of a string"),
+        };
+
+        foreach ((string valueJson, string why) in refusedForms)
+        {
+            ConfigurationException ex = LoadExpectingFailure(
+                ExampleWithFingerprint(valueJson), $"a fingerprint with {why} must be refused, not repaired");
+
+            Assert.Equal(1, ex.Problems.Count, $"with {why}, the fingerprint must be the only problem reported");
+            Assert.True(Mentions(ex, "printerCertificateSha256"), $"with {why}, the setting must be named");
+            Assert.True(Mentions(ex, "64 hexadecimal digits"), $"with {why}, the accepted form must be stated");
+        }
+    }
+
+    [TestCase("A lower-case fingerprint is accepted and held in upper case")]
+    [Requirement("REQ-CFG-007")]
+    public static void Lower_case_fingerprint_is_accepted()
+    {
+        string json = ExampleWithFingerprint($"\"{SyntheticFingerprint.ToLowerInvariant()}\"");
+
+        ServiceConfiguration configuration = ConfigurationLoader.Load(json, RealisticMachine());
+
+        Assert.Equal(SyntheticFingerprint, configuration.PrinterCertificateSha256,
+            "case carries no meaning in hexadecimal, so either case is the same fingerprint");
+    }
+
+    // Deliberately carries no requirement marker. This is the startup half of
+    // REQ-OBS-008; the requirement also needs each relayed connection to log the
+    // TLS protocol negotiated, which does not exist yet. A marker is placed only
+    // when a whole requirement is met.
+    [TestCase("The startup description shows the pinned certificate fingerprint")]
+    public static void Description_shows_certificate_pin()
+    {
+        IReadOnlyList<string> lines = LoadExample().Describe();
+
+        Assert.True(lines.Any(l => l.Contains("certificate pin", StringComparison.Ordinal)
+                                   && l.Contains("SHA-256", StringComparison.Ordinal)
+                                   && l.Contains(SyntheticFingerprint, StringComparison.Ordinal)),
+            "an operator must be able to see from the log which certificate the service will require");
+    }
+
     // ---- The two sides must differ ------------------------------------------
 
     [TestCase("Using one adapter for both roles is refused")]
     [Requirement("REQ-CFG-006")]
     public static void Same_adapter_for_both_roles_is_refused()
     {
-        string json = ConfigurationLoader.ExampleJson.Replace(
+        string json = ValidExampleJson.Replace(
             "\"printerInterface\": \"Wi-Fi\"", "\"printerInterface\": \"Ethernet 2\"",
             StringComparison.Ordinal);
 
@@ -234,7 +391,7 @@ internal static class ConfigurationLoaderTests
     [Requirement("REQ-CFG-006")]
     public static void Duplicate_client_interface_is_refused()
     {
-        string json = ConfigurationLoader.ExampleJson.Replace(
+        string json = ValidExampleJson.Replace(
             "[ \"Ethernet 2\" ]", "[ \"Ethernet 2\", \"ethernet 2\" ]", StringComparison.Ordinal);
 
         ConfigurationException ex = LoadExpectingFailure(json, "a duplicate is a mistake, not a setup");
@@ -272,7 +429,7 @@ internal static class ConfigurationLoaderTests
                 [IPAddress.Parse("192.168.12.245")]));
 
         var ex = Assert.Throws<ConfigurationException>(
-            () => _ = ConfigurationLoader.Load(ConfigurationLoader.ExampleJson, machine),
+            () => _ = ConfigurationLoader.Load(ValidExampleJson, machine),
             "starting on a down adapter would receive nothing, silently");
 
         Assert.True(Mentions(ex, "not up"), "the reason must be specific");

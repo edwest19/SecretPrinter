@@ -550,7 +550,7 @@ SecretPrinter/
 │   ├── SecretPrinter.Responder.Tests/ 17 tests, fake transport           [built]
 │   ├── SecretPrinter.Resolution.Tests/ 14 tests, fake transport + clock  [built]
 │   ├── SecretPrinter.Proxy.Tests/     18 tests, in-memory streams        [built]
-│   ├── SecretPrinter.Configuration.Tests/ 14 tests, fake adapters        [built]
+│   ├── SecretPrinter.Configuration.Tests/ 20 tests, fake adapters        [built]
 │   ├── SecretPrinter.Service.Tests/   13 tests, assembly metadata scans  [built]
 │
 └── .github/workflows/

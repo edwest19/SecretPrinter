@@ -3,6 +3,10 @@
 *Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of Edwin
 West. Reviewed by a human before merge.*
 
+*Step 4, measuring the printer's certificate fingerprint, and the paragraph on
+it under Configuring, added by Claude (Anthropic model, Claude Opus 5) at the
+direction of Edwin West, 2026-09-15. Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -70,6 +74,53 @@ generated default would mean every installation advertising the same identity:
 [guid]::NewGuid()
 ```
 
+### 4. Measure the printer's certificate fingerprint
+
+The printer refuses print jobs over unencrypted IPP, so the proxy has to reach it
+over TLS. The printer's certificate is self-signed, so no certificate authority
+can vouch for it; instead you tell the service which certificate to expect, by
+its SHA-256 fingerprint, in `printerCertificateSha256`. The service will not start
+without it (`REQ-CFG-007`). The fingerprint is specified to be checked against
+the printer's certificate on every connection, with no setting to turn the check
+off (`REQ-SEC-013`, `REQ-SEC-014`). **That check is not implemented yet.**
+
+The service does not measure the fingerprint for you. Remembering whatever
+certificate answered first would mean writing state to disk, which this project
+does not do, and it would trust exactly the connection that pinning exists to
+question.
+
+Run this from the machine that will run SecretPrinter, as one line:
+
+```powershell
+$t=[Net.Sockets.TcpClient]::new('<printer-ipv4>',631); $s=[Net.Security.SslStream]::new($t.GetStream(),$false,{$true}); $s.AuthenticateAsClient('<printer-host-name>'); $d=$s.RemoteCertificate.GetRawCertData(); 'SHA256 ' + ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($d)) -replace '-',''); 'SHA1   ' + ([BitConverter]::ToString([Security.Cryptography.SHA1]::Create().ComputeHash($d)) -replace '-',''); $s.RemoteCertificate.Subject; $s.SslProtocol; $s.Dispose(); $t.Dispose()
+```
+
+It opens a TLS connection to the printer, sends nothing after the handshake,
+hashes the certificate the printer presented, prints the result with the
+certificate's subject and the TLS version, and closes the connection.
+
+- Replace `<printer-ipv4>` with the printer's address on the printer-side
+  network.
+- Replace `<printer-host-name>` with the printer's host name. The development
+  printer was measured with `EPSON3EA18A`. Whether other printers care what
+  name is given here has not been tested.
+- `631` is the port the development printer uses for TLS, where it advertises
+  `_ipps._tcp`. Another printer may use another port; check what it advertises.
+
+Copy the **SHA256** line's value, all 64 digits, into `printerCertificateSha256`.
+Do not use the SHA1 line, and do not use the `Thumbprint` Windows shows for a
+certificate: both are SHA-1, and the service refuses a SHA-1 value by name.
+
+**`{$true}` in that command accepts any certificate.** That is correct for a
+command whose only purpose is to see what the printer presents, and it is
+exactly what the service must never do. Measure on the printer-side network you
+trust, and if the subject does not name your printer, stop.
+
+It is not known whether a firmware update or a factory reset gives the printer a
+new certificate. If it does, measure again. The measurement of the development
+printer, and why SHA-256 was chosen, are in
+[findings](findings/2026-09-15-printer-requires-tls-for-job-operations.md).
+
 ---
 
 ## Configuring
@@ -94,6 +145,12 @@ dotnet run --project tools\SecretPrinter.Probe -- --interface <printer-side-ipv4
 ```
 
 Take the `INSTANCE` line verbatim, spaces included.
+
+The example leaves `printerCertificateSha256` empty on purpose, and the service
+refuses to start until it holds the fingerprint from
+[step 4](#4-measure-the-printers-certificate-fingerprint). A value that merely
+looked like a fingerprint would load, and the mistake would only show when a job
+was attempted.
 
 Every setting that decides what is advertised or where traffic goes is required.
 Start it and read the errors: all problems are reported in one run, each naming

@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// The printerCertificateSha256 setting, its validation and its empty entry in
+// ExampleJson added by Claude (Anthropic model, Claude Opus 5) at the direction
+// of Edwin West, 2026-09-15, for REQ-CFG-007. Reviewed by a human before merge.
+//
 // Purpose:
 //   Reads the configuration file, checks every setting, resolves every
 //   interface name, and either returns something the service can run on or
@@ -96,6 +100,7 @@ public static class ConfigurationLoader
             List<string> clientNames = RequiredStringArray(root, "clientInterfaces", problems);
             string? printerName = RequiredString(root, "printerInterface", problems);
             string? printerInstance = RequiredString(root, "printerInstance", problems);
+            string? certificateSha256 = RequiredSha256Fingerprint(root, "printerCertificateSha256", problems);
 
             JsonElement advertise = Section(root, "advertise", problems);
             string? instanceName = RequiredString(advertise, "instanceName", problems, "advertise.");
@@ -145,6 +150,7 @@ public static class ConfigurationLoader
                 clientInterfaces,
                 printerInterface!,
                 printerInstance!,
+                certificateSha256!,
                 instanceName!,
                 hostLabel!,
                 uuid,
@@ -250,6 +256,78 @@ public static class ConfigurationLoader
         }
 
         return element.GetString();
+    }
+
+    /// <summary>
+    /// Reads the SHA-256 fingerprint the printer's TLS certificate must match,
+    /// and returns it in upper case, or null once a problem has been reported.
+    /// </summary>
+    /// <remarks>
+    /// Exactly one written form is accepted: 64 hexadecimal digits, in either
+    /// case, with nothing else. Colons, dashes, spaces and surrounding whitespace
+    /// are refused rather than stripped, so that what the operator wrote is the
+    /// value in force and there is only one form to check it against.
+    ///
+    /// A value of exactly 40 hexadecimal digits gets its own message. That is the
+    /// length of a SHA-1 thumbprint, which is what Windows shows as a
+    /// certificate's Thumbprint, so it is the likeliest mistake. It is refused,
+    /// never converted or accepted in place of SHA-256 (REQ-SEC-013).
+    /// </remarks>
+    [Requirement("REQ-CFG-007",
+        "The printer certificate's SHA-256 fingerprint is required, is accepted only as exactly 64 hexadecimal digits with no separators or whitespace, and every refusal names the setting.")]
+    private static string? RequiredSha256Fingerprint(JsonElement parent, string name, List<string> problems)
+    {
+        const int Sha256HexDigits = 64;
+        const int Sha1HexDigits = 40;
+
+        string missing =
+            $"{name}: required, and deliberately has no default. It is the SHA-256 fingerprint of the "
+            + $"printer's TLS certificate, written as {Sha256HexDigits} hexadecimal digits. Measure it as "
+            + "described under \"Measure the printer's certificate fingerprint\" in docs/operating.md.";
+
+        if (!parent.TryGetProperty(name, out JsonElement element))
+        {
+            problems.Add(missing);
+            return null;
+        }
+
+        if (element.ValueKind != JsonValueKind.String)
+        {
+            problems.Add(
+                $"{name}: must be a string of {Sha256HexDigits} hexadecimal digits, the SHA-256 fingerprint "
+                + "of the printer's TLS certificate.");
+            return null;
+        }
+
+        string value = element.GetString()!;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            problems.Add(missing);
+            return null;
+        }
+
+        bool allHexDigits = value.All(char.IsAsciiHexDigit);
+
+        if (allHexDigits && value.Length == Sha256HexDigits)
+        {
+            return value.ToUpperInvariant();
+        }
+
+        if (allHexDigits && value.Length == Sha1HexDigits)
+        {
+            problems.Add(
+                $"{name}: '{value}' is {Sha1HexDigits} hexadecimal digits, the length of a SHA-1 thumbprint "
+                + "such as Windows shows for a certificate. This setting requires the SHA-256 fingerprint, "
+                + $"{Sha256HexDigits} hexadecimal digits; SHA-1 is not accepted in its place.");
+            return null;
+        }
+
+        problems.Add(
+            $"{name}: '{value}' ({value.Length} characters) is not in the accepted form, which is exactly "
+            + $"{Sha256HexDigits} hexadecimal digits in upper or lower case, with no colons, dashes, spaces "
+            + "or other separators and no surrounding whitespace.");
+        return null;
     }
 
     private static Guid RequiredGuid(
@@ -364,11 +442,20 @@ public static class ConfigurationLoader
     /// An example configuration, used by the tests and reproduced in the
     /// documentation so the two cannot disagree.
     /// </summary>
+    /// <remarks>
+    /// printerCertificateSha256 is deliberately empty, so this example is refused
+    /// at startup until the operator measures their own printer's fingerprint. A
+    /// value that looked real would load, and the mistake would only surface
+    /// when a job was attempted. The UUID below is treated differently, with a
+    /// literal value; that inconsistency is recorded in
+    /// docs/findings/2026-09-15-example-config-leaves-fingerprint-empty.md.
+    /// </remarks>
     public static string ExampleJson => """
         {
           "clientInterfaces": [ "Ethernet 2" ],
           "printerInterface": "Wi-Fi",
           "printerInstance": "EPSON ET-3760 Series._ipp._tcp.local",
+          "printerCertificateSha256": "",
 
           "advertise": {
             "instanceName": "SecretPrinter (ET-3760)",
