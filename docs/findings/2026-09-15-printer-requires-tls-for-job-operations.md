@@ -160,3 +160,51 @@ for a tool whose only purpose is to discover what the printer presents, and is
 not what the product does. What the product does is recorded as the resolution
 of open question 8 in the README, which was decided after these measurements,
 not alongside them.
+
+## The SHA-256 fingerprint, measured for pinning
+
+*Added by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
+West, 2026-09-15, after open question 8 was resolved. Reviewed by a human
+before merge.*
+
+The thumbprint recorded above is SHA-1, because that is what Windows reports as
+a certificate's `Thumbprint`. The fingerprint pinned in configuration is SHA-256
+instead. This is not a claim that a SHA-1 pin would be exploitable: SHA-1's known
+practical attacks produce collisions, while matching an existing pin would need
+a second preimage, and no practical second-preimage attack on SHA-1 is known.
+SHA-256 was chosen so that argument never has to be made.
+
+A SHA-256 value cannot be derived from a SHA-1 value, so the certificate was
+measured again, on `FIOS-STB-01`, with this single line:
+
+```powershell
+$t=[Net.Sockets.TcpClient]::new('192.168.12.180',631); $s=[Net.Security.SslStream]::new($t.GetStream(),$false,{$true}); $s.AuthenticateAsClient('EPSON3EA18A'); $d=$s.RemoteCertificate.GetRawCertData(); 'SHA256 ' + ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($d)) -replace '-',''); 'SHA1   ' + ([BitConverter]::ToString([Security.Cryptography.SHA1]::Create().ComputeHash($d)) -replace '-',''); $s.RemoteCertificate.Subject; $s.SslProtocol; $s.Dispose(); $t.Dispose()
+```
+
+It completes a TLS handshake and sends nothing after it. It hashes the raw
+encoded certificate the printer presented, once with each algorithm, then prints
+the subject and the negotiated protocol and closes the connection. The output:
+
+```
+SHA256 3834787341192E3B7B74FFE51A9EE0E67E2DEBD6B4A060C6B203CB5252BE80EF
+SHA1   201B4A53AF65255258D0FE5AC8115E2073A16675
+O=SEIKO EPSON CORP., CN=EPSON3EA18A
+Tls12
+```
+
+Before the run, the SHA-1 line was predicted to equal the thumbprint recorded
+above, and it does, character for character. Windows computes `Thumbprint` as
+the SHA-1 of those same raw bytes, so the match shows two things at once: this is
+the same certificate, and the SHA-256 line was computed over the right input.
+The subject and the negotiated protocol are also unchanged from the first
+measurement.
+
+Like the first measurement, this one accepted whatever certificate was
+presented. That is right for a tool whose only purpose is to see what the printer
+presents, and it is exactly what the product must never do (REQ-SEC-013,
+REQ-SEC-014).
+
+Whether the printer keeps this certificate across a firmware update or a factory
+reset is not known. If it does not, the pinned comparison, once it is
+implemented, will refuse the connection rather than accept the new certificate,
+and the fingerprint will have to be measured again the same way.
