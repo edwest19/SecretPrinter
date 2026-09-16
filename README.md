@@ -179,9 +179,17 @@ from the first byte, which is why the relay needs no HTTP upgrade handshake and
 still parses nothing it carries. Measured on 2026-09-15; see
 [findings](docs/findings/2026-09-15-printer-requires-tls-for-job-operations.md).
 
-Address resolution happens at connection time, not at startup, because printers
-receive their addresses by DHCP and those addresses change. During development
-the target printer moved twice.
+The address and port for step 5 come from the printer's `_ipps._tcp` service,
+and the capabilities advertised in step 2 come from the TXT record of its
+`_ipp._tcp` service (REQ-RES-007). On this printer both services name port 631.
+That is observed, not relied on.
+
+Address resolution happens at connection time, because printers receive their
+addresses by DHCP and those addresses change. During development the target
+printer moved twice. Startup also resolves both services, but only so that a
+configuration naming a service the printer does not advertise is refused before
+anything is advertised. Each connection still resolves for itself, reusing an
+earlier answer only as REQ-RES-004 allows.
 
 ## 4. Requirements: advertisement (ADV)
 
@@ -224,6 +232,7 @@ How the service finds the real printer.
 | REQ-RES-004 | MAY | A resolved address is cached, for no longer than the DNS TTL of the record it came from. |
 | REQ-RES-005 | MUST | A resolution failure causes the relay attempt to fail with a logged, specific error. It never falls back to a guessed or remembered-indefinitely address. |
 | REQ-RES-006 | MUST | Resolution queries are sent only on the configured printer-side interface. |
+| REQ-RES-007 | MUST | The address and port used to connect to the printer come from resolving the configured `_ipps._tcp` instance, on the printer-side interface, when a connection is relayed. The printer's capabilities come from the TXT record of the configured `_ipp._tcp` instance. Neither service supplies what the other is specified to supply. The service resolves both instances at startup, before advertising anything, and refuses to start if either cannot be resolved, naming the instance that failed. |
 
 ## 6. Requirements: relay (PXY)
 
@@ -255,6 +264,7 @@ How print jobs are moved.
 | REQ-CFG-005 | MUST NOT | The service starts in a partially working state. Either every configured interface is usable, or startup fails. |
 | REQ-CFG-006 | MUST | The service refuses to start if a client interface and the printer interface resolve to the same interface. |
 | REQ-CFG-007 | MUST | The printer's expected certificate fingerprint is explicit configuration: the SHA-256 hash of the DER-encoded certificate, written as exactly 64 hexadecimal digits in either case, with no separators and no whitespace. The service refuses to start without it or with a value in any other form, and names the setting when it refuses. |
+| REQ-CFG-008 | MUST | The instance name of the printer's `_ipps._tcp` service is explicit configuration, separate from the instance name of its `_ipp._tcp` service. The service does not derive either name from the other. It refuses to start without the `_ipps._tcp` instance name, and names the setting when it refuses. |
 
 ## 8. Requirements: security and trust (SEC)
 
