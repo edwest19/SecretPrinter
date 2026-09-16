@@ -208,3 +208,50 @@ Whether the printer keeps this certificate across a firmware update or a factory
 reset is not known. If it does not, the pinned comparison, once it is
 implemented, will refuse the connection rather than accept the new certificate,
 and the fingerprint will have to be measured again the same way.
+
+## The name given in the handshake does not change what the printer presents
+
+*Added by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
+West, 2026-09-15. Reviewed by a human before merge.*
+
+A TLS client has to give a target host name when it starts a handshake. The
+relay only knows the printer's IP address, so before deciding what the service
+would give, the handshake was repeated on `FIOS-STB-01` with two names and
+nothing else changed. The command was the one in the section above, with the
+SHA-1 line and the subject removed, and `[Environment]::Version` added.
+
+**Run 1**, with the printer's IP address as the target host,
+`AuthenticateAsClient('192.168.12.180')`:
+
+```
+SHA256 3834787341192E3B7B74FFE51A9EE0E67E2DEBD6B4A060C6B203CB5252BE80EF
+Tls12
+runtime 4.0.30319.42000
+```
+
+**Run 2**, a control with the printer's host name,
+`AuthenticateAsClient('EPSON3EA18A')`:
+
+```
+SHA256 3834787341192E3B7B74FFE51A9EE0E67E2DEBD6B4A060C6B203CB5252BE80EF
+Tls12
+runtime 4.0.30319.42000
+```
+
+Both handshakes completed, both presented the certificate whose SHA-256
+fingerprint was measured above, and both negotiated TLS 1.2. The control was run
+immediately after run 1, in the same PowerShell session.
+
+**Decided as a result, by Edwin West:** the service gives the printer's IP
+address as the target host. The name plays no part in verifying the printer,
+which is done by the pinned fingerprint alone (REQ-SEC-013), and using the
+address means the relay needs no knowledge it does not already have.
+
+**What this does not show.** `4.0.30319.42000` is the version .NET Framework
+4.6 and later report, because these commands ran in Windows PowerShell. The
+service runs on .NET 10. Both use the Windows TLS component, but it has not been
+checked whether the two runtimes send the host name the same way when it is an
+IP address, and no packet capture was taken, so it is not known whether either
+run sent a server name at all. This is strong evidence, not proof. The proof is
+the service itself completing a handshake with the printer, which is to be
+recorded when the TLS connection is built.
