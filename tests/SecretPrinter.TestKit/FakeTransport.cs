@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// Pending count added by Claude (Anthropic model, Claude Opus 5) at the
+// direction of Edwin West, 2026-09-16, so a test can wait until a queued
+// datagram has been read. Reviewed by a human before merge.
+//
 // Purpose:
 //   An IMdnsTransport that records what it was asked to send instead of sending
 //   it, so the responder's decisions can be asserted with no network involved.
@@ -57,6 +61,9 @@ public sealed class FakeTransport : IMdnsTransport
     public Exception? ThrowOnReceive { get; set; }
 
     public void Enqueue(MdnsDatagram datagram) => _inbound.Writer.TryWrite(datagram);
+
+    /// <summary>Datagrams enqueued and not yet taken by <see cref="ReceiveAsync"/>.</summary>
+    public int Pending => _inbound.Reader.Count;
 
     /// <summary>
     /// Returns a queued datagram, or waits for one. Waiting rather than

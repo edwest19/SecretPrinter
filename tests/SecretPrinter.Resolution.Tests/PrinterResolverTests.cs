@@ -8,6 +8,10 @@
 // Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
 // before merge.
 //
+// Test that a reply queued before a lookup is not taken as its answer added by
+// Claude (Anthropic model, Claude Opus 5) at the direction of Edwin West,
+// 2026-09-16. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that the printer is found by name rather than by remembered
 //   address, and that a stale answer is never returned.
@@ -354,6 +358,39 @@ internal static class PrinterResolverTests
 
         Assert.Equal(IPAddress.Parse("192.168.12.50"), Resolve(a).Address, "first resolver follows its network");
         Assert.Equal(IPAddress.Parse("192.168.12.51"), Resolve(b).Address, "second follows its own");
+    }
+
+    // ---- Reading between lookups ---------------------------------------------
+
+    [TestCase("A reply that arrived before the lookup began is not taken as the answer")]
+    public static void Reply_that_arrived_between_lookups_is_discarded()
+    {
+        // Unmarked. No requirement row states this directly; it protects
+        // REQ-RES-004 and REQ-RES-005 from an old reply being treated as new.
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        using var resolver = new PrinterResolver(transport, PrinterNic);
+
+        // The printer at an address it has since left, answering while no
+        // lookup is waiting - as it would answer another device's query.
+        transport.Enqueue(PrinterReply("192.168.12.186"));
+
+        // Wait until the resolver has read it. The resolver takes a datagram off
+        // the transport and then decides, in the same step, whether a lookup is
+        // waiting; the short pause covers that step after the count reaches zero.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (transport.Pending > 0 && DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(10);
+        }
+
+        Assert.Equal(0, transport.Pending, "the resolver must read its transport while no lookup is running");
+        Thread.Sleep(100);
+
+        // The printer's answer to our own query, from where it is now.
+        transport.OnSend = _ => transport.Enqueue(PrinterReply("192.168.12.180"));
+
+        Assert.Equal(IPAddress.Parse("192.168.12.180"), Resolve(resolver).Address,
+            "a reply that was waiting before the query was sent must not be taken as its answer");
     }
 
     // ---- Construction -------------------------------------------------------

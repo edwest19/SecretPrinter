@@ -7,6 +7,10 @@ West. Reviewed by a human before merge.*
 it under Configuring, added by Claude (Anthropic model, Claude Opus 5) at the
 direction of Edwin West, 2026-09-15. Reviewed by a human before merge.*
 
+*The paragraph on the two printer instance names under Configuring added by
+Claude (Anthropic model, Claude Opus 5) at the direction of Edwin West,
+2026-09-16. Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -144,7 +148,14 @@ To find the printer's instance name, use the probe:
 dotnet run --project tools\SecretPrinter.Probe -- --interface <printer-side-ipv4>
 ```
 
-Take the `INSTANCE` line verbatim, spaces included.
+Take the `INSTANCE` lines verbatim, spaces included. Two go into the
+configuration. `printerInstance` is the one ending in `._ipp._tcp.local`: the
+printer's capabilities, which the advertisement is built from, come from it.
+`printerIppsInstance` is the one ending in `._ipps._tcp.local`: every connection
+to the printer goes to the address and port it resolves to. Neither is worked
+out from the other, and each is refused if it does not end in its own service
+type. The service resolves both at startup and does not start if either does
+not answer.
 
 The example leaves `printerCertificateSha256` empty on purpose, and the service
 refuses to start until it holds the fingerprint from

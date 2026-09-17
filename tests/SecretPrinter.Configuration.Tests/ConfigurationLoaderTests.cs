@@ -8,6 +8,10 @@
 // its use throughout, added by Claude (Anthropic model, Claude Opus 5) at the
 // direction of Edwin West, 2026-09-15. Reviewed by a human before merge.
 //
+// Tests for the printerIppsInstance setting (REQ-CFG-008) added by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-16.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that nothing is quietly defaulted, that every mistake is named,
 //   and that a configuration which would leave the service unable to tell a
@@ -143,7 +147,11 @@ internal static class ConfigurationLoaderTests
             "{}", "an empty configuration cannot possibly describe a network");
 
         foreach (string required in
-            new[] { "clientInterfaces", "printerInterface", "printerInstance", "printerCertificateSha256", "advertise" })
+            new[]
+            {
+                "clientInterfaces", "printerInterface", "printerInstance", "printerIppsInstance",
+                "printerCertificateSha256", "advertise",
+            })
         {
             Assert.True(Mentions(ex, required), $"'{required}' must be reported as required");
         }
@@ -279,6 +287,47 @@ internal static class ConfigurationLoaderTests
         Assert.Equal(1, ex.Problems.Count, "the missing fingerprint must be the only problem reported");
         Assert.True(Mentions(ex, "printerCertificateSha256"), "the missing setting must be named");
         Assert.True(Mentions(ex, "docs/operating.md"), "and the operator must be told where to learn to measure it");
+    }
+
+    [TestCase("A missing _ipps instance name is refused by name")]
+    [Requirement("REQ-CFG-008")]
+    public static void Ipps_instance_is_required()
+    {
+        const string Entry = "\"printerIppsInstance\": \"EPSON ET-3760 Series._ipps._tcp.local\",";
+        Assert.True(ValidExampleJson.Contains(Entry, StringComparison.Ordinal),
+            "the example must carry the _ipps instance name for this test to remove it");
+
+        string json = ValidExampleJson.Replace(Entry, string.Empty, StringComparison.Ordinal);
+
+        ConfigurationException ex = LoadExpectingFailure(
+            json, "without the _ipps instance there is nothing to say where connections go");
+
+        Assert.Equal(1, ex.Problems.Count, "the missing _ipps instance must be the only problem reported");
+        Assert.True(Mentions(ex, "printerIppsInstance"), "the missing setting must be named");
+    }
+
+    [TestCase("Each instance name must name its own service type, so the two cannot be swapped")]
+    [Requirement("REQ-CFG-008")]
+    public static void Instance_names_cannot_be_swapped()
+    {
+        // Each setting given the other's value. If either were derived from the
+        // other, or accepted without regard to its service type, this would load.
+        string json = ValidExampleJson
+            .Replace("\"printerInstance\": \"EPSON ET-3760 Series._ipp._tcp.local\"",
+                     "\"printerInstance\": \"SWAP-IPPS\"", StringComparison.Ordinal)
+            .Replace("\"printerIppsInstance\": \"EPSON ET-3760 Series._ipps._tcp.local\"",
+                     "\"printerIppsInstance\": \"EPSON ET-3760 Series._ipp._tcp.local\"", StringComparison.Ordinal)
+            .Replace("SWAP-IPPS", "EPSON ET-3760 Series._ipps._tcp.local", StringComparison.Ordinal);
+
+        ConfigurationException ex = LoadExpectingFailure(json, "swapped instance names must not load");
+
+        Assert.Equal(2, ex.Problems.Count, "each swapped setting must be reported, and nothing else");
+        Assert.True(ex.Problems.Any(p => p.StartsWith("printerInstance:", StringComparison.Ordinal)
+                                         && p.Contains("._ipp._tcp.local", StringComparison.Ordinal)),
+            "printerInstance must be refused, saying it needs an _ipp._tcp name");
+        Assert.True(ex.Problems.Any(p => p.StartsWith("printerIppsInstance:", StringComparison.Ordinal)
+                                         && p.Contains("._ipps._tcp.local", StringComparison.Ordinal)),
+            "printerIppsInstance must be refused, saying it needs an _ipps._tcp name");
     }
 
     [TestCase("The example configuration as printed is refused until the fingerprint is measured")]

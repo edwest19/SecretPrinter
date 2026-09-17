@@ -4,6 +4,10 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// PrinterIppsInstance added by Claude (Anthropic model, Claude Opus 5) at the
+// direction of Edwin West, 2026-09-16, for REQ-CFG-008. Reviewed by a human
+// before merge.
+//
 // PrinterCertificateSha256 added by Claude (Anthropic model, Claude Opus 5) at
 // the direction of Edwin West, 2026-09-15, for REQ-CFG-007. Its line in
 // Describe() is the startup half of REQ-OBS-008 and deliberately carries no
@@ -86,6 +90,7 @@ public sealed class ServiceConfiguration
         IReadOnlyList<MdnsInterface> clientInterfaces,
         MdnsInterface printerInterface,
         string printerInstance,
+        string printerIppsInstance,
         string printerCertificateSha256,
         string advertisedInstanceName,
         string advertisedHostLabel,
@@ -96,6 +101,7 @@ public sealed class ServiceConfiguration
         ClientInterfaces = clientInterfaces;
         PrinterInterface = printerInterface;
         PrinterInstance = printerInstance;
+        PrinterIppsInstance = printerIppsInstance;
         PrinterCertificateSha256 = printerCertificateSha256;
         AdvertisedInstanceName = advertisedInstanceName;
         AdvertisedHostLabel = advertisedHostLabel;
@@ -110,8 +116,19 @@ public sealed class ServiceConfiguration
     /// <summary>The network the real printer is on.</summary>
     public MdnsInterface PrinterInterface { get; }
 
-    /// <summary>The printer's DNS-SD instance name, e.g. "EPSON ET-3760 Series._ipp._tcp.local".</summary>
+    /// <summary>
+    /// The DNS-SD instance name of the printer's <c>_ipp._tcp</c> service, e.g.
+    /// "EPSON ET-3760 Series._ipp._tcp.local". The printer's capabilities come
+    /// from its TXT record (REQ-RES-007).
+    /// </summary>
     public string PrinterInstance { get; }
+
+    /// <summary>
+    /// The DNS-SD instance name of the printer's <c>_ipps._tcp</c> service, e.g.
+    /// "EPSON ET-3760 Series._ipps._tcp.local". Connections to the printer go to
+    /// the address and port this resolves to (REQ-RES-007).
+    /// </summary>
+    public string PrinterIppsInstance { get; }
 
     /// <summary>
     /// The SHA-256 fingerprint the printer's TLS certificate is required to
@@ -154,6 +171,7 @@ public sealed class ServiceConfiguration
         lines.Add($"printer interface: {PrinterInterface.Name} -> {PrinterInterface.Address} "
                   + $"(index {PrinterInterface.Index})");
         lines.Add($"printer instance : {PrinterInstance}");
+        lines.Add($"ipps instance    : {PrinterIppsInstance}");
 
         // The startup half of REQ-OBS-008. No marker here until the relay logs
         // the negotiated TLS protocol per connection; see the file header.

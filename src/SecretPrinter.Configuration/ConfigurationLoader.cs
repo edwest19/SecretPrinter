@@ -8,6 +8,10 @@
 // ExampleJson added by Claude (Anthropic model, Claude Opus 5) at the direction
 // of Edwin West, 2026-09-15, for REQ-CFG-007. Reviewed by a human before merge.
 //
+// The printerIppsInstance setting, and the service-type check on both instance
+// names, added by Claude (Anthropic model, Claude Opus 5) at the direction of
+// Edwin West, 2026-09-16, for REQ-CFG-008. Reviewed by a human before merge.
+//
 // Purpose:
 //   Reads the configuration file, checks every setting, resolves every
 //   interface name, and either returns something the service can run on or
@@ -99,7 +103,9 @@ public static class ConfigurationLoader
 
             List<string> clientNames = RequiredStringArray(root, "clientInterfaces", problems);
             string? printerName = RequiredString(root, "printerInterface", problems);
-            string? printerInstance = RequiredString(root, "printerInstance", problems);
+            string? printerInstance = RequiredInstanceName(root, "printerInstance", IppServiceType, problems);
+            string? printerIppsInstance =
+                RequiredInstanceName(root, "printerIppsInstance", IppsServiceType, problems);
             string? certificateSha256 = RequiredSha256Fingerprint(root, "printerCertificateSha256", problems);
 
             JsonElement advertise = Section(root, "advertise", problems);
@@ -150,6 +156,7 @@ public static class ConfigurationLoader
                 clientInterfaces,
                 printerInterface!,
                 printerInstance!,
+                printerIppsInstance!,
                 certificateSha256!,
                 instanceName!,
                 hostLabel!,
@@ -256,6 +263,51 @@ public static class ConfigurationLoader
         }
 
         return element.GetString();
+    }
+
+    private const string IppServiceType = "._ipp._tcp.local";
+    private const string IppsServiceType = "._ipps._tcp.local";
+
+    /// <summary>
+    /// Reads a printer instance name and checks that it names the service type
+    /// its setting is for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// printerInstance names the printer's <c>_ipp._tcp</c> service, which
+    /// supplies its capabilities; printerIppsInstance names its <c>_ipps._tcp</c>
+    /// service, which supplies where to connect (REQ-RES-007). Each is read on
+    /// its own. Neither is derived from the other: on the development printer
+    /// the two share an instance label, but that was measured on one printer,
+    /// not established as a rule.
+    /// </para>
+    /// <para>
+    /// The service-type check stops the two being swapped or both set to the
+    /// same service, which would otherwise load and send connections to the
+    /// wrong port. DNS names compare without regard to case.
+    /// </para>
+    /// </remarks>
+    [Requirement("REQ-CFG-008",
+        "Reads the _ipps._tcp instance name from its own required setting, separately from the _ipp._tcp one and never derived from it, and names the setting when refusing it.")]
+    private static string? RequiredInstanceName(
+        JsonElement parent, string name, string serviceType, List<string> problems)
+    {
+        string? value = RequiredString(parent, name, problems);
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (!value.EndsWith(serviceType, StringComparison.OrdinalIgnoreCase)
+            || value.Length == serviceType.Length)
+        {
+            problems.Add(
+                $"{name}: must be an instance name ending in {serviceType}, as the probe prints it, "
+                + $"but was \"{value}\".");
+            return null;
+        }
+
+        return value;
     }
 
     /// <summary>
@@ -455,6 +507,7 @@ public static class ConfigurationLoader
           "clientInterfaces": [ "Ethernet 2" ],
           "printerInterface": "Wi-Fi",
           "printerInstance": "EPSON ET-3760 Series._ipp._tcp.local",
+          "printerIppsInstance": "EPSON ET-3760 Series._ipps._tcp.local",
           "printerCertificateSha256": "",
 
           "advertise": {

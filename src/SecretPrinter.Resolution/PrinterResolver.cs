@@ -8,6 +8,10 @@
 // model, Claude Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed
 // by a human before merge.
 //
+// Continuous reading, so that only replies arriving during a lookup are
+// considered, added by Claude (Anthropic model, Claude Opus 5) at the direction
+// of Edwin West, 2026-09-16. Reviewed by a human before merge.
+//
 // Purpose:
 //   Finds where the real printer currently is, by asking the printer network,
 //   at the moment the answer is needed.
@@ -33,9 +37,25 @@
 //   rather than returned: a stale address that once worked is more dangerous
 //   than an honest failure, because it produces a job that vanishes instead of
 //   an error somebody can act on (REQ-RES-005).
+//
+// On reading the transport:
+//   Since 2026-09-16 the resolver has a socket of its own rather than sharing
+//   the responder's (docs/findings/2026-09-14-shared-receive-loop.md). A socket
+//   nobody reads still queues what arrives, so a resolver that read only while
+//   looking up could find replies waiting that arrived long before - the
+//   printer's answers to other devices' queries, for instance - and take the
+//   first one naming our instance as the answer, with its TTL counted from now.
+//   That is a remembered address by another route. This was reasoned from the
+//   code before the separate socket shipped, not observed. So the transport is read continuously from construction,
+//   and a datagram is kept only if a lookup is waiting when it is read;
+//   everything else is discarded. A datagram that is already being read at the
+//   instant a lookup begins can still reach it. One that sat waiting between
+//   lookups cannot.
 // -----------------------------------------------------------------------------
 
 using System.Net;
+using System.Net.Sockets;
+using System.Threading.Channels;
 using SecretPrinter.Dns;
 using SecretPrinter.Mdns;
 using SecretPrinter.Spec;
@@ -79,8 +99,21 @@ public sealed class PrinterResolver : IDisposable
     private readonly MdnsInterface _printerInterface;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly CancellationTokenSource _readerLifetime = new();
+    private readonly Task _reader;
 
     private ResolvedPrinter? _cached;
+
+    // The inbox of the lookup that is waiting, or null when none is. Lookups are
+    // serialised by _gate, so there is at most one. Read and written with
+    // Volatile because the reader loop runs on another thread.
+    private Channel<MdnsDatagram>? _listening;
+
+    // Why the reader loop stopped, if it has. A lookup that starts after this is
+    // set fails at once with the reason, rather than waiting out its timeout.
+    private string? _readerStopped;
+
+    private bool _disposed;
 
     /// <param name="transport">The mDNS transport to query through.</param>
     /// <param name="printerInterface">
@@ -111,6 +144,9 @@ public sealed class PrinterResolver : IDisposable
         _transport = transport;
         _printerInterface = printerInterface;
         _clock = clock ?? TimeProvider.System;
+
+        // Started last, once nothing above can throw.
+        _reader = Task.Run(() => ReadContinuouslyAsync(_readerLifetime.Token));
     }
 
     /// <summary>The cached answer, if any. Exposed for logging and tests.</summary>
@@ -174,29 +210,125 @@ public sealed class PrinterResolver : IDisposable
     public void Invalidate() => _cached = null;
 
     /// <summary>
-    /// Releases the lock that serialises lookups. The transport is not disposed
-    /// here: this class was handed it and does not own it.
+    /// Stops reading the transport and releases the lock that serialises
+    /// lookups. The transport is not disposed here: this class was handed it and
+    /// does not own it.
     /// </summary>
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _readerLifetime.Cancel();
+
+        // The reader stops as soon as its pending read observes the
+        // cancellation. The wait is bounded so a transport that ignores
+        // cancellation cannot hang shutdown; if it does not stop in time, the
+        // token source is left for the garbage collector rather than disposed
+        // under a read that may still be using it.
+        bool stopped = _reader.Wait(TimeSpan.FromSeconds(2));
+        if (stopped)
+        {
+            _readerLifetime.Dispose();
+        }
+
         _cached = null;
         _gate.Dispose();
     }
 
-    [Requirement("REQ-RES-006",
-        "Sends the query out of the printer-side interface only, and ignores replies that arrived on any other.")]
+    /// <summary>
+    /// Reads the transport for as long as the resolver exists, passing each
+    /// datagram to the lookup that is waiting, or discarding it when none is.
+    /// </summary>
+    private async Task ReadContinuouslyAsync(CancellationToken lifetime)
+    {
+        while (true)
+        {
+            MdnsDatagram datagram;
+            try
+            {
+                datagram = await _transport.ReceiveAsync(lifetime).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                StopReading("the resolver was disposed");
+                return;
+            }
+            catch (SocketException)
+            {
+                // Transient network trouble, handled as the responder handles
+                // it: one lost datagram is not a reason to stop.
+                continue;
+            }
+            catch (Exception ex)
+            {
+                // Anything else - the transport disposed under us, for one - is
+                // not transient. Stop, and make lookups say why.
+                StopReading($"reading {_printerInterface} failed: {ex.Message}");
+                return;
+            }
+
+            // Kept only if a lookup is waiting now. Otherwise it arrived between
+            // lookups, is not a reply to anything we asked, and is dropped.
+            Volatile.Read(ref _listening)?.Writer.TryWrite(datagram);
+        }
+    }
+
+    private void StopReading(string reason)
+    {
+        Volatile.Write(ref _readerStopped, reason);
+        Volatile.Read(ref _listening)?.Writer.TryComplete();
+    }
+
     private async Task<ResolvedPrinter> QueryAsync(
         DnsName instance, TimeSpan timeout, CancellationToken cancellationToken)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeout);
 
+        // Listening starts before the query is sent, so a reply that comes back
+        // at once is not missed, and ends when this lookup does, so nothing read
+        // afterwards is kept for the next one.
+        Channel<MdnsDatagram> inbox = Channel.CreateUnbounded<MdnsDatagram>(
+            new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+        Volatile.Write(ref _listening, inbox);
+
+        try
+        {
+            return await ReceiveAnswerAsync(instance, timeout, inbox.Reader, deadline.Token, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            Volatile.Write(ref _listening, null);
+        }
+    }
+
+    [Requirement("REQ-RES-006",
+        "Sends the query out of the printer-side interface only, and ignores replies that arrived on any other.")]
+    private async Task<ResolvedPrinter> ReceiveAnswerAsync(
+        DnsName instance,
+        TimeSpan timeout,
+        ChannelReader<MdnsDatagram> inbox,
+        CancellationToken deadline,
+        CancellationToken cancellationToken)
+    {
+        if (Volatile.Read(ref _readerStopped) is { } stopped)
+        {
+            throw new PrinterResolutionException(
+                $"'{instance}' cannot be resolved: the resolver has stopped reading, because {stopped}. "
+                + "No address is assumed.");
+        }
+
         byte[] query = new DnsQueryBuilder(0)
             .AddQuestion(instance, DnsRecordType.Srv, requestUnicastResponse: false)
             .AddQuestion(instance, DnsRecordType.Txt, requestUnicastResponse: false)
             .Build();
 
-        await _transport.SendMulticastAsync(query, _printerInterface, deadline.Token).ConfigureAwait(false);
+        await _transport.SendMulticastAsync(query, _printerInterface, deadline).ConfigureAwait(false);
 
         DnsName? host = null;
         ushort port = 0;
@@ -210,7 +342,13 @@ public sealed class PrinterResolver : IDisposable
             MdnsDatagram datagram;
             try
             {
-                datagram = await _transport.ReceiveAsync(deadline.Token).ConfigureAwait(false);
+                datagram = await inbox.ReadAsync(deadline).ConfigureAwait(false);
+            }
+            catch (ChannelClosedException)
+            {
+                throw new PrinterResolutionException(
+                    $"'{instance}' cannot be resolved: the resolver stopped reading during the lookup, because "
+                    + $"{Volatile.Read(ref _readerStopped)}. No address is assumed.");
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -281,7 +419,7 @@ public sealed class PrinterResolver : IDisposable
                     .AddQuestion(host, DnsRecordType.A, requestUnicastResponse: false)
                     .Build();
 
-                await _transport.SendMulticastAsync(addressQuery, _printerInterface, deadline.Token)
+                await _transport.SendMulticastAsync(addressQuery, _printerInterface, deadline)
                                 .ConfigureAwait(false);
             }
         }

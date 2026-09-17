@@ -26,6 +26,11 @@
 // Opus 5) at the direction of Edwin West, 2026-09-14, correcting a regression
 // introduced the same day. Reviewed by a human before merge.
 //
+// Receive-lock comments updated by Claude (Anthropic model, Claude Opus 5) at
+// the direction of Edwin West, 2026-09-16, when the service stopped sharing one
+// socket between the responder and the resolver. Comments only; no behaviour
+// changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   The service's single point of contact with the network for mDNS. It binds
 //   UDP 5353, joins the multicast group on configured interfaces, receives
@@ -277,21 +282,23 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     // token must not reach ReceiveMessageFromAsync.
     private readonly CancellationTokenSource _receiveLifetime = new();
 
-    // Serialises ReceiveAsync. There is genuinely more than one caller: the
-    // responder's ServeAsync loop reads continuously, and PrinterResolver reads
-    // the same socket whenever it has to query for the printer - which the relay
-    // triggers on a print job once its cached answer has expired.
+    // Serialises ReceiveAsync, so that two callers reading one socket cannot
+    // share its buffers.
     //
     // This was a throw until 2026-09-14, on the stated belief that ServeAsync
-    // was the only caller. That belief was wrong and the throw would have killed
-    // the responder and the print job together. See
-    // docs/findings/2026-09-14-shared-receive-loop.md.
+    // was the only caller. That belief was wrong: PrinterResolver read the same
+    // socket, and the throw would have killed the responder and the print job
+    // together. See docs/findings/2026-09-14-shared-receive-loop.md.
     //
-    // Serialising makes concurrent use safe. It does NOT make it correct: two
-    // callers reading one socket still take each other's datagrams, so a reply
-    // meant for the resolver can be consumed by the responder and discarded.
-    // That behaviour predates the lock and is unchanged by it. The fix is to
-    // give the resolver its own socket, which is a separate piece of work.
+    // Serialising made concurrent use safe, not correct: two callers reading one
+    // socket take each other's datagrams, so a reply meant for the resolver
+    // could be consumed by the responder and discarded. Since 2026-09-16 the
+    // service opens a separate socket for the resolver
+    // (ServiceHost.PlanMdnsBindings), so no socket it opens has two readers.
+    //
+    // The lock stays. Nothing in this class stops a caller from sharing a socket
+    // again, and if one does, the lock keeps the failure to lost datagrams
+    // rather than a crash.
     private readonly SemaphoreSlim _receiveLock = new(1, 1);
 
     // Keyed by family AND index, and by family AND address. The platform reports
@@ -603,8 +610,8 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     /// caller with a deadline, such as PrinterResolver, still gives up on time.
     ///
     /// Waiting does not make the datagram it wanted arrive: whoever holds the
-    /// lock takes the next datagram whether or not it is theirs. Two components
-    /// reading one socket is the underlying problem, recorded in
+    /// lock takes the next datagram whether or not it is theirs. That is why the
+    /// service gives the responder and the resolver separate sockets; see
     /// docs/findings/2026-09-14-shared-receive-loop.md.
     /// </remarks>
     [Requirement("REQ-ADV-015",

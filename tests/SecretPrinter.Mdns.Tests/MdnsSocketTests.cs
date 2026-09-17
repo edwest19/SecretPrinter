@@ -15,6 +15,11 @@
 // IPv6 send tests added by Claude (Anthropic model, Claude Opus 5) at the
 // direction of Edwin West, 2026-09-06. Reviewed by a human before merge.
 //
+// Comments on the concurrent-receive test updated by Claude (Anthropic model,
+// Claude Opus 5) at the direction of Edwin West, 2026-09-16, when the service
+// stopped sharing one socket between the responder and the resolver. Comments
+// only; no test changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that MdnsSocket is configured the way the specification requires,
 //   by reading the options back from the operating system rather than trusting
@@ -723,11 +728,14 @@ internal static class MdnsSocketTests
     [RequiresNetwork]
     public static void Concurrent_receivers_are_serialised_not_refused()
     {
-        // The responder's ServeAsync loop and PrinterResolver read the same
-        // socket, and the relay makes the resolver query while the responder is
-        // blocked in ReceiveAsync. A guard that refused the second caller killed
-        // both - see docs/findings/2026-09-14-shared-receive-loop.md. This test
-        // exists because that regression reached main without one.
+        // Until 2026-09-16 the responder's ServeAsync loop and PrinterResolver
+        // read the same socket, and the relay made the resolver query while the
+        // responder was blocked in ReceiveAsync. A guard that refused the second
+        // caller would have killed both - see
+        // docs/findings/2026-09-14-shared-receive-loop.md. This test exists
+        // because that regression reached main without one. The service now
+        // gives the resolver its own socket, but MdnsSocket does not prevent a
+        // socket being shared, so the lock this test guards is kept.
         using MdnsSocket socket = OpenIPv6OrSkip();
 
         MdnsInterface ipv6 = socket.IPv6Interfaces[0];
@@ -743,8 +751,9 @@ internal static class MdnsSocketTests
 
         // Asserts only that both calls completed. Which caller got which
         // datagram is deliberately not asserted: two components reading one
-        // socket take each other's traffic, and pinning that down here would
-        // freeze the behaviour the resolver's own socket is meant to remove.
+        // socket take each other's traffic, which is why the service no longer
+        // lets two components share one, and pinning that down here would
+        // assert behaviour nothing should rely on.
         Task.WhenAll(first, second).GetAwaiter().GetResult();
 
         Assert.NotNull(first.Result, "the first caller must receive a datagram");
