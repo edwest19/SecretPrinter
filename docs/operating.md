@@ -11,6 +11,10 @@ direction of Edwin West, 2026-09-15. Reviewed by a human before merge.*
 Claude (Anthropic model, Claude Opus 5) at the direction of Edwin West,
 2026-09-16. Reviewed by a human before merge.*
 
+*Step 4 corrected when the check it describes was implemented, by Claude
+(Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-17.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -84,9 +88,15 @@ The printer refuses print jobs over unencrypted IPP, so the proxy has to reach i
 over TLS. The printer's certificate is self-signed, so no certificate authority
 can vouch for it; instead you tell the service which certificate to expect, by
 its SHA-256 fingerprint, in `printerCertificateSha256`. The service will not start
-without it (`REQ-CFG-007`). The fingerprint is specified to be checked against
-the printer's certificate on every connection, with no setting to turn the check
-off (`REQ-SEC-013`, `REQ-SEC-014`). **That check is not implemented yet.**
+without it (`REQ-CFG-007`). The fingerprint is compared with the certificate the
+printer presents on every connection, inside the TLS handshake, with no setting
+to turn the check off (`REQ-SEC-013`, `REQ-SEC-014`). A certificate that does
+not match ends the handshake: the job fails, and the log names both
+fingerprints, so you can tell a wrong pin from a wrong device.
+
+**Get this value from the printer you trust, on the network you trust.** It is
+the whole of the trust decision, so a fingerprint measured through something
+else is a fingerprint of something else.
 
 The service does not measure the fingerprint for you. Remembering whatever
 certificate answered first would mean writing state to disk, which this project

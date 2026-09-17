@@ -25,6 +25,11 @@
 // Claude Opus 5) at the direction of Edwin West, 2026-09-16, for REQ-RES-007.
 // Reviewed by a human before merge.
 //
+// Print jobs carried to the printer over TLS, with the printer's certificate
+// checked against the configured pin on every connection, by Claude (Anthropic
+// model, Claude Opus 5) at the direction of Edwin West, 2026-09-17, for
+// REQ-PXY-010 and REQ-SEC-013. Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -89,6 +94,14 @@ public sealed class ServiceHost
         {
             _log.Info($"  {line}");
         }
+
+        // Parsed here, before any socket is opened, so a fingerprint that is
+        // not 64 hexadecimal digits stops the service rather than the first
+        // print job. ConfigurationLoader already refuses one (REQ-CFG-007);
+        // this is the second reader of the same value and does not assume the
+        // first ran. Describe() has just logged it (REQ-OBS-008), so an
+        // operator can see what every connection will require.
+        var printerPin = new CertificatePin(_configuration.PrinterCertificateSha256);
 
         // Two sockets, one per role. Until 2026-09-16 the responder and the
         // resolver shared one, and whichever was reading took the next datagram,
@@ -216,7 +229,7 @@ public sealed class ServiceHost
 
             foreach (MdnsInterface client in _configuration.ClientInterfaces)
             {
-                running.Add(RunRelayAsync(client, resolver, ippsInstance, stopping.Token));
+                running.Add(RunRelayAsync(client, resolver, ippsInstance, printerPin, stopping.Token));
             }
 
             await Task.WhenAll(running).ConfigureAwait(false);
@@ -256,10 +269,14 @@ public sealed class ServiceHost
         "Binds the listener to one client interface address, never the wildcard, so jobs cannot be accepted on the printer network.")]
     [Requirement("REQ-SEC-012",
         "Permits connections only from the network of the interface the listener is bound to.")]
+    [Requirement("REQ-PXY-010",
+        "The relay is given a factory that opens TLS connections only, so there is no path by which a job "
+        + "reaches the printer over a plain socket.")]
     private async Task RunRelayAsync(
         MdnsInterface client,
         PrinterResolver resolver,
         DnsName ippsInstance,
+        CertificatePin printerPin,
         CancellationToken cancellationToken)
     {
         // The permitted network is derived from the interface itself rather than
@@ -273,7 +290,12 @@ public sealed class ServiceHost
 
         var relay = new IppRelay(
             listener,
-            new TcpConnectionFactory(),
+
+            // The TCP factory wrapped in the TLS one: the relay asks for a
+            // connection and is handed one that has completed a handshake and
+            // passed the pin check, or none at all. IppRelay itself knows
+            // nothing about TLS and did not change when this was added.
+            new TlsConnectionFactory(new TcpConnectionFactory(), printerPin),
             token => LocateConnectionAsync(
                 resolver, ippsInstance, _configuration.Tuning.PrinterResolveTimeout, _log, token),
             new RelayOptions
