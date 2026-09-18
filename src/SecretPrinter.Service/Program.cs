@@ -4,8 +4,21 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// --log-file, its requirement under --service, and exit code 5 added by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-18,
+// for REQ-OBS-009. Reviewed by a human before merge.
+//
 // Purpose:
 //   Entry point. Loads configuration, runs the host, stops cleanly on Ctrl+C.
+//
+// Where the log goes:
+//   Always to the console. Additionally to a file when --log-file names one,
+//   which is required with --service because the control manager gives a
+//   service no console and standard output would go nowhere at all.
+//
+//   The file is opened BEFORE the configuration is read, so that a refusal to
+//   start - the commonest thing an operator needs to see - is written to it
+//   rather than lost.
 //
 // Two ways to run:
 //   Without --service, this is a console application: Ctrl+C stops it. That is
@@ -20,16 +33,20 @@
 
 using SecretPrinter.Configuration;
 using SecretPrinter.Mdns;
+using SecretPrinter.Spec;
 
 namespace SecretPrinter.Service;
 
 internal static class Program
 {
+    [Requirement("REQ-OBS-009",
+        "Refuses --service without --log-file, and opens the named file before the configuration is read so that a refusal to start is written to it.")]
     private static async Task<int> Main(string[] args)
     {
-        var log = new ConsoleServiceLog();
+        var console = new ConsoleServiceLog();
 
         string? configPath = null;
+        string? logFilePath = null;
         bool asService = false;
 
         for (int i = 0; i < args.Length; i++)
@@ -38,6 +55,10 @@ internal static class Program
             {
                 case "--config" when i + 1 < args.Length:
                     configPath = args[++i];
+                    break;
+
+                case "--log-file" when i + 1 < args.Length:
+                    logFilePath = args[++i];
                     break;
 
                 case "--service":
@@ -65,6 +86,59 @@ internal static class Program
             return 2;
         }
 
+        if (asService && logFilePath is null)
+        {
+            // Refusing here is the whole point of the requirement. A service
+            // that starts without a file writes its log to a console that does
+            // not exist, and everything it reports - including why it failed -
+            // is lost.
+            Console.Error.WriteLine(
+                "--log-file is required with --service. Under the service control manager there is no "
+                + "console, so without a file this service would run with no log at all.");
+            Console.Error.WriteLine(
+                "There is deliberately no default path: you choose where the file goes and which account "
+                + "can write there.");
+            return 2;
+        }
+
+        FileServiceLog? fileLog = null;
+
+        if (logFilePath is not null)
+        {
+            try
+            {
+                fileLog = new FileServiceLog(logFilePath, console);
+            }
+            catch (Exception ex) when (ex is IOException
+                                          or UnauthorizedAccessException
+                                          or ArgumentException
+                                          or NotSupportedException)
+            {
+                Console.Error.WriteLine($"The log file '{logFilePath}' could not be opened: {ex.Message}");
+                Console.Error.WriteLine(
+                    "The folder must already exist and the account this runs as must be able to write in "
+                    + "it. SecretPrinter creates no folders.");
+                return 5;
+            }
+        }
+
+        using (fileLog)
+        {
+            IServiceLog log = fileLog is null
+                ? console
+                : new CompositeServiceLog(console, fileLog);
+
+            return await RunAsync(configPath, asService, log).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Loads the configuration and runs, with the log already established so
+    /// that a configuration that cannot be used is reported to the file as well
+    /// as the console.
+    /// </summary>
+    private static async Task<int> RunAsync(string configPath, bool asService, IServiceLog log)
+    {
         ServiceConfiguration configuration;
         try
         {
@@ -143,11 +217,17 @@ internal static class Program
 
             Usage:
               SecretPrinter.Service --config <path>
-              SecretPrinter.Service --config <path> --service
+              SecretPrinter.Service --config <path> --log-file <path>
+              SecretPrinter.Service --config <path> --log-file <path> --service
               SecretPrinter.Service --print-example-config
 
             Options:
               --config <path>           Configuration file. Required.
+              --log-file <path>         Also append the log to this file. Required with
+                                        --service, because a service has no console and
+                                        would otherwise log nowhere. No default: the
+                                        folder must exist and this process must be able
+                                        to write in it.
               --service                 Run under the Windows service control manager.
                                         Without it, this is a console application that
                                         stops on Ctrl+C.
@@ -159,5 +239,6 @@ internal static class Program
               2  Bad arguments.
               3  Configuration is not usable; every problem is listed.
               4  Could not start: an interface, socket or the printer was unavailable.
+              5  The log file could not be opened.
             """);
 }

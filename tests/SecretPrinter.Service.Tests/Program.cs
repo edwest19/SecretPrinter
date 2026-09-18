@@ -7,6 +7,9 @@
 // ServiceHostTests registered by Claude (Anthropic model, Claude Opus 5) at the
 // direction of Edwin West, 2026-09-16. Reviewed by a human before merge.
 //
+// FileServiceLogTests registered by Claude (Anthropic model, Claude Opus 5) at
+// the direction of Edwin West, 2026-09-18. Reviewed by a human before merge.
+//
 // Pass --results <path> to record which requirements had a test that executed
 // and passed, for SecretPrinter.SpecCheck to read.
 // -----------------------------------------------------------------------------
@@ -41,6 +44,10 @@ internal static class Program
         }
 
         Console.WriteLine("SecretPrinter.Service tests");
-        return TestHarness.Run(resultsPath, typeof(SecurityClaimsTests), typeof(ServiceHostTests));
+        return TestHarness.Run(
+            resultsPath,
+            typeof(SecurityClaimsTests),
+            typeof(ServiceHostTests),
+            typeof(FileServiceLogTests));
     }
 }

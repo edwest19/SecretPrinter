@@ -15,6 +15,11 @@ Claude (Anthropic model, Claude Opus 5) at the direction of Edwin West,
 (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-17.
 Reviewed by a human before merge.*
 
+*The log file — `--log-file`, exit code 5, the folder permissions it needs, and
+the corrected sentence under Uninstalling — added by Claude (Anthropic model,
+Claude Opus 5) at the direction of Edwin West, 2026-09-18. Reviewed by a human
+before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -185,25 +190,58 @@ the setting at fault.
 SecretPrinter.Service.exe --config secretprinter.json
 ```
 
+Add `--log-file` to keep a copy of everything it reports:
+
+```powershell
+SecretPrinter.Service.exe --config secretprinter.json --log-file C:\ProgramData\SecretPrinter\secretprinter.log
+```
+
+The file is appended to, never truncated, so a restart adds to the record rather
+than erasing it. Entries are flushed one at a time, so `Get-Content -Wait` on it
+shows a running service live. SecretPrinter does not create the folder and will
+not start if it cannot open the file; there is no default path, because a default
+would put a file somewhere you did not choose.
+
 | Exit code | Meaning |
 | --- | --- |
 | 0 | Stopped cleanly. |
 | 2 | Bad arguments. |
 | 3 | Configuration is not usable; every problem is listed. |
 | 4 | An interface, socket or the printer was unavailable. |
+| 5 | The log file could not be opened. |
 
 ### As a Windows service
 
 Add `--service` and register it. Installing a service needs elevation, even
 though **running** it does not.
 
+`--log-file` is **required** with `--service`, and the service refuses to start
+without it. Under the service control manager there is no console: standard
+output goes nowhere at all — not to a file, not to the event log — so a service
+without a log file reports everything it knows, including why it failed, into a
+void. Make the folder first and let the service account write in it:
+
+```powershell
+# Run as Administrator.
+New-Item -ItemType Directory -Path "C:\ProgramData\SecretPrinter" -Force
+
+# S-1-5-19 is NT AUTHORITY\LocalService, by SID so this works on any language.
+icacls "C:\ProgramData\SecretPrinter" /grant "*S-1-5-19:(OI)(CI)M"
+```
+
+That grant has **not been verified here**; nothing on these machines has yet run
+as `LocalService`. If it is wrong, the service stops immediately with exit code 5
+and says which file it could not open, which is the failure you want rather than
+a service that runs silently.
+
 ```powershell
 # Run as Administrator.
 $exe = "C:\path\to\SecretPrinter.Service.exe"
 $cfg = "C:\path\to\secretprinter.json"
+$log = "C:\ProgramData\SecretPrinter\secretprinter.log"
 
 sc.exe create SecretPrinter `
-    binPath= "`"$exe`" --config `"$cfg`" --service" `
+    binPath= "`"$exe`" --config `"$cfg`" --log-file `"$log`" --service" `
     obj= "NT AUTHORITY\LocalService" `
     start= auto
 
@@ -251,6 +289,28 @@ trusting this documentation and without running a packet capture:
 Job entries record endpoints, byte counts and timings. Never content: the log
 interface has no parameter that could accept any.
 
+### The file
+
+`--log-file` writes exactly what the console receives, in the same format. Every
+entry is one line: control characters in a message are escaped to `\xNN` rather
+than written, so a device that names itself with an embedded line break cannot
+append a line of its own choosing to your log (`REQ-OBS-010`).
+
+The file holds no print job content, but it does hold addresses and the names of
+devices seen on both networks, so it is worth treating like any other record of
+who was on your network. It inherits the permissions of the folder you chose;
+SecretPrinter sets none of its own.
+
+Nothing rotates or trims it. The service logs on startup, on shutdown, and a few
+lines per print job — nothing per mDNS query — so the file grows slowly, and
+deleting your records on a schedule nobody asked for would be the greater sin.
+Delete or move it yourself when you want to; the service reopens and appends on
+its next start.
+
+If writing to the file ever fails — a full disk, a folder that has gone away —
+the service says so once on the console and keeps printing. A log that cannot be
+written must not be able to fail a print job.
+
 ---
 
 ## Privileges: measured
@@ -296,5 +356,12 @@ Remove-NetFirewallRule -DisplayName "SecretPrinter mDNS"
 Remove-NetFirewallRule -DisplayName "SecretPrinter IPP"
 ```
 
-The service leaves nothing else behind. It writes no registry keys and no files
-apart from the configuration you created.
+The service leaves nothing else behind. It writes no registry keys, and the only
+file it writes is the log you named with `--log-file`, which stays where you put
+it until you remove it:
+
+```powershell
+Remove-Item "C:\ProgramData\SecretPrinter\secretprinter.log"
+```
+
+Your configuration file is likewise yours to keep or delete.
