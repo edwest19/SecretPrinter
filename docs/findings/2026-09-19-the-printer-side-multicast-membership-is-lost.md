@@ -73,6 +73,14 @@ logged. **The printer-side membership was lost between 05:37:59Z and the moment
 the count was read, without the service being stopped and without anything being
 logged.** Restarting the service restored it to 2.
 
+### Recovery
+
+With the membership restored, printing worked again immediately. Six jobs
+completed between 18:03:32Z and 18:05:05Z with no failures among them, the
+largest sending 38,407 bytes and receiving 5,523, and a page came out of the
+printer. Nothing was changed on the machine or the network between the failures
+and the recovery except stopping and starting the service.
+
 ## Why losing it produces the false message
 
 `PrinterResolver.ReceiveAnswerAsync` builds its lookup query at
