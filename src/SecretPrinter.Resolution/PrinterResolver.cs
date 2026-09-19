@@ -12,6 +12,11 @@
 // considered, added by Claude (Anthropic model, Claude Opus 5) at the direction
 // of Edwin West, 2026-09-16. Reviewed by a human before merge.
 //
+// The timeout message stopped asserting anything about the printer, by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-19.
+// Reviewed by a human before merge. See "On what a timeout entitles us to say"
+// below.
+//
 // Purpose:
 //   Finds where the real printer currently is, by asking the printer network,
 //   at the moment the answer is needed.
@@ -51,6 +56,19 @@
 //   everything else is discarded. A datagram that is already being read at the
 //   instant a lookup begins can still reach it. One that sat waiting between
 //   lookups cannot.
+//
+// On what a timeout entitles us to say:
+//   Until 2026-09-19 a timeout produced "The printer may be asleep, off, or on
+//   a different network." That sentence was measured false thirty-eight times
+//   across two evenings, on two different adapters, while the printer was awake
+//   and answering probes from this same machine. A timeout is the absence of an
+//   answer; it carries no information about the device that did not send one.
+//
+//   So the resolver now examines the only thing it can examine - its own
+//   interface - and says what it found. When the local side accounts for the
+//   failure, it says so. When it does not, it says that the reason was not
+//   established and names both possibilities, rather than picking the one that
+//   blames someone else. See PrinterInterfaceReport.cs.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -98,6 +116,7 @@ public sealed class PrinterResolver : IDisposable
     private readonly IMdnsTransport _transport;
     private readonly MdnsInterface _printerInterface;
     private readonly TimeProvider _clock;
+    private readonly IInterfaceInventory _inventory;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _readerLifetime = new();
     private readonly Task _reader;
@@ -124,7 +143,16 @@ public sealed class PrinterResolver : IDisposable
     /// Supplied so cache expiry can be tested without waiting. Defaults to the
     /// system clock.
     /// </param>
-    public PrinterResolver(IMdnsTransport transport, MdnsInterface printerInterface, TimeProvider? clock = null)
+    /// <param name="inventory">
+    /// Where the printer-side interface is examined when a lookup times out.
+    /// Supplied so that every interface state can be tested on a machine which
+    /// has none of them. Defaults to the adapters actually present.
+    /// </param>
+    public PrinterResolver(
+        IMdnsTransport transport,
+        MdnsInterface printerInterface,
+        TimeProvider? clock = null,
+        IInterfaceInventory? inventory = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(printerInterface);
@@ -144,6 +172,7 @@ public sealed class PrinterResolver : IDisposable
         _transport = transport;
         _printerInterface = printerInterface;
         _clock = clock ?? TimeProvider.System;
+        _inventory = inventory ?? SystemInterfaceInventory.Instance;
 
         // Started last, once nothing above can throw.
         _reader = Task.Run(() => ReadContinuouslyAsync(_readerLifetime.Token));
@@ -352,10 +381,18 @@ public sealed class PrinterResolver : IDisposable
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new PrinterResolutionException(
-                    $"'{instance}' did not answer within {timeout.TotalSeconds:0.#}s on "
-                    + $"{_printerInterface}. The printer may be asleep, off, or on a different network. "
-                    + "No address is assumed.");
+                // Nothing arrived. Before saying anything, look at the one side
+                // of this that can actually be looked at.
+                PrinterInterfaceReport local = PrinterInterfaceInspector.Inspect(_printerInterface, _inventory);
+
+                throw new PrinterResolutionException(local.LocalFaultFound
+                    ? $"'{instance}' could not be asked on {_printerInterface}: {local.Description} "
+                      + "The printer was not reached, and nothing is claimed about it. No address is assumed."
+                    : $"'{instance}' did not answer within {timeout.TotalSeconds:0.#}s on "
+                      + $"{_printerInterface}. Nothing wrong was found locally: {local.Description} "
+                      + "Why no answer arrived was not established - the printer may not have answered, "
+                      + "or this host may no longer be receiving multicast on this interface. "
+                      + "No address is assumed.");
             }
 
             // Replies from any other interface are not about our printer.

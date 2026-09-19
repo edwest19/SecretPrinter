@@ -3,7 +3,8 @@
 *Written by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
 West, 2026-09-19. Reviewed by a human before merge.*
 
-**Status: measured on hardware (FIOS-STB-01), NOT fixed. The resolver's
+**Status: measured on hardware (FIOS-STB-01). The false message is fixed as of
+this commit; the membership itself is NOT yet repaired. The resolver's
 membership of 224.0.0.251 on the printer-side interface disappeared while the
 service was running and had logged that it joined. The service did not notice,
 kept accepting jobs, and blamed the printer for the failures.**
@@ -131,7 +132,9 @@ waited nearly 25 seconds.
 
 ## What this owes the product
 
-1. **Stop making the false claim.** When a lookup times out, the service must
+1. **Stop making the false claim.** *(Done in this commit: the resolver now
+   examines its own interface at timeout and states only what it found. See
+   `src/SecretPrinter.Resolution/PrinterInterfaceReport.cs`.)* When a lookup times out, the service must
    examine the local side before asserting anything about the printer: the
    interface's `OperationalStatus`, the address and its
    `DuplicateAddressDetectionState`, and — new with this finding — whether the
@@ -142,11 +145,17 @@ waited nearly 25 seconds.
    up and the address is valid and only the group is gone. Rebuilding the
    resolver socket on an interface change is the likely shape; this finding does
    not design it.
-3. **An open question for the implementation.** `netsh` can read these
-   membership counts, so Windows exposes them somewhere. Whether .NET can read
-   them without P/Invoke has not been checked. If it cannot, rebuilding on
-   `NetworkChange` notifications rather than querying state may be the honest
-   route. Unverified either way.
+3. **Detecting the loss from managed code looks unavailable.** `netsh` reads
+   these membership counts, so Windows exposes them. .NET surfaces the groups an
+   interface has joined, through `IPInterfaceProperties.MulticastAddresses`, but
+   that is a list of addresses carrying no reference count. With another process
+   on this machine holding its own membership of 224.0.0.251 — which is what the
+   counts above show — the group would still be listed while the service is
+   deaf, and a check reading it would pass. This is read from the shape of the
+   API, not measured, and it is recorded here so the next step does not begin by
+   writing a check that cannot work. The route that does not depend on it is to
+   rebuild the socket when the interface changes, rather than to query for a loss
+   that cannot be seen.
 
 ## A fix that is rejected
 
