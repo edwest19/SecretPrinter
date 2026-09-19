@@ -267,6 +267,55 @@ sc.exe stop SecretPrinter
 sc.exe delete SecretPrinter
 ```
 
+### Updating an installed service
+
+Registration points the service control manager at a path. Building a new
+version does not change what is at that path, so a build alone updates nothing
+— the service keeps running the binaries that are already there, and will go on
+doing so through as many restarts as you give it. On 2026-09-19 this cost an
+evening's measurement: a fix was built, tested and pushed, the service was
+restarted several times, and every restart ran the previous day's code.
+
+Stop the service first. Its files are locked while it runs, and the publish
+fails part-written rather than cleanly.
+
+```powershell
+# Run as Administrator.
+Stop-Service SecretPrinter
+```
+```powershell
+dotnet publish <repo>\src\SecretPrinter.Service -c Release -o "C:\Program Files\SecretPrinter"
+```
+```powershell
+Start-Service SecretPrinter
+```
+
+Then confirm that what is installed is what you just built, rather than trusting
+that the copy happened:
+
+```powershell
+Get-Item "C:\Program Files\SecretPrinter\SecretPrinter.Resolution.dll" | Format-List LastWriteTime
+Get-Content C:\ProgramData\SecretPrinter\secretprinter.log -Tail 5
+```
+
+The timestamp should be seconds before the service's own start line in the log.
+Startup output is not a check on its own: most changes do not alter what the
+service prints at startup, so an identical banner is the expected result and
+proves nothing either way.
+
+Two honest limitations of this procedure:
+
+- **Publishing over an existing folder adds and overwrites; it never removes.**
+  A file that a previous version installed and this one does not stays behind,
+  and nothing reports it. For a development machine that is tolerable. A release
+  install should be a clean directory.
+- **This installs a framework-dependent build**, which needs a matching .NET
+  runtime already on the machine. REQ-DIST-011 requires releases to be
+  self-contained, so this is a development convenience and not the shape a
+  release takes.
+
+Verified on FIOS-STB-01, 2026-09-19.
+
 ---
 
 ## Reading the log

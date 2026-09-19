@@ -67,6 +67,12 @@ here; all that matters is that it is constant across a stop and a start.
 Four values were predicted before the commands were run — 1, 1, 2, 2 — and all
 four matched.
 
+Later the same evening, with the service stopped **and** the Wi-Fi adapter down,
+interface 49 still listed all four groups, 224.0.0.251 among them, every one at
+a reference count of **0**. So the presence of a group in this output carries no
+information at all; only the count does. That is measured, and it decides the
+shape of the repair — see item 3 below.
+
 ### What that proves
 
 Ethernet read 2 and Wi-Fi 2 read 1 while the service was running with both joins
@@ -148,7 +154,8 @@ waited nearly 25 seconds.
 3. **Detecting the loss from managed code looks unavailable.** `netsh` reads
    these membership counts, so Windows exposes them. .NET surfaces the groups an
    interface has joined, through `IPInterfaceProperties.MulticastAddresses`, but
-   that is a list of addresses carrying no reference count. With another process
+   that is a list of addresses carrying no reference count — and the measurement
+   above shows a down adapter still listing the group at zero. With another process
    on this machine holding its own membership of 224.0.0.251 — which is what the
    counts above show — the group would still be listed while the service is
    deaf, and a check reading it would pass. This is read from the shape of the

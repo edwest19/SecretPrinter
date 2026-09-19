@@ -10,6 +10,12 @@
 // changed to format through LogLine so that the console and the file cannot
 // drift into two formats. Reviewed by a human before merge.
 //
+// CompositeServiceLog.Write given a lock across the whole fan-out by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-19.
+// Reviewed by a human before merge. The defect was Claude's, introduced with
+// the class on 2026-09-18 and found by reading it back the same day: see the
+// comment on Write.
+//
 // Purpose:
 //   Where the service says what it is doing.
 //
@@ -174,6 +180,9 @@ public sealed class CompositeServiceLog : IServiceLog
 {
     private readonly IServiceLog[] _sinks;
 
+    // Held across the whole fan-out, not per sink. See Write.
+    private readonly System.Threading.Lock _gate = new();
+
     public CompositeServiceLog(params IServiceLog[] sinks)
     {
         ArgumentNullException.ThrowIfNull(sinks);
@@ -195,11 +204,32 @@ public sealed class CompositeServiceLog : IServiceLog
         _sinks = [.. sinks];
     }
 
+    /// <summary>
+    /// Writes one entry to every sink, and lets no other writer in until all of
+    /// them have it.
+    /// </summary>
+    /// <remarks>
+    /// Each sink locks its own writes, so no single line is ever garbled. That
+    /// is not enough. Without a lock here, two threads interleave across the
+    /// fan-out - one thread reaches the console, the other reaches the console
+    /// and the file, the first then reaches the file - and the two sinks end up
+    /// disagreeing about which entry came first. The console would tell one
+    /// story about the order of events and the log file another, with neither
+    /// showing any sign of it, which is a bad property in the artifact people
+    /// are asked to read when something has gone wrong.
+    ///
+    /// The lock is held while the sinks do their work, file write included. The
+    /// logger is not on any path that moves print job bytes, so the cost is
+    /// paid where it does not matter, to buy an ordering that can be trusted.
+    /// </remarks>
     public void Write(LogLevel level, string message)
     {
-        foreach (IServiceLog sink in _sinks)
+        lock (_gate)
         {
-            sink.Write(level, message);
+            foreach (IServiceLog sink in _sinks)
+            {
+                sink.Write(level, message);
+            }
         }
     }
 }

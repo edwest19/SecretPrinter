@@ -235,6 +235,44 @@ internal static class FileServiceLogTests
             "and so must the file - adding a file must not take anything away from the console");
     });
 
+    [TestCase("Two sinks never disagree about what came first")]
+    [Requirement("REQ-OBS-009")]
+    public static void Composite_sinks_agree_on_order()
+    {
+        const int Workers = 8;
+        const int PerWorker = 200;
+
+        // Two collecting sinks rather than a file and a console: what is being
+        // checked is the order the composite hands entries out in, which has
+        // nothing to do with where they land.
+        var first = new CollectingServiceLog();
+        var second = new CollectingServiceLog();
+        var log = new CompositeServiceLog(first, second);
+
+        Parallel.For(0, Workers, worker =>
+        {
+            for (int i = 0; i < PerWorker; i++)
+            {
+                log.Write(LogLevel.Information, $"worker {worker} entry {i}");
+            }
+        });
+
+        IReadOnlyList<(LogLevel Level, string Message)> seenFirst = first.Entries;
+        IReadOnlyList<(LogLevel Level, string Message)> seenSecond = second.Entries;
+
+        Assert.Equal(Workers * PerWorker, seenFirst.Count, "no entry may be lost on the way to a sink");
+        Assert.Equal(seenFirst.Count, seenSecond.Count, "and no sink may receive a different number of them");
+
+        // Like the line-splicing test below, this cannot force the writes to
+        // overlap, so a pass does not prove the lock is needed - and this test
+        // has never been run against the unlocked version, so it is not
+        // evidence that the defect was real either. The defect was found by
+        // reading the code. What this test does is fail loudly if the lock is
+        // ever removed and an interleave does occur.
+        Assert.True(seenFirst.SequenceEqual(seenSecond),
+            "two sinks reading the same log must not tell different stories about the order of events");
+    }
+
     [TestCase("Concurrent writers produce whole lines")]
     [Requirement("REQ-OBS-009")]
     public static void Concurrent_writers_produce_whole_lines() => InTemporaryFolder(folder =>
