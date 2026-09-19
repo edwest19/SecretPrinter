@@ -284,8 +284,15 @@ fails part-written rather than cleanly.
 Stop-Service SecretPrinter
 ```
 ```powershell
+git -C <repo> pull
+```
+```powershell
 dotnet publish <repo>\src\SecretPrinter.Service -c Release -o "C:\Program Files\SecretPrinter"
 ```
+
+The pull is not optional when the machine running the service is not the machine
+the change was written on. Publishing without it installs the older code under a
+new timestamp, which looks exactly like a successful update.
 ```powershell
 Start-Service SecretPrinter
 ```
