@@ -10,6 +10,10 @@
 // PrinterInterfaceDiagnosisTests registered by Claude (Anthropic model, Claude
 // Opus 5) at the direction of Edwin West, 2026-09-19. Reviewed by a human
 // before merge.
+//
+// PrinterReachabilityTests registered by Claude (Anthropic model, Claude Opus
+// 5) at the direction of Edwin West, 2026-09-20. Reviewed by a human before
+// merge.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.TestKit;
@@ -45,6 +49,7 @@ internal static class Program
         return TestHarness.Run(
             resultsPath,
             typeof(PrinterResolverTests),
-            typeof(PrinterInterfaceDiagnosisTests));
+            typeof(PrinterInterfaceDiagnosisTests),
+            typeof(PrinterReachabilityTests));
     }
 }
