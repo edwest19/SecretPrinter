@@ -12,6 +12,9 @@
 //
 // Pass --results <path> to record which requirements had a test that executed
 // and passed, for SecretPrinter.SpecCheck to read.
+//
+// PrinterWatchTests registered by Claude (Anthropic model, Claude Opus 5) at
+// the direction of Edwin West, 2026-09-20. Reviewed by a human before merge.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.TestKit;
@@ -48,6 +51,7 @@ internal static class Program
             resultsPath,
             typeof(SecurityClaimsTests),
             typeof(ServiceHostTests),
-            typeof(FileServiceLogTests));
+            typeof(FileServiceLogTests),
+            typeof(PrinterWatchTests));
     }
 }
