@@ -15,6 +15,10 @@
 //
 // PrinterWatchTests registered by Claude (Anthropic model, Claude Opus 5) at
 // the direction of Edwin West, 2026-09-20. Reviewed by a human before merge.
+//
+// AvailabilityGateTests registered by Claude (Anthropic model, Claude Opus 5)
+// at the direction of Edwin West, 2026-09-20. Reviewed by a human before
+// merge.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.TestKit;
@@ -52,6 +56,7 @@ internal static class Program
             typeof(SecurityClaimsTests),
             typeof(ServiceHostTests),
             typeof(FileServiceLogTests),
-            typeof(PrinterWatchTests));
+            typeof(PrinterWatchTests),
+            typeof(AvailabilityGateTests));
     }
 }

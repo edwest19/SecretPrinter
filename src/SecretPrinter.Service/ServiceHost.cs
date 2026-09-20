@@ -30,6 +30,11 @@
 // model, Claude Opus 5) at the direction of Edwin West, 2026-09-17, for
 // REQ-PXY-010 and REQ-SEC-013. Reviewed by a human before merge.
 //
+// The printer watched on the RFC 6762 schedule, with the listener closed and
+// the advertisement withdrawn while it cannot be reached, by Claude (Anthropic
+// model, Claude Opus 5) at the direction of Edwin West, 2026-09-20, for
+// REQ-LIF-006. Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -157,6 +162,11 @@ public sealed class ServiceHost
 
         using var resolver = new PrinterResolver(resolverSocket, _configuration.PrinterInterface);
 
+        // Open: the service is about to establish that the printer answers, and
+        // refuses to start if it does not (REQ-RES-007). Everything that offers
+        // the printer to the client network reads this one switch.
+        var offering = new AvailabilityGate(open: true);
+
         // The advertisement is built from what the printer says now, not from
         // anything stored. If the printer cannot be reached, the service does
         // not start: advertising capabilities nobody has confirmed would be a
@@ -215,7 +225,7 @@ public sealed class ServiceHost
             _log.Info($"Answering on {client} and, for queries that arrive over IPv6, {companion}.");
         }
 
-        var responder = new MdnsResponder(responderSocket, advertised);
+        var responder = new MdnsResponder(responderSocket, advertised, () => offering.IsOpen);
 
         using var stopping = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var running = new List<Task>();
@@ -227,9 +237,32 @@ public sealed class ServiceHost
 
             running.Add(responder.ServeAsync(stopping.Token));
 
+            var reachability = new PrinterReachability(found.Connection);
+
+            var watch = new PrinterWatch(
+                reachability,
+
+                // Invalidate first: every reconfirmation falls at 80% of the
+                // record's TTL or later, which is still inside the window
+                // REQ-RES-004 lets the resolver answer from memory. Without
+                // this the watch would be answered from the cache every time,
+                // would never put a question on the printer network, and would
+                // report a printer that had been gone for hours as healthy.
+                async token =>
+                {
+                    resolver.Invalidate();
+                    return await resolver
+                        .ResolveAsync(ippsInstance, _configuration.Tuning.PrinterResolveTimeout, token)
+                        .ConfigureAwait(false);
+                },
+                _log,
+                onChanged: (reachable, token) => OfferAsync(responder, offering, reachable, token));
+
+            running.Add(watch.WatchAsync(stopping.Token));
+
             foreach (MdnsInterface client in _configuration.ClientInterfaces)
             {
-                running.Add(RunRelayAsync(client, resolver, ippsInstance, printerPin, stopping.Token));
+                running.Add(RunRelayAsync(client, resolver, ippsInstance, printerPin, offering, stopping.Token));
             }
 
             await Task.WhenAll(running).ConfigureAwait(false);
@@ -272,17 +305,55 @@ public sealed class ServiceHost
     [Requirement("REQ-PXY-010",
         "The relay is given a factory that opens TLS connections only, so there is no path by which a job "
         + "reaches the printer over a plain socket.")]
+    [Requirement("REQ-LIF-006",
+        "Holds the listener open only while the printer is on offer. When the gate closes the listener is "
+        + "disposed, so a client with a stale entry is refused at once instead of waiting out a resolve "
+        + "timeout for a printer this service has established it cannot reach.")]
     private async Task RunRelayAsync(
         MdnsInterface client,
         PrinterResolver resolver,
         DnsName ippsInstance,
         CertificatePin printerPin,
+        AvailabilityGate offering,
         CancellationToken cancellationToken)
     {
         // The permitted network is derived from the interface itself rather than
         // configured separately, so the two cannot drift apart.
         var permitted = new IPNetwork(client.Address, PrefixLengthFor(client.Address));
 
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await offering.WaitForOpenAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            using var serving = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            Task withdrawn = offering.WaitForCloseAsync(serving.Token);
+
+            await AcceptUntilWithdrawnAsync(
+                    client, permitted, resolver, ippsInstance, printerPin, withdrawn, serving)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Listens on one client interface until the printer stops being offered,
+    /// or until the service stops.
+    /// </summary>
+    private async Task AcceptUntilWithdrawnAsync(
+        MdnsInterface client,
+        IPNetwork permitted,
+        PrinterResolver resolver,
+        DnsName ippsInstance,
+        CertificatePin printerPin,
+        Task withdrawn,
+        CancellationTokenSource serving)
+    {
         await using var listener = new TcpConnectionListener(client.Address, _configuration.ListenPort);
 
         _log.Info($"Accepting print jobs on {listener.LocalEndPoint} "
@@ -306,7 +377,65 @@ public sealed class ServiceHost
             },
             new RelayLogger(_log));
 
-        await relay.RunAsync(cancellationToken).ConfigureAwait(false);
+        Task accepting = relay.RunAsync(serving.Token);
+
+        await Task.WhenAny(accepting, withdrawn).ConfigureAwait(false);
+        await serving.CancelAsync().ConfigureAwait(false);
+
+        try
+        {
+            await accepting.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: the gate closed, or the service is stopping.
+        }
+
+        _log.Info($"No longer accepting print jobs on {client.Name}.");
+    }
+
+    /// <summary>
+    /// Starts or stops offering the printer, in the order that never leaves an
+    /// advertised service with nothing listening behind it.
+    /// </summary>
+    [Requirement("REQ-LIF-006",
+        "On loss: closes the gate first, then sends goodbye records, so nothing is accepted that cannot "
+        + "be served and clients drop the entry promptly. On recovery: opens the gate first, then "
+        + "announces, so the printer is listening before it is offered.")]
+    private async Task OfferAsync(
+        MdnsResponder responder,
+        AvailabilityGate offering,
+        bool reachable,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (reachable)
+            {
+                offering.Open();
+                await responder.AnnounceAsync(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
+                _log.Info("Advertisement restored: the printer is on offer again.");
+                return;
+            }
+
+            offering.Close();
+
+            using var goodbyeWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            goodbyeWindow.CancelAfter(TimeSpan.FromSeconds(5));
+
+            await responder.SendGoodbyeAsync(goodbyeWindow.Token).ConfigureAwait(false);
+            _log.Warn("Advertisement withdrawn and the listener closed: "
+                      + "the printer is no longer offered to the client network.");
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or System.Net.Sockets.SocketException)
+        {
+            // The gate has already moved, which is the part that matters. A
+            // failed announcement or goodbye is logged and left: clients fall
+            // back on the record TTL.
+            _log.Warn($"The advertisement could not be {(reachable ? "restored" : "withdrawn")} "
+                      + $"on the network: {ex.Message}. The gate is {(reachable ? "open" : "closed")} "
+                      + "regardless, so what this service accepts is unaffected.");
+        }
     }
 
     /// <summary>

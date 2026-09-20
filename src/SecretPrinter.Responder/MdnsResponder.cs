@@ -159,6 +159,7 @@ public sealed class MdnsResponder
     // all already marked covered, smuggled into a commit scoped to REQ-ADV-018
     // and REQ-ADV-020. IPv6 announcements may well be worth having; that is a
     // separate, measured decision.
+    private readonly Func<bool> _advertising;
     private readonly Dictionary<(AddressFamily Family, int Index), AnsweringInterface> _answering;
 
     private int _announcements;
@@ -171,10 +172,21 @@ public sealed class MdnsResponder
     private int _unparseable;
     private int _goodbyes;
 
-    public MdnsResponder(IMdnsTransport transport, IReadOnlyList<AdvertisedInterface> advertised)
+    /// <param name="advertising">
+    /// Asked before every query is answered. While it returns false the
+    /// responder answers nothing, because the service has withdrawn the
+    /// advertisement (REQ-LIF-006) and answering would re-publish a printer it
+    /// has established it cannot reach. Defaults to always advertising.
+    /// </param>
+    public MdnsResponder(
+        IMdnsTransport transport,
+        IReadOnlyList<AdvertisedInterface> advertised,
+        Func<bool>? advertising = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(advertised);
+
+        _advertising = advertising ?? (static () => true);
 
         if (advertised.Count == 0)
         {
@@ -353,9 +365,20 @@ public sealed class MdnsResponder
         "Answers are drawn only from the advertisement, which contains printing service types alone. A service seen on the printer network cannot become answerable on the client network, because seeing it changes nothing about what this responder holds.")]
     [Requirement("REQ-OBS-007",
         "Counts a query against the transport it arrived on and an answer against the transport it left on, so the two can be compared rather than one being inferred from the other.")]
+    [Requirement("REQ-LIF-006",
+        "Answers nothing while the advertisement is withdrawn. A goodbye followed by an answer to the "
+        + "next query would re-advertise the printer within milliseconds of retracting it.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
+
+        if (!_advertising())
+        {
+            // Not counted as ignored-not-ours: the query was ours to answer, and
+            // we chose not to. The withdrawal itself is logged once, by the
+            // service, rather than once per query here.
+            return false;
+        }
 
         // Keyed off ArrivedOn, which already carries both the transport and the
         // index the socket attributed the datagram to, rather than off

@@ -299,6 +299,7 @@ How print jobs are moved.
 | REQ-LIF-003 | MUST | On shutdown the service sends mDNS goodbye records (TTL 0) for everything it advertised, so clients drop it promptly. |
 | REQ-LIF-004 | MUST | Fatal configuration or binding errors cause a fast, loud failure — never silent partial operation. |
 | REQ-LIF-005 | MUST | Transient network errors are logged and retried, and do not terminate the service. |
+| REQ-LIF-006 | MUST | While the printer is unreachable per REQ-RES-008, the service stops accepting new client connections, stops answering mDNS queries about itself, and withdraws its advertisement with goodbye records as REQ-LIF-003 requires on shutdown. It resumes all three when the printer answers again. Each change is logged once, with what was observed. The service does not offer a printer it has established it cannot reach. Measured: on 2026-09-20 the printer-side WLAN dropped at 06:49:38Z and the service, which correctly diagnosed the adapter as down, went on advertising and accepting jobs for nine hours; twelve jobs were accepted after the diagnosis and all twelve failed. |
 | REQ-OBS-001 | MUST | Startup logs list every interface in use, its resolved address, and its role. |
 | REQ-OBS-002 | MUST | Every advertisement published is logged, including the full TXT record set. |
 | REQ-OBS-003 | MUST | The operator can determine, from logs alone, exactly what the service told the client network. |

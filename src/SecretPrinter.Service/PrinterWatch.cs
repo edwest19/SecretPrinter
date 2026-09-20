@@ -28,8 +28,10 @@
 //   hours as healthy. The query this class performs has to be a real one, so
 //   the caller's lookup delegate is expected to discard the cache first.
 //
-// This class does not yet gate anything. It observes and reports. Closing the
-// listener and withdrawing the advertisement are REQ-LIF-006, and come next.
+// It reports a change through onChanged before returning to the schedule. That
+// is how REQ-LIF-006 closes the listener and withdraws the advertisement: this
+// class decides WHEN the printer stopped being reachable, and the handler
+// decides what the service stops doing about it.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.Resolution;
@@ -48,6 +50,7 @@ public sealed class PrinterWatch
     private readonly IServiceLog _log;
     private readonly TimeProvider _clock;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
+    private readonly Func<bool, CancellationToken, Task>? _onChanged;
 
     /// <param name="reachability">The state and schedule this loop drives.</param>
     /// <param name="lookup">
@@ -62,12 +65,19 @@ public sealed class PrinterWatch
     /// How the loop waits. Supplied for the same reason as the clock: a test
     /// advances its own clock instead of sleeping.
     /// </param>
+    /// <param name="onChanged">
+    /// Invoked with the new reachability whenever it changes, after the change
+    /// has been logged. This is where the service stops and resumes offering
+    /// the printer (REQ-LIF-006). A handler that throws would end the watch, so
+    /// it is expected to deal with its own failures.
+    /// </param>
     public PrinterWatch(
         PrinterReachability reachability,
         Func<CancellationToken, Task<ResolvedPrinter>> lookup,
         IServiceLog log,
         TimeProvider? clock = null,
-        Func<TimeSpan, CancellationToken, Task>? delay = null)
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        Func<bool, CancellationToken, Task>? onChanged = null)
     {
         ArgumentNullException.ThrowIfNull(reachability);
         ArgumentNullException.ThrowIfNull(lookup);
@@ -78,6 +88,7 @@ public sealed class PrinterWatch
         _log = log;
         _clock = clock ?? TimeProvider.System;
         _delay = delay ?? ((wait, token) => Task.Delay(wait, token));
+        _onChanged = onChanged;
     }
 
     /// <summary>Whether the printer is currently held reachable.</summary>
@@ -121,7 +132,7 @@ public sealed class PrinterWatch
                 return;
             }
 
-            Report(_reachability.Tick());
+            await ReportAsync(_reachability.Tick(), cancellationToken).ConfigureAwait(false);
 
             if (_clock.GetUtcNow() < _reachability.NextQueryDue)
             {
@@ -139,7 +150,7 @@ public sealed class PrinterWatch
         try
         {
             ResolvedPrinter answer = await _lookup(cancellationToken).ConfigureAwait(false);
-            Report(_reachability.RecordAnswer(answer));
+            await ReportAsync(_reachability.RecordAnswer(answer), cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -147,11 +158,14 @@ public sealed class PrinterWatch
         }
         catch (PrinterResolutionException)
         {
-            Report(_reachability.RecordSilence());
+            await ReportAsync(_reachability.RecordSilence(), cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private void Report(ReachabilityTransition transition)
+    [Requirement("REQ-LIF-006",
+        "Reports every change in reachability, once, to the handler that stops or resumes offering the "
+        + "printer - so the listener and the advertisement follow the measurement rather than a timer.")]
+    private async Task ReportAsync(ReachabilityTransition transition, CancellationToken cancellationToken)
     {
         switch (transition)
         {
@@ -168,7 +182,14 @@ public sealed class PrinterWatch
 
             case ReachabilityTransition.None:
             default:
-                break;
+                return;
+        }
+
+        if (_onChanged is not null)
+        {
+            await _onChanged(
+                transition == ReachabilityTransition.BecameReachable, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 

@@ -196,6 +196,41 @@ internal static class MdnsResponderTests
         Assert.Equal(3, responder.Activity.IgnoredNotOurs, "each ignored query should be counted");
     }
 
+    [TestCase("A withdrawn advertisement answers nothing")]
+    [Requirement("REQ-LIF-006")]
+    public static void A_withdrawn_responder_answers_nothing()
+    {
+        var transport = new FakeTransport(ClientNic);
+        bool advertising = true;
+
+        var responder = new MdnsResponder(
+            transport, [new AdvertisedInterface(ClientNic, BuildAdvertisement())], () => advertising);
+
+        Assert.True(
+            Handle(responder, Query("_ipp._tcp.local")),
+            "while advertising, our own service type is answered");
+
+        int answered = transport.Sent.Count;
+        Assert.True(answered > 0, "the first query must have produced an answer to compare against");
+
+        advertising = false;
+
+        Assert.False(
+            Handle(responder, Query("_ipp._tcp.local")),
+            "a withdrawn advertisement must not be re-published by answering the next query");
+
+        Assert.Equal(
+            answered,
+            transport.Sent.Count,
+            "nothing may go onto the client network while the printer is not on offer");
+
+        advertising = true;
+
+        Assert.True(
+            Handle(responder, Query("_ipp._tcp.local")),
+            "answering resumes when the printer is offered again");
+    }
+
     [TestCase("A query for another host's name is ignored")]
     [Requirement("REQ-ADV-012")]
     public static void Other_hostname_query_is_ignored()
