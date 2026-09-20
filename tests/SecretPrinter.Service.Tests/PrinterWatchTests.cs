@@ -14,10 +14,17 @@
 //   two lines that describe it. These tests assert the silence in between as
 //   firmly as they assert the two lines.
 //
+//   The last two cases guard a defect found by reading this file on 2026-09-20,
+//   after it had been written, tested and pushed: a lookup can fail without the
+//   printer being asked at all, and the first version of AskAsync caught only
+//   PrinterResolutionException. A SocketException would have faulted the watch
+//   and taken the service down with it - worse than the fault it handles.
+//
 //   The clock and the waiting are both supplied, so nothing here sleeps.
 // -----------------------------------------------------------------------------
 
 using System.Net;
+using System.Net.Sockets;
 using SecretPrinter.Dns;
 using SecretPrinter.Resolution;
 using SecretPrinter.TestKit;
@@ -222,5 +229,93 @@ internal static class PrinterWatchTests
         await watch.WatchAsync(stop.Token).ConfigureAwait(false);
 
         Assert.Equal(0, log.Lines.Count, "a watch that never ran has nothing to report");
+    }
+
+    [TestCase("A lookup that fails before the printer is asked counts as silence")]
+    public static async Task A_socket_failure_is_silence_not_a_crash()
+    {
+        var clock = new TestClock(Start);
+        var log = new RecordingLog();
+        var reachability = new PrinterReachability(Answer(Start), clock, () => 0.0);
+
+        int asked = 0;
+        using var stop = new CancellationTokenSource();
+
+        var watch = new PrinterWatch(
+            reachability,
+            _ =>
+            {
+                if (++asked >= 5)
+                {
+                    stop.CancelAfter(TimeSpan.Zero);
+                }
+
+                // Exactly what the send throws when the printer-side interface
+                // has lost its address, measured on FIOS-STB-01 on 2026-09-20.
+                throw new SocketException((int)SocketError.AddressNotAvailable);
+            },
+            log,
+            clock,
+            (wait, _) =>
+            {
+                clock.MoveTo(clock.GetUtcNow() + wait);
+                return Task.CompletedTask;
+            });
+
+        // The failure must not escape: a faulted watch takes the service with it.
+        await watch.WatchAsync(stop.Token).ConfigureAwait(false);
+
+        Assert.False(
+            reachability.IsReachable,
+            "a lookup that could not leave the machine is no evidence the printer is there");
+
+        Assert.True(
+            log.Lines.Exists(line => line.Contains("SocketException", StringComparison.Ordinal)),
+            "a failure that is not an ordinary timeout must be named, not folded in quietly");
+
+        Assert.True(
+            log.Lines.Exists(line => line.Contains("Printer unreachable", StringComparison.Ordinal)),
+            "the printer still becomes unreachable, by the same schedule as any other silence");
+    }
+
+    [TestCase("An unexpected failure is named and does not end the watch")]
+    public static async Task An_unexpected_failure_does_not_end_the_watch()
+    {
+        var clock = new TestClock(Start);
+        var log = new RecordingLog();
+        var reachability = new PrinterReachability(Answer(Start), clock, () => 0.0);
+
+        int asked = 0;
+        using var stop = new CancellationTokenSource();
+
+        var watch = new PrinterWatch(
+            reachability,
+            _ =>
+            {
+                asked++;
+
+                if (asked == 1)
+                {
+                    throw new InvalidOperationException("something nobody predicted");
+                }
+
+                stop.CancelAfter(TimeSpan.Zero);
+                return Task.FromResult(Answer(clock.GetUtcNow()));
+            },
+            log,
+            clock,
+            (wait, _) =>
+            {
+                clock.MoveTo(clock.GetUtcNow() + wait);
+                return Task.CompletedTask;
+            });
+
+        await watch.WatchAsync(stop.Token).ConfigureAwait(false);
+
+        Assert.True(asked >= 2, "the watch must keep asking after an unexpected failure");
+
+        Assert.True(
+            log.Lines.Exists(line => line.Contains("InvalidOperationException", StringComparison.Ordinal)),
+            "an unexpected failure must be named in the log rather than swallowed");
     }
 }

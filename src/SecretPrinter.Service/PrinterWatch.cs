@@ -19,6 +19,24 @@
 //   saying the same thing. Two lines describe that outage completely - when it
 //   started and when it ended - and the retry stream stays silent in between.
 //
+// Why every failure is silence:
+//   A lookup can fail without the printer ever having been asked. When the
+//   printer-side interface loses its address the send itself throws
+//   SocketException - "The requested address is not valid in its context",
+//   measured on FIOS-STB-01 on 2026-09-20 - and that is not a
+//   PrinterResolutionException. An earlier version of this class caught only
+//   the latter, so such a failure would have faulted the watch, and a faulted
+//   watch brings down the whole service through Task.WhenAll. That is a worse
+//   outcome than the fault it was meant to handle: before this class existed,
+//   the same error cost one print job.
+//
+//   So anything that is not cancellation counts as silence. For deciding
+//   reachability the distinction does not matter - a question that could not
+//   leave the machine and a question that was not answered both mean the
+//   printer was not reached - and nothing here claims otherwise. A failure
+//   that is not simply the printer staying quiet is logged with its type, so
+//   it cannot be mistaken for an ordinary timeout.
+//
 // Why it invalidates before it asks:
 //   PrinterResolver answers from its cache while the answer is inside its TTL
 //   (REQ-RES-004), and every reconfirmation here falls at 80% of that TTL or
@@ -152,12 +170,26 @@ public sealed class PrinterWatch
             ResolvedPrinter answer = await _lookup(cancellationToken).ConfigureAwait(false);
             await ReportAsync(_reachability.RecordAnswer(answer), cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Shutdown. Not silence, and not a verdict about the printer.
         }
         catch (PrinterResolutionException)
         {
+            // The ordinary case: asked, and not answered. The transition, if
+            // there is one, is the whole story; nothing more is logged.
+            await ReportAsync(_reachability.RecordSilence(), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Everything else, including a send that could not leave the
+            // machine. The question went unanswered, so it is silence like any
+            // other - but it is not the ordinary kind, so it is named rather
+            // than folded in quietly.
+            _log.Warn(
+                $"Printer lookup failed before an answer could be expected: {ex.GetType().Name}: "
+                + $"{ex.Message}. Treated as no answer. Nothing is claimed about the printer.");
+
             await ReportAsync(_reachability.RecordSilence(), cancellationToken).ConfigureAwait(false);
         }
     }
