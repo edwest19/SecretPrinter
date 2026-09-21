@@ -11,6 +11,10 @@
 // 5) at the direction of Edwin West, 2026-09-17. Reviewed by a human before
 // merge.
 //
+// TcpConnectionFactoryTests registered by Claude (Anthropic model, Claude Opus
+// 5) at the direction of Edwin West, 2026-09-21. Reviewed by a human before
+// merge.
+//
 // Pass --results <path> to record which requirements had a test that executed
 // and passed, for SecretPrinter.SpecCheck to read.
 // -----------------------------------------------------------------------------
@@ -49,6 +53,7 @@ internal static class Program
             resultsPath,
             typeof(IppRelayTests),
             typeof(CertificatePinTests),
-            typeof(TlsConnectionFactoryTests));
+            typeof(TlsConnectionFactoryTests),
+            typeof(TcpConnectionFactoryTests));
     }
 }
