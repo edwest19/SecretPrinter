@@ -20,6 +20,15 @@ the corrected sentence under Uninstalling — added by Claude (Anthropic model,
 Claude Opus 5) at the direction of Edwin West, 2026-09-18. Reviewed by a human
 before merge.*
 
+*Corrected by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
+West, 2026-09-21, from measurements on FIOS-STB-01: `LocalService` moved from
+unverified to verified; the service install rewritten around the two things that
+actually broke it (a build under a user profile, and PowerShell's quoting of
+`sc.exe`); the firewall rules tied to the installed path and the network profile;
+a new section on the printer-side network dropping; and the claim under
+Uninstalling that goodbye records make the printer disappear promptly, which an
+iPhone contradicted. Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -77,6 +86,38 @@ New-NetFirewallRule -DisplayName "SecretPrinter IPP" `
 ```
 
 **Use `-Profile Private`.** These rules should not apply on a public network.
+
+**Both rules name the program, so they must name the file the service actually
+runs.** A rule scoped to a build under your profile does nothing for the same
+program published to `C:\Program Files\SecretPrinter`. On FIOS-STB-01 the rules
+were first created against the build folder and had to be repointed when the
+service moved (2026-09-18). If you move or reinstall it, repoint them:
+
+```powershell
+# Run as Administrator.
+Set-NetFirewallRule -DisplayName "SecretPrinter mDNS" -Program "C:\Program Files\SecretPrinter\SecretPrinter.Service.exe"
+Set-NetFirewallRule -DisplayName "SecretPrinter IPP" -Program "C:\Program Files\SecretPrinter\SecretPrinter.Service.exe"
+```
+
+**And a `Private` rule does nothing on a network Windows has classified
+`Public`.** Check both networks, and check what the rules actually say rather
+than what you meant them to say:
+
+```powershell
+Get-NetConnectionProfile | Format-Table InterfaceAlias, NetworkCategory -AutoSize
+Get-NetFirewallRule -DisplayName "SecretPrinter*" | ForEach-Object { [pscustomobject]@{ Name = $_.DisplayName; Enabled = $_.Enabled; Profile = $_.Profile; Program = ($_ | Get-NetFirewallApplicationFilter).Program; Port = ($_ | Get-NetFirewallPortFilter).LocalPort } } | Format-Table -AutoSize
+```
+
+Measured on FIOS-STB-01, 2026-09-21: both rules enabled, `Private`, scoped to
+`C:\Program Files\SecretPrinter\SecretPrinter.Service.exe`, on 5353 and 631, and
+both networks `Private`. `Get-NetConnectionProfile` has been seen not to list
+every connected network, so a missing row is not proof of anything.
+
+Without the IPP rule, a capture on 2026-09-06 showed connections to 631 getting
+no answer at all — no refusal — which
+[that finding](findings/2026-09-06-ipv6-mdns-transport.md) attributes to the
+firewall. That looks exactly like a printer that is off, which is why it is worth
+checking first.
 
 ### 3. Generate a UUID
 
@@ -229,25 +270,60 @@ New-Item -ItemType Directory -Path "C:\ProgramData\SecretPrinter" -Force
 icacls "C:\ProgramData\SecretPrinter" /grant "*S-1-5-19:(OI)(CI)M"
 ```
 
-That grant has **not been verified here**; nothing on these machines has yet run
-as `LocalService`. If it is wrong, the service stops immediately with exit code 5
-and says which file it could not open, which is the failure you want rather than
-a service that runs silently.
+That grant is **verified** on FIOS-STB-01, where the service has run as
+`LocalService` with its log in that folder since 2026-09-18
+([the finding](findings/2026-09-18-running-as-localservice.md)). If it is wrong
+on your machine, the service stops immediately with exit code 5 and says which
+file it could not open. The finding also records what the grant allows beyond
+the log: if your configuration file sits in the same folder, the service account
+can modify it too, although nothing in the service writes it.
+
+**Install the program where `LocalService` can read it.** A build under your own
+profile — `C:\Users\you\...\bin\Release\...` — grants access to you, to
+administrators and to `SYSTEM`, and not to `LocalService`. The service control
+manager then cannot launch the process at all: `sc.exe start` fails with error
+5, *Access is denied*, even from an elevated prompt, and the log stays empty
+because nothing ran to write it. That happened on FIOS-STB-01 on 2026-09-18.
+Publish to `C:\Program Files\SecretPrinter` and keep the configuration in
+`C:\ProgramData\SecretPrinter`, which is how a release will be installed anyway:
 
 ```powershell
 # Run as Administrator.
-$exe = "C:\path\to\SecretPrinter.Service.exe"
-$cfg = "C:\path\to\secretprinter.json"
-$log = "C:\ProgramData\SecretPrinter\secretprinter.log"
+dotnet publish <repo>\src\SecretPrinter.Service -c Release -o "C:\Program Files\SecretPrinter"
+Copy-Item <your>\secretprinter.json "C:\ProgramData\SecretPrinter\secretprinter.json"
+```
 
-sc.exe create SecretPrinter `
-    binPath= "`"$exe`" --config `"$cfg`" --log-file `"$log`" --service" `
-    obj= "NT AUTHORITY\LocalService" `
-    start= auto
+**Register it with `--%`.** From Windows PowerShell, the obvious form —
+variables and backtick-escaped quotes — failed on 2026-09-18: the space in
+`Program Files` reached `sc.exe` as a broken argument list, `sc.exe` printed its
+usage text, and no service was created. `--%` tells PowerShell to stop parsing
+and hand the rest of the line to `sc.exe` exactly as written. Variables are not
+expanded after it, so the paths must be written out:
 
+```powershell
+# Run as Administrator. One line.
+sc.exe --% create SecretPrinter binPath= "\"C:\Program Files\SecretPrinter\SecretPrinter.Service.exe\" --config \"C:\ProgramData\SecretPrinter\secretprinter.json\" --log-file \"C:\ProgramData\SecretPrinter\secretprinter.log\" --service" obj= "NT AUTHORITY\LocalService" start= auto
+```
+
+Then check what was actually registered before starting it:
+
+```powershell
+sc.exe qc SecretPrinter
+```
+
+`BINARY_PATH_NAME` should show the program path in quotes followed by the three
+arguments, and `SERVICE_START_NAME` should read `NT AUTHORITY\LocalService`.
+That is exactly what FIOS-STB-01 reports, measured 2026-09-21.
+
+```powershell
+# Run as Administrator.
 sc.exe start SecretPrinter
 sc.exe query SecretPrinter      # expect STATE : 4 RUNNING
 ```
+
+Starting and stopping a service needs an elevated prompt. From an unelevated
+one, `sc.exe start` also fails with error 5, for a different reason: your
+session's rights, not the service's.
 
 **Do not omit `obj=`.** Without it `sc.exe` runs the service as **LocalSystem**,
 the most privileged account on the machine. SecretPrinter was measured to need
@@ -255,10 +331,10 @@ nothing beyond standard-user privileges, so LocalSystem asks for far more than
 it uses. This was a real mistake in an earlier version of these instructions;
 see [the finding](findings/2026-09-04-windows-service-run.md).
 
-`LocalService` under this configuration is **not yet verified** — it is more
-restricted than the account the privilege measurement used. If the service fails
-to start under it, the log will say which operation was refused, and a dedicated
-low-privilege local account is the fallback. Either way, not LocalSystem.
+`LocalService` is **verified**: on FIOS-STB-01 the service has run under it since
+2026-09-18, sharing 5353, joining both multicast groups, listening on 631,
+opening TLS to the printer and printing
+([the finding](findings/2026-09-18-running-as-localservice.md)). Not LocalSystem.
 
 To remove it:
 
@@ -390,20 +466,71 @@ carrying standard-user privileges, so the measurement establishes that the
 service works at standard-user level. Do not run it elevated: it needs nothing
 that elevation provides.
 
-### What has not been measured
+### Under `LocalService`
 
-Running under a dedicated service account such as
-`NT AUTHORITY\LocalService`. That account is more restricted again — no network
-credentials, minimal local rights — and is the intended target once the Windows
-service question is settled. Until somebody runs it there and records the
-result, the honest claim is "no elevation required", not "runs as LocalService".
+`NT AUTHORITY\LocalService` is more restricted again — no network credentials,
+minimal local rights. The service runs under it on FIOS-STB-01, measured
+2026-09-21 and in use since 2026-09-18
+([the finding](findings/2026-09-18-running-as-localservice.md)). So the claim is
+now "runs as LocalService", on that machine. It has not been measured on any
+other; if you run it elsewhere and it differs, add what you find to
+`docs/findings/`.
 
-If you try it, add what you find to `docs/findings/`.
+## When the printer-side network drops
+
+SecretPrinter reaches the printer over whatever link you gave it. If that link
+is Wi-Fi, measure whether it stays up. On FIOS-STB-01 it does not: two adapters
+from different makers have been disconnected by their drivers, and **nothing
+reconnected either of them** — the profile is set to connect automatically, and
+the WLAN-AutoConfig log records no attempt, for 13 hours in one case, until a
+person connected by hand
+([the finding](findings/2026-09-20-the-wlan-drops-and-nothing-retries.md)).
+
+The service does not reconnect the link and will not: changing the host's
+network configuration is exactly what `REQ-SEC-007` forbids. What it does is stop
+offering the printer while it cannot reach it — the advertisement is withdrawn
+and the listener closed — and resume when the printer answers again
+(`REQ-LIF-006`). That has run on FIOS-STB-01
+([the finding](findings/2026-09-21-the-withdrawal-on-hardware.md)). Two limits to
+know:
+
+- **Coming back can be slow.** While the printer is away the service asks again
+  after 1, 2, 4, 8… seconds, up to once an hour. After a long outage, the printer
+  may not reappear for up to an hour after the link returns. Restarting the
+  service after reconnecting brings it back at once.
+- **The service will not start while the printer-side adapter is down.** Startup
+  refuses an interface that is not up — on 2026-09-18 FIOS-STB-01 logged
+  `Interface 'Wi-Fi' holds 169.254.111.167 but is not up.` — so a reboot during
+  an outage leaves the service stopped, not waiting.
+
+To see whether the link has been dropping, and why:
+
+```powershell
+Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-WLAN-AutoConfig/Operational'; Id = 8000, 8001, 8002, 8003; StartTime = (Get-Date).Date } -ErrorAction SilentlyContinue | Sort-Object TimeCreated | Format-List TimeCreated, Id, Message
+```
+
+`8003` is a disconnect, and its `Reason` says whether the driver or a user ended
+it. `8000`, `8001` and `8002` are a connection starting, succeeding and failing.
+A `8003` from the driver with no `8000` after it is this problem. The event's
+`Connection Mode` line describes how *that* connection was started, not the
+profile's setting; check the profile with `netsh wlan show profile`.
+
+To reconnect by hand, using the profile name that command shows:
+
+```powershell
+netsh wlan connect name="<profile>" interface="<adapter name>"
+```
 
 ## Uninstalling
 
-Stop the process. It sends mDNS goodbye records on the way out, so the printer
-disappears from clients promptly rather than lingering until its TTL expires.
+Stop the process. It sends mDNS goodbye records on the way out, which ask
+clients to forget the printer at once. **Do not count on that.** The goodbyes go
+out over IPv4 only, and iPhones ask over IPv6. On 2026-09-21 an iPhone went on
+listing the printer after a goodbye
+([the finding](findings/2026-09-21-the-withdrawal-on-hardware.md)). If iOS
+ignores the goodbye, the entry would stay until the record that lists it
+expires, which is 4500 seconds — 75 minutes. Why iOS kept it, and how long it
+actually stays, are not established.
 
 Then remove the firewall rules you added:
 

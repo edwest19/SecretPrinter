@@ -3,6 +3,10 @@
 *Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of Edwin
 West. Reviewed by a human before merge.*
 
+*The REQ-SEC-006 entry updated by Claude (Anthropic model, Claude Opus 5) at the
+direction of Edwin West, 2026-09-21, when running as `LocalService` was measured.
+Reviewed by a human before merge.*
+
 Some requirements in [README.md](../README.md) cannot be satisfied by code.
 "Release binaries are signed" and "CI runs the specification checker" are
 properties of the build and release process; no attribute on a class will ever
@@ -51,7 +55,7 @@ proportion resting on evidence rather than tests is always visible.
 | REQ-OBS-005 | `tools/SecretPrinter.Listen/README.md` | Carries a "Privacy note" section warning that captured mDNS traffic contains household device names, and instructing the reader to review output before publishing it. The tool prints the same warning in its `--help` text. |
 | REQ-DIST-008 | `docs/verification.md` | This document. Recursive by construction: the requirement to record non-code evidence is itself satisfied by the file that records it, and SpecCheck confirms the file exists. |
 | REQ-LIF-001 | `docs/findings/2026-09-04-windows-service-run.md`, `src/SecretPrinter.Service/WindowsService.cs` | The unit tests cover the start and stop semantics, but not the control-manager handshake, which no test can reach. That half rests on a recorded run: `sc.exe create`, `start` reaching `STATE : 4 RUNNING`, and `stop` accepted. Stop reached `STATE : 1 STOPPED` with exit code 0, so the shutdown path ran to completion within its timeout. Whether the goodbye records reached the network is noted in the finding as still unobserved. |
-| REQ-SEC-006 | `docs/findings/2026-09-04-service-runs-unelevated.md`, `docs/operating.md` | Measured, not assumed: the service bound UDP 5353 with `SO_REUSEADDR`, joined the multicast group on two interfaces, bound TCP 631 and relayed print jobs, all from an unelevated session with standard-user privileges. The operating guide states this and marks what remains unmeasured (running under `LocalService`). |
+| REQ-SEC-006 | `docs/findings/2026-09-04-service-runs-unelevated.md`, `docs/findings/2026-09-18-running-as-localservice.md`, `docs/operating.md` | Measured, not assumed: the service bound UDP 5353 with `SO_REUSEADDR`, joined the multicast group on two interfaces, bound TCP 631 and relayed print jobs, all from an unelevated session with standard-user privileges. Since 2026-09-18 it has run as a Windows service under `NT AUTHORITY\LocalService` on FIOS-STB-01, and on 2026-09-21 it bound its sockets, joined both multicast groups, opened TLS to the printer and relayed printed pages under that account. The operating guide states both, and that `LocalService` has been measured on that one machine only. |
 | REQ-DIST-003 | `.github/workflows/ci.yml` | Builds the solution in Release with warnings as errors, discovers every `tests/*.Tests` project and runs it with `--results`, then runs SpecCheck with all of those files and fails the job on a non-zero exit. Suite discovery is enumerated rather than listed so a missing `--test-results` flag cannot under-report coverage. |
 | REQ-DIST-010 | `tests/SecretPrinter.TestKit/TestHarness.cs`, `tools/SecretPrinter.SpecCheck/CoverageMatrix.cs` | The harness records each exercised assembly's module version id; SpecCheck compares them against the assemblies it scans and fails on any mismatch. Verified by editing a source file, rebuilding without re-running the tests, and confirming the check named the rebuilt assembly and failed. |
 | REQ-DIST-009 | `tools/SecretPrinter.SpecCheck/TestResultsDocument.cs`, `tests/SecretPrinter.TestKit/TestHarness.cs` | The harness records PASS/FAIL/SKIP per requirement; SpecCheck counts a requirement as tested only on a recorded PASS, and reports `TEST DID NOT RUN` otherwise. Verified by flipping a PASS to FAIL in a results file and confirming the requirement lost its coverage. |
