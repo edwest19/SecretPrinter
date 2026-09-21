@@ -3,6 +3,13 @@
 *Written by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
 West, 2026-09-21. Reviewed by a human before merge.*
 
+*Corrected 2026-09-21, the same day, by Claude (Anthropic model, Claude Opus 5),
+at the direction of Edwin West. "Loss, by the adapter's own drop" first dated the
+drop to between 19:54:12Z and 19:54:23Z, inferred from the service log. The
+WLAN-AutoConfig log records it at 19:53:55Z. The section is rewritten from the
+event log, and the one later mention of the drop's time is corrected to match.
+Reviewed by a human before merge.*
+
 **Status: measured on FIOS-STB-01. The service withdrew when the printer stopped
 answering and came back when it answered again, in the order `REQ-LIF-006`
 requires and on the schedule `REQ-RES-008` gives, against both a deliberate
@@ -65,15 +72,18 @@ code before they were measured.
 
 ## Loss, by the adapter's own drop
 
-The Broadcom dropped by itself between 19:54:12Z (the last successful lookup) and
-19:54:23Z (the first `adapter 'Wi-Fi' is not up`). At **19:54:52Z** the service
-declared the printer unreachable, withdrew and closed its listener. The
-withdrawal and listener lines appeared in the other order this time, which the
-code allows.
+The WLAN-AutoConfig log records the Broadcom's driver disconnecting at
+**19:53:55Z**. At **19:54:52Z**, 57 seconds later, the service declared the
+printer unreachable, withdrew and closed its listener. The withdrawal and
+listener lines appeared in the other order this time, which the code allows.
 
-Jobs arriving between the drop and 19:54:52 were accepted and failed with the
-adapter named. That window is designed: the service condemns the printer when its
-record expires, not on the first silence.
+Connections arriving between the drop and 19:54:52 were accepted. Those whose
+lookup was answered from cache, between 19:53:52Z and 19:54:12Z, ended with no
+log line at all — the defect in
+[`2026-09-17-connect-timeout-is-not-reported.md`](2026-09-17-connect-timeout-is-not-reported.md),
+fixed in `d29dd4e`. Those that had to query, from 19:54:23Z, failed with the
+adapter named. Accepting during that window is designed: the service condemns
+the printer when its record expires, not on the first silence.
 
 ## The gaps
 
@@ -107,7 +117,7 @@ under "Still open".
 ## What this run does not establish
 
 - **A page printed after an in-service recovery.** Nothing relayed between the
-  19:51 recovery and the 19:54 drop. Printing on the next build, after a restart,
+  19:51 recovery and the 19:53:55 drop. Printing on the next build, after a restart,
   is shown in
   [`2026-09-18-the-pin-refuses-a-mismatch.md`](2026-09-18-the-pin-refuses-a-mismatch.md);
   printing after the service itself recovered is still to be seen.

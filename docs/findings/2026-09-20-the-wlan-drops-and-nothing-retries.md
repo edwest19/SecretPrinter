@@ -4,9 +4,19 @@
 West, 2026-09-21, from measurements taken on 2026-09-20 and 2026-09-21. Reviewed
 by a human before merge.*
 
+*Corrected 2026-09-21, the same day, by Claude (Anthropic model, Claude Opus 5),
+at the direction of Edwin West, after the WLAN-AutoConfig log was read for the
+Broadcom adapter. The first version dated the Broadcom's own drop to "by
+19:54:23Z" and said the adapter "still reported up" while ten connections went
+silent. Neither had been measured: both were inferred from the service log. The
+event log puts the drop at 19:53:55Z, before most of those connections. The
+section on 2026-09-21 is rewritten from the event log, and the status line and
+"Why nothing reconnects" are updated. Reviewed by a human before merge.*
+
 **Status: measured on FIOS-STB-01 with two different wireless adapters. Why the
-link drops is NOT established. That nothing brings it back is measured for one
-drop and consistent with the others. SecretPrinter cannot fix this and does not
+link drops is NOT established. That nothing brings it back is measured on both
+adapters: after every drop the driver initiated, the event log records no
+reconnect attempt until a person made one. SecretPrinter cannot fix this and does not
 try to; `REQ-LIF-006` exists so that the service stops offering a printer it
 cannot reach while the link is down.**
 
@@ -39,28 +49,40 @@ Local times are EDT; the service log stamps UTC.
 That run was on `53f001c`, before `REQ-LIF-006`, which is why jobs went on
 being accepted for nine hours with no printer behind them.
 
-## 2026-09-21: the Broadcom adapter, measured in the service log
+## 2026-09-21: the Broadcom adapter, measured in the event log
 
-The event log was **not** read for these drops, so the reason codes are not
-known. What the service log and adapter state show:
+WLAN-AutoConfig events `8000` (connection started), `8001` (connected), `8002`
+(connection failed) and `8003` (disconnected), for the whole day:
 
-- The adapter was down at 06:06Z (jobs failed `adapter 'Wi-Fi' is not up`) and
-  again at 18:32Z. At about 19:25Z `Get-NetAdapter` reported it `Disconnected`,
-  holding `192.168.12.186` as `Deprecated`. Whether it came back at all between
-  06:06 and 19:25 is not known.
-- At 19:46:00Z it was reconnected by hand. By 19:54:23Z it had dropped again:
-  lookups failed `adapter 'Wi-Fi' is not up`, and `Get-NetAdapter` reported it
-  `Disconnected` shortly after. It stayed disconnected until it was reconnected
-  by hand again for the next install. **The Broadcom adapter held the link for
-  about eight minutes.**
-- A deliberate `netsh wlan disconnect` at 19:31:57Z, used to test the
-  withdrawal, is not counted here as a drop.
+| Local (EDT) | UTC | Event |
+|---|---|---|
+| 00:08:42 | 04:08:42 | `8000` started |
+| 00:10:45 | 04:10:45 | `8002` failed |
+| 00:21:29 | 04:21:29 | `8000` started |
+| 00:22:22 | 04:22:22 | `8001` connected |
+| 01:57:55 | 05:57:55 | `8003` — *the network is disconnected by the driver* |
+| *(13 h 29 m)* | | **no `8000`, `8001` or `8002`: nothing tried to reconnect** |
+| 15:26:50 | 19:26:50 | `8000`, `8001`: connected by hand, for the install |
+| 15:31:58 | 19:31:58 | `8003` — *disconnected by the user*: the deliberate withdrawal test, not a drop |
+| 15:46:00–01 | 19:46:00–01 | `8000`, `8001`: connected by hand |
+| 15:53:55 | 19:53:55 | `8003` — *the network is disconnected by the driver* |
+| *(22 m 50 s)* | | **nothing tried to reconnect** |
+| 16:16:45 | 20:16:45 | `8000`, `8001`: connected by hand, for the next install |
 
-The last few seconds before that 19:54 drop matter to anyone reading the service
-log. Between 19:53:52Z and 19:54:12Z the adapter still reported up, and lookups
-were answered from cache, but ten connections to the printer never completed.
-The link was already failing before Windows said so. Those ten jobs ended with
-no log line at all; that is
+How the connections just after midnight were started is not recorded here.
+
+So the Broadcom held the link for **1 h 35 m** overnight and for **7 m 54 s**
+in the afternoon, and both times the driver ended it and nothing brought it back.
+The service log agrees: the jobs that failed `adapter 'Wi-Fi' is not up` at
+06:06Z and 18:32Z fall inside the 13-hour gap.
+
+The afternoon drop at 19:53:55Z matters to anyone reading the service log.
+Ten connections from the iPhone were accepted between 19:53:52Z and 19:54:12Z;
+eight of them arrived *after* the drop. Each logged `located … (cached, 0s)`,
+because a lookup answered from cache does not consult the adapter, so the log
+shows a printer being located that could no longer be reached. The first
+`adapter 'Wi-Fi' is not up` appeared at 19:54:23Z, when a lookup next had to
+query. Those ten jobs then ended with no log line at all; that is
 [`2026-09-17-connect-timeout-is-not-reported.md`](2026-09-17-connect-timeout-is-not-reported.md),
 fixed in `d29dd4e`.
 
@@ -101,8 +123,10 @@ cause. That is weakened, not settled.
   continued on a second adapter from a different maker, the access point, the
   profile or the machine are as likely as either driver — but nothing here
   measures that.
-- **Why nothing reconnects.** For the 2026-09-20 drop, the event log shows
-  AutoConfig never tried. For the 2026-09-21 drops, the event log was not read.
+- **Why nothing reconnects.** For every driver-initiated drop measured — one
+  on the USB adapter, two on the Broadcom — the event log shows AutoConfig never
+  tried, although the profile is set to connect automatically. Why it does not
+  is not known.
 - **Where to look.** On FIOS-STB-01, the WLAN-AutoConfig operational log is the
   only channel found so far that records these drops at all. The service log
   records their effect, not their cause.

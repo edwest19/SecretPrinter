@@ -20,6 +20,15 @@ direction of Edwin West: the table below first said the connections came from
 carried the word over from the previous session's handoff without checking it.
 Reviewed by a human before merge.*
 
+*Corrected again 2026-09-21 by Claude (Anthropic model, Claude Opus 5), at the
+direction of Edwin West: the second bullet under "What this does not establish"
+said the adapter "still reported up" while these connections were made, and that
+the WLAN "reported disconnected about ten seconds later". That was inferred from
+the service log, not measured. The WLAN-AutoConfig log records the driver
+disconnecting at 19:53:55Z, before eight of the ten connections. The bullet is
+rewritten, and the event is added to the table. Reviewed by a human before
+merge.*
+
 *Original status (2026-09-17): found while writing the TLS connection factory,
 reasoned from the code and from Microsoft's documentation, NOT observed on
 hardware. Not fixed. The new TLS code avoids the same shape;
@@ -100,6 +109,7 @@ the printer-side WLAN was failing on its own.
 | UTC | Log |
 |---|---|
 | 19:51:06–08 | the printer answered again; listener reopened; advertisement restored |
+| 19:53:55 | *WLAN-AutoConfig event log, not the service log:* `8003`, the printer-side network disconnected by the driver |
 | 19:53:52–19:54:12 | ten connections from the iPhone (`192.168.1.152`, ports 52762–52771) each logged `Job: accepted` and `Job: located … (cached, 0s)` |
 | 19:54:23 onward | new connections failed and were reported: `adapter 'Wi-Fi' is not up` |
 | 19:54:52 | printer declared unreachable; advertisement withdrawn; listener closed |
@@ -125,10 +135,17 @@ What this does **not** establish:
 - It is inference from the code, not a capture. No packet trace was taken, so
   it is not shown that the SYNs went unanswered — only that nothing else in the
   code fits a connection that ends with no line.
-- Why the printer did not answer is not known. The adapter still reported up
-  and the lookup was served from cache; the WLAN was plainly failing, since it
-  reported disconnected about ten seconds later, but nothing here measures the
-  link during that window.
+- Where the connection attempts went. The printer-side WLAN had been
+  disconnected by its driver at 19:53:55Z, so eight of the ten connections began
+  with that link already gone; their lookups succeeded only because they were
+  answered from cache, which does not consult the adapter. With no on-link route
+  to `192.168.12.180`, Windows may have sent the SYNs out the default route —
+  onto the client network — where nothing would answer them. **That is a
+  hypothesis, not a measurement.** If it is right, the relay's outbound
+  connections are not confined to the printer-side interface. No job data could
+  leave that way, since the TLS handshake with the pinned printer never
+  completes, but it is a question about confinement that needs its own
+  measurement.
 
 ## The fix
 
