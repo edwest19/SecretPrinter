@@ -14,6 +14,12 @@ paragraph. What the hardware run does and does not establish is set out below.
 A second, related path — connections cancelled by a withdrawal — is still
 open.**
 
+*Corrected 2026-09-21 by Claude (Anthropic model, Claude Opus 5), at the
+direction of Edwin West: the table below first said the connections came from
+"the iPad". The device at `192.168.1.152` is an iPhone; no iPad was used. Claude
+carried the word over from the previous session's handoff without checking it.
+Reviewed by a human before merge.*
+
 *Original status (2026-09-17): found while writing the TLS connection factory,
 reasoned from the code and from Microsoft's documentation, NOT observed on
 hardware. Not fixed. The new TLS code avoids the same shape;
@@ -94,7 +100,7 @@ the printer-side WLAN was failing on its own.
 | UTC | Log |
 |---|---|
 | 19:51:06–08 | the printer answered again; listener reopened; advertisement restored |
-| 19:53:52–19:54:12 | ten connections from the iPad (`192.168.1.152`, ports 52762–52771) each logged `Job: accepted` and `Job: located … (cached, 0s)` |
+| 19:53:52–19:54:12 | ten connections from the iPhone (`192.168.1.152`, ports 52762–52771) each logged `Job: accepted` and `Job: located … (cached, 0s)` |
 | 19:54:23 onward | new connections failed and were reported: `adapter 'Wi-Fi' is not up` |
 | 19:54:52 | printer declared unreachable; advertisement withdrawn; listener closed |
 
