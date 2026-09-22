@@ -29,6 +29,11 @@ a new section on the printer-side network dropping; and the claim under
 Uninstalling that goodbye records make the printer disappear promptly, which an
 iPhone contradicted. Reviewed by a human before merge.*
 
+*The limit "the service will not start while the printer-side adapter is
+down" replaced, when REQ-LIF-008 changed startup to wait instead, by Claude
+(Anthropic model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-22.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -498,10 +503,15 @@ know:
   after 1, 2, 4, 8… seconds, up to once an hour. After a long outage, the printer
   may not reappear for up to an hour after the link returns. Restarting the
   service after reconnecting brings it back at once.
-- **The service will not start while the printer-side adapter is down.** Startup
-  refuses an interface that is not up — on 2026-09-18 FIOS-STB-01 logged
-  `Interface 'Wi-Fi' holds 169.254.111.167 but is not up.` — so a reboot during
-  an outage leaves the service stopped, not waiting.
+- **Starting while the printer-side adapter is down waits rather than
+  refusing** (`REQ-LIF-008`). The service runs and offers nothing, logs
+  `Waiting for the printer-side interface:` with the reason, examines the
+  adapter every 5 seconds, and carries on by itself once you reconnect it and
+  the printer answers. Until 2026-09-22 it refused to start instead, so a reboot
+  during an outage left it stopped. The adapter must still exist by name: an
+  adapter that is absent altogether, such as a USB adapter that is unplugged, is
+  refused when the configuration is loaded. Not yet run on FIOS-STB-01 at the
+  time of writing.
 
 To see whether the link has been dropping, and why:
 

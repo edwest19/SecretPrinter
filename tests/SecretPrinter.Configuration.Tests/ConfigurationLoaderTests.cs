@@ -16,6 +16,11 @@
 // (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-22.
 // Reviewed by a human before merge.
 //
+// Tests changed for the printer-side adapter being held by name rather than
+// resolved at load, and three tests added for it (REQ-LIF-008, REQ-CFG-003), by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-22. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that nothing is quietly defaulted, that every mistake is named,
 //   and that a configuration which would leave the service unable to tell a
@@ -98,7 +103,7 @@ internal static class ConfigurationLoaderTests
 
     // ---- The happy path -----------------------------------------------------
 
-    [TestCase("The example configuration loads and resolves its interfaces")]
+    [TestCase("The example configuration loads, resolving its client interfaces and naming its printer adapter")]
     [Requirement("REQ-CFG-004")]
     public static void Example_resolves_interface_names_to_addresses()
     {
@@ -108,8 +113,8 @@ internal static class ConfigurationLoaderTests
         Assert.Equal(IPAddress.Parse("192.168.1.234"), configuration.ClientInterfaces[0].Address,
             "the client interface name must resolve to that adapter's address");
         Assert.Equal(13, configuration.ClientInterfaces[0].Index, "and to its index");
-        Assert.Equal(IPAddress.Parse("192.168.12.245"), configuration.PrinterInterface.Address,
-            "the printer interface must resolve too");
+        Assert.Equal("Wi-Fi", configuration.PrinterInterfaceName,
+            "the printer adapter is held by name, to be resolved when the service starts (REQ-LIF-008)");
     }
 
     [TestCase("Client and printer interfaces are separate settings")]
@@ -118,13 +123,16 @@ internal static class ConfigurationLoaderTests
     {
         ServiceConfiguration configuration = LoadExample();
 
-        Assert.True(configuration.ClientInterfaces[0].Index != configuration.PrinterInterface.Index,
-            "the two roles must resolve to different adapters");
+        Assert.False(
+            string.Equals(
+                configuration.ClientInterfaces[0].Name, configuration.PrinterInterfaceName,
+                StringComparison.OrdinalIgnoreCase),
+            "the two roles must name different adapters");
         Assert.Equal("Ethernet 2", configuration.ClientInterfaces[0].Name, "client side");
-        Assert.Equal("Wi-Fi", configuration.PrinterInterface.Name, "printer side");
+        Assert.Equal("Wi-Fi", configuration.PrinterInterfaceName, "printer side");
     }
 
-    [TestCase("The startup description names each interface and how it resolved")]
+    [TestCase("The startup description names each client interface and how it resolved, and the printer adapter")]
     [Requirement("REQ-OBS-001")]
     public static void Description_shows_resolution()
     {
@@ -134,9 +142,11 @@ internal static class ConfigurationLoaderTests
                                    && l.Contains("Ethernet 2", StringComparison.Ordinal)
                                    && l.Contains("192.168.1.234", StringComparison.Ordinal)),
             "the log must show which adapter a configured name actually chose");
-        Assert.True(lines.Any(l => l.Contains("printer interface", StringComparison.Ordinal)
-                                   && l.Contains("192.168.12.245", StringComparison.Ordinal)),
-            "and the same for the printer side");
+        Assert.True(lines.Any(l => l.Contains("printer adapter", StringComparison.Ordinal)
+                                   && l.Contains("Wi-Fi", StringComparison.Ordinal)),
+            "the printer side is named; its address is logged when the service resolves it");
+        Assert.False(lines.Any(l => l.Contains("printer interface:", StringComparison.Ordinal)),
+            "that wording is kept for the one line recording the resolution, so the log can be searched for it");
     }
 
     // ---- Nothing is silently defaulted --------------------------------------
@@ -469,6 +479,59 @@ internal static class ConfigurationLoaderTests
             "a file good in parts is still not usable");
 
         Assert.True(ex.Problems.Count > 0, "and the reasons must be reported");
+    }
+
+    [TestCase("A printer adapter that is down, or holds no address, is accepted, to be waited for at startup")]
+    [Requirement("REQ-LIF-008")]
+    public static void Unusable_printer_adapter_is_accepted()
+    {
+        var down = new FakeInventory(
+            new LocalAdapter("Ethernet 2", 13, IsUp: true, SupportsMulticast: true,
+                [IPAddress.Parse("192.168.1.234")]),
+            new LocalAdapter("Wi-Fi", 11, IsUp: false, SupportsMulticast: true,
+                [IPAddress.Parse("169.254.111.167")]));
+
+        var unaddressed = new FakeInventory(
+            new LocalAdapter("Ethernet 2", 13, IsUp: true, SupportsMulticast: true,
+                [IPAddress.Parse("192.168.1.234")]),
+            new LocalAdapter("Wi-Fi", 11, IsUp: true, SupportsMulticast: true, []));
+
+        // Both states were logged as refusals on FIOS-STB-01 on 2026-09-18 and
+        // 2026-09-19. Each is now the service's to wait for, not the
+        // configuration's to refuse.
+        Assert.Equal("Wi-Fi", ConfigurationLoader.Load(ValidExampleJson, down).PrinterInterfaceName,
+            "an adapter that is down is a state to wait out, not a mistake in the file");
+        Assert.Equal("Wi-Fi", ConfigurationLoader.Load(ValidExampleJson, unaddressed).PrinterInterfaceName,
+            "and so is an adapter with no address yet");
+    }
+
+    [TestCase("A printer adapter name that matches nothing is refused, listing what does exist")]
+    [Requirement("REQ-CFG-003")]
+    public static void Unknown_printer_adapter_is_refused()
+    {
+        string json = ValidExampleJson.Replace(
+            "\"printerInterface\": \"Wi-Fi\"", "\"printerInterface\": \"Wi-Fi 9\"",
+            StringComparison.Ordinal);
+
+        ConfigurationException ex = LoadExpectingFailure(json, "a name that matches no adapter is a mistake in the file");
+
+        Assert.True(Mentions(ex, "printerInterface"), "the setting must be named");
+        Assert.True(Mentions(ex, "Wi-Fi 9"), "and the name that matched nothing");
+        Assert.True(Mentions(ex, "Ethernet 2"), "and the adapters that do exist, to help");
+    }
+
+    [TestCase("The printer adapter is compared with the client interfaces by name, whatever its case")]
+    [Requirement("REQ-CFG-006")]
+    public static void Same_adapter_in_another_case_is_refused()
+    {
+        string json = ValidExampleJson.Replace(
+            "\"printerInterface\": \"Wi-Fi\"", "\"printerInterface\": \"ETHERNET 2\"",
+            StringComparison.Ordinal);
+
+        ConfigurationException ex = LoadExpectingFailure(
+            json, "Windows adapter names are matched without regard to case, so this is the client adapter again");
+
+        Assert.True(Mentions(ex, "also a client interface"), "the clash must be explained plainly");
     }
 
     [TestCase("An unusable interface is refused with the specific reason")]

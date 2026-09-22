@@ -19,11 +19,22 @@
 // it deliberately carried none, because a marker is placed only when a whole
 // requirement is met. Reviewed by a human before merge.
 //
+// PrinterInterface replaced by PrinterInterfaceName, and its Describe() line
+// changed to say it is resolved at startup, by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-09-22, for REQ-LIF-008.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The service's settings, after loading and validation. A value of this type
-//   is a promise that every interface named has been resolved to a real adapter,
-//   that the client and printer sides are genuinely different networks, and that
-//   nothing was quietly filled in.
+//   is a promise that every client interface named has been resolved to a real
+//   adapter, that the printer-side adapter exists and is not one of them, and
+//   that nothing was quietly filled in.
+//
+//   The printer-side adapter is held by name, not resolved. Until 2026-09-22 it
+//   was resolved here, which fixed its address at load and made an adapter that
+//   was down a reason to refuse to start. It is now resolved by the service
+//   when it becomes usable (StartupWait, REQ-LIF-008), because a WLAN that is
+//   down at boot is a normal state on the machine this runs on.
 //
 // The rule this file exists to enforce:
 //   No default may change what is advertised or where traffic is sent
@@ -93,7 +104,7 @@ public sealed class ServiceConfiguration
 {
     internal ServiceConfiguration(
         IReadOnlyList<MdnsInterface> clientInterfaces,
-        MdnsInterface printerInterface,
+        string printerInterfaceName,
         string printerInstance,
         string printerIppsInstance,
         string printerCertificateSha256,
@@ -104,7 +115,7 @@ public sealed class ServiceConfiguration
         TuningSettings tuning)
     {
         ClientInterfaces = clientInterfaces;
-        PrinterInterface = printerInterface;
+        PrinterInterfaceName = printerInterfaceName;
         PrinterInstance = printerInstance;
         PrinterIppsInstance = printerIppsInstance;
         PrinterCertificateSha256 = printerCertificateSha256;
@@ -118,8 +129,13 @@ public sealed class ServiceConfiguration
     /// <summary>Networks the proxy advertises on and accepts print jobs from.</summary>
     public IReadOnlyList<MdnsInterface> ClientInterfaces { get; }
 
-    /// <summary>The network the real printer is on.</summary>
-    public MdnsInterface PrinterInterface { get; }
+    /// <summary>
+    /// The adapter on the network the real printer is on, by the name Windows
+    /// gives it. It existed when the configuration was loaded and is not a
+    /// client interface; its address is resolved by the service once the
+    /// adapter is usable (REQ-LIF-008).
+    /// </summary>
+    public string PrinterInterfaceName { get; }
 
     /// <summary>
     /// The DNS-SD instance name of the printer's <c>_ipp._tcp</c> service, e.g.
@@ -159,11 +175,13 @@ public sealed class ServiceConfiguration
 
     /// <summary>
     /// A description of every setting in force, for the startup log. Includes
-    /// how each interface name was resolved, so an operator can see which
-    /// adapter the service actually chose.
+    /// how each client interface name was resolved, so an operator can see which
+    /// adapter the service actually chose. The printer-side interface is named
+    /// here and its resolution is logged when it happens
+    /// (StartupWait.DescribePrinterInterface).
     /// </summary>
     [Requirement("REQ-OBS-001",
-        "Produces a line per interface naming its role, the configured name, and the address and index it resolved to.")]
+        "Produces a line per client interface naming its role, the configured name, and the address and index it resolved to, and a line naming the printer-side adapter, whose resolution is logged separately when the service resolves it.")]
     [Requirement("REQ-OBS-008",
         "Produces the startup line recording the SHA-256 fingerprint every connection to the printer will require.")]
     public IReadOnlyList<string> Describe()
@@ -175,8 +193,10 @@ public sealed class ServiceConfiguration
             lines.Add($"client interface : {client.Name} -> {client.Address} (index {client.Index})");
         }
 
-        lines.Add($"printer interface: {PrinterInterface.Name} -> {PrinterInterface.Address} "
-                  + $"(index {PrinterInterface.Index})");
+        // Deliberately not the "printer interface:" wording, which is kept for
+        // the one line recording the resolution, so that searching the log for
+        // it finds each start's resolution and nothing else.
+        lines.Add($"printer adapter  : {PrinterInterfaceName} (resolved when it is usable; logged below)");
         lines.Add($"printer instance : {PrinterInstance}");
         lines.Add($"ipps instance    : {PrinterIppsInstance}");
 

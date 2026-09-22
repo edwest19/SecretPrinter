@@ -40,6 +40,12 @@
 // (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-22,
 // for REQ-OBS-008. Reviewed by a human before merge.
 //
+// Startup changed to wait, withdrawn, for a usable printer-side interface and
+// for the printer to answer, instead of refusing to start, and the responder's
+// socket opened only once both are there, by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-09-22, for REQ-LIF-008.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -73,6 +79,10 @@ namespace SecretPrinter.Service;
 /// <summary>Runs SecretPrinter until cancelled.</summary>
 public sealed class ServiceHost
 {
+    private const string StoppedWhileWithdrawn =
+        "Stopped while waiting at startup. Nothing had been offered to the client network, so there is "
+        + "nothing to retract.";
+
     private readonly ServiceConfiguration _configuration;
     private readonly IServiceLog _log;
 
@@ -94,7 +104,7 @@ public sealed class ServiceHost
     [Requirement("REQ-LIF-002",
         "Retracts the advertisement, leaves multicast groups and disposes every socket on the way out, whatever ended the run.")]
     [Requirement("REQ-LIF-004",
-        "Any failure opening sockets or locating the printer propagates out of startup rather than leaving the service half-running.")]
+        "Any failure opening a socket propagates out of startup rather than leaving the service half-running. A printer-side interface that is not usable, or a printer that does not answer, is waited for instead (REQ-LIF-008), with nothing offered meanwhile.")]
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         _log.Info("SecretPrinter starting.");
@@ -113,13 +123,77 @@ public sealed class ServiceHost
         // operator can see what every connection will require.
         var printerPin = new CertificatePin(_configuration.PrinterCertificateSha256);
 
+        // The printer side first, and nothing on the client side until it is
+        // there (REQ-LIF-008). While the adapter is unusable or the printer
+        // silent, the service runs withdrawn: no responder socket, no
+        // advertisement, no listener. Both waits log when they begin and end.
+        MdnsInterface printerInterface;
+        try
+        {
+            printerInterface = await StartupWait.ForPrinterInterfaceAsync(
+                    _configuration.PrinterInterfaceName,
+                    SystemInterfaceInventory.Instance,
+                    _log,
+                    (wait, token) => Task.Delay(wait, token),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _log.Info(StoppedWhileWithdrawn);
+            throw;
+        }
+
         // Two sockets, one per role. Until 2026-09-16 the responder and the
         // resolver shared one, and whichever was reading took the next datagram,
         // so the printer's reply to the resolver could be consumed and discarded
         // by the responder (docs/findings/2026-09-14-shared-receive-loop.md).
         // PlanMdnsBindings decides what each socket joins; this method only opens
-        // them.
-        MdnsSocketPlan plan = PlanMdnsBindings(_configuration.ClientInterfaces, _configuration.PrinterInterface);
+        // them. The resolver's is opened first, because the printer must answer
+        // before the responder's is opened at all.
+        MdnsSocketPlan plan = PlanMdnsBindings(_configuration.ClientInterfaces, printerInterface);
+
+        using MdnsSocket resolverSocket = MdnsSocket.Open(plan.Resolver);
+        MdnsSocketConfiguration resolverConfiguration = resolverSocket.ReadBackConfiguration();
+
+        _log.Info($"Resolver socket: bound {resolverConfiguration.LocalEndPoint} "
+                  + $"(reuse={resolverConfiguration.ReuseAddress}, "
+                  + $"pktinfo={resolverConfiguration.PacketInformation}, "
+                  + $"ttl={resolverConfiguration.MulticastTimeToLive}), "
+                  + $"joined {MdnsSocket.MulticastGroup} on "
+                  + $"{string.Join(", ", resolverConfiguration.Interfaces)} only.");
+
+        using var resolver = new PrinterResolver(resolverSocket, printerInterface);
+
+        // Open: by the time anything reads this gate, the printer has answered.
+        // Everything that offers the printer to the client network reads this
+        // one switch.
+        var offering = new AvailabilityGate(open: true);
+
+        // The advertisement is built from what the printer says now, not from
+        // anything stored. Until the printer answers nothing is advertised:
+        // capabilities nobody has confirmed would be a claim we cannot support.
+        DnsName ippInstance = DnsName.Parse(_configuration.PrinterInstance);
+        DnsName ippsInstance = DnsName.Parse(_configuration.PrinterIppsInstance);
+        _log.Info($"Asking {ippInstance} what it can do, and {ippsInstance} where to connect, "
+                  + $"on {printerInterface}.");
+
+        PrinterAtStartup found;
+        try
+        {
+            found = await StartupWait.ForPrinterAsync(
+                    token => ResolveAtStartupAsync(
+                        resolver, ippInstance, ippsInstance, _configuration.Tuning.PrinterResolveTimeout, token),
+                    _log,
+                    (wait, token) => Task.Delay(wait, token),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _log.Info(StoppedWhileWithdrawn);
+            throw;
+        }
 
         using MdnsSocket responderSocket = MdnsSocket.Open(plan.Responder);
         MdnsSocketConfiguration socketConfiguration = responderSocket.ReadBackConfiguration();
@@ -154,36 +228,6 @@ public sealed class ServiceHost
             _log.Info("IPv6 mDNS is joined, read, and answered over the arrival transport "
                       + "(REQ-ADV-018).");
         }
-
-        using MdnsSocket resolverSocket = MdnsSocket.Open(plan.Resolver);
-        MdnsSocketConfiguration resolverConfiguration = resolverSocket.ReadBackConfiguration();
-
-        _log.Info($"Resolver socket: bound {resolverConfiguration.LocalEndPoint} "
-                  + $"(reuse={resolverConfiguration.ReuseAddress}, "
-                  + $"pktinfo={resolverConfiguration.PacketInformation}, "
-                  + $"ttl={resolverConfiguration.MulticastTimeToLive}), "
-                  + $"joined {MdnsSocket.MulticastGroup} on "
-                  + $"{string.Join(", ", resolverConfiguration.Interfaces)} only.");
-
-        using var resolver = new PrinterResolver(resolverSocket, _configuration.PrinterInterface);
-
-        // Open: the service is about to establish that the printer answers, and
-        // refuses to start if it does not (REQ-RES-007). Everything that offers
-        // the printer to the client network reads this one switch.
-        var offering = new AvailabilityGate(open: true);
-
-        // The advertisement is built from what the printer says now, not from
-        // anything stored. If the printer cannot be reached, the service does
-        // not start: advertising capabilities nobody has confirmed would be a
-        // claim we cannot support.
-        DnsName ippInstance = DnsName.Parse(_configuration.PrinterInstance);
-        DnsName ippsInstance = DnsName.Parse(_configuration.PrinterIppsInstance);
-        _log.Info($"Asking {ippInstance} what it can do, and {ippsInstance} where to connect, "
-                  + $"on {_configuration.PrinterInterface}.");
-
-        PrinterAtStartup found = await ResolveAtStartupAsync(
-                resolver, ippInstance, ippsInstance, _configuration.Tuning.PrinterResolveTimeout, cancellationToken)
-            .ConfigureAwait(false);
 
         _log.Info($"Capabilities from {found.Capabilities}.");
         _log.Info($"Connections to {found.Connection}.");
@@ -493,11 +537,12 @@ public sealed class ServiceHost
     /// <para>
     /// The <c>_ipp._tcp</c> answer supplies the capabilities the advertisement
     /// is built from. The <c>_ipps._tcp</c> answer is resolved here only so that
-    /// a configuration naming a service the printer does not advertise stops
-    /// startup; every connection resolves it again for itself
+    /// a configuration naming a service the printer does not advertise is found
+    /// at startup; every connection resolves it again for itself
     /// (<see cref="LocateConnectionAsync"/>). If either cannot be resolved, the
     /// resolver's exception propagates, and its message names the instance that
-    /// did not answer.
+    /// did not answer. <see cref="StartupWait.ForPrinterAsync"/> catches it,
+    /// logs it, and asks again (REQ-LIF-008).
     /// </para>
     /// <para>
     /// One resolver serves both names, and it caches one answer. Resolving
@@ -507,7 +552,7 @@ public sealed class ServiceHost
     /// </para>
     /// </remarks>
     [Requirement("REQ-RES-007",
-        "Resolves the _ipp._tcp and _ipps._tcp instances at startup, before anything is advertised, takes capabilities only from the _ipp._tcp answer, and lets a failure to resolve either stop startup with that instance named.")]
+        "Resolves the _ipp._tcp and _ipps._tcp instances at startup, before anything is advertised, takes capabilities only from the _ipp._tcp answer, and fails naming the instance when either cannot be resolved.")]
     public static async Task<PrinterAtStartup> ResolveAtStartupAsync(
         PrinterResolver resolver,
         DnsName ippInstance,

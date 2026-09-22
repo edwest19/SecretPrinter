@@ -217,10 +217,14 @@ That is observed, not relied on.
 
 Address resolution happens at connection time, because printers receive their
 addresses by DHCP and those addresses change. During development the target
-printer moved twice. Startup also resolves both services, but only so that a
-configuration naming a service the printer does not advertise is refused before
-anything is advertised. Each connection still resolves for itself, reusing an
-earlier answer only as REQ-RES-004 allows.
+printer moved twice. Startup also resolves both services, before anything is
+advertised, and takes the capabilities from that answer. Until both have
+answered, and before that until the printer-side adapter is usable at all, the
+service offers nothing to the client network and waits (REQ-LIF-008). A
+configuration naming a service the printer does not advertise therefore waits
+too, and says so in the log; the service cannot tell that from a printer that is
+switched off. Each connection still resolves for itself, reusing an earlier
+answer only as REQ-RES-004 allows.
 
 ## 4. Requirements: advertisement (ADV)
 
@@ -263,7 +267,7 @@ How the service finds the real printer.
 | REQ-RES-004 | MAY | A resolved address is cached, for no longer than the DNS TTL of the record it came from. |
 | REQ-RES-005 | MUST | A resolution failure causes the relay attempt to fail with a logged, specific error. It never falls back to a guessed or remembered-indefinitely address. |
 | REQ-RES-006 | MUST | Resolution queries are sent only on the configured printer-side interface. |
-| REQ-RES-007 | MUST | The address and port used to connect to the printer come from resolving the configured `_ipps._tcp` instance, on the printer-side interface, when a connection is relayed. The printer's capabilities come from the TXT record of the configured `_ipp._tcp` instance. Neither service supplies what the other is specified to supply. The service resolves both instances at startup, before advertising anything, and refuses to start if either cannot be resolved, naming the instance that failed. |
+| REQ-RES-007 | MUST | The address and port used to connect to the printer come from resolving the configured `_ipps._tcp` instance, on the printer-side interface, when a connection is relayed. The printer's capabilities come from the TXT record of the configured `_ipp._tcp` instance. Neither service supplies what the other is specified to supply. The service resolves both instances at startup, before advertising anything. If either cannot be resolved it logs the instance that did not answer and asks again as REQ-LIF-008 describes, advertising nothing meanwhile. |
 | REQ-RES-008 | MUST | The service holds a printer-reachability state derived from mDNS resolution on the printer-side interface - the same query path a relayed job uses. It is never derived from the adapter being reported up, from its address being present, or from a multicast membership being listed. While the printer is reachable, the service reconfirms it on the cache-maintenance schedule of RFC 6762 §5.2: a query at 80-82% of the record's TTL, then 85-87%, 90-92% and 95-97% if unanswered, holding the printer unreachable once the record reaches 100% of its lifetime with no answer. While the printer is unreachable, it re-queries under the same section's continuous-querying rule - the first two queries at least one second apart, each interval at least double the last, capped at 60 minutes. A resolution performed because a job arrived resets the schedule; concurrent jobs share one in-flight query rather than issuing one apiece. Measured: an adapter that had left `224.0.0.251` continued to list it, and an adapter reported up with a working unicast path returned no multicast answers (`docs/findings/2026-09-19-the-printer-side-multicast-membership-is-lost.md`). Interface state has been observed wrong in both directions; resolution has not. |
 
 ## 6. Requirements: relay (PXY)
@@ -293,7 +297,7 @@ How print jobs are moved.
 | REQ-CFG-002 | MUST | Configuration names client interfaces and the printer interface separately and unambiguously. |
 | REQ-CFG-003 | MUST | Configuration is validated at startup. Any inconsistency causes the service to fail to start, with a message naming the offending setting. |
 | REQ-CFG-004 | MUST | Interface names given in configuration are resolved to addresses at startup, and the resolution is logged. |
-| REQ-CFG-005 | MUST NOT | The service starts in a partially working state. Either every configured interface is usable, or startup fails. |
+| REQ-CFG-005 | MUST NOT | The service starts in a partially working state. Either every configured client interface is usable, or startup fails. The printer-side interface is the one exception, defined by REQ-LIF-008: while it is not usable the service offers nothing at all, which is withdrawn rather than partially working. |
 | REQ-CFG-006 | MUST | The service refuses to start if a client interface and the printer interface resolve to the same interface. |
 | REQ-CFG-007 | MUST | The printer's expected certificate fingerprint is explicit configuration: the SHA-256 hash of the DER-encoded certificate, written as exactly 64 hexadecimal digits in either case, with no separators and no whitespace. The service refuses to start without it or with a value in any other form, and names the setting when it refuses. |
 | REQ-CFG-008 | MUST | The instance name of the printer's `_ipps._tcp` service is explicit configuration, separate from the instance name of its `_ipp._tcp` service. The service does not derive either name from the other. It refuses to start without the `_ipps._tcp` instance name, and names the setting when it refuses. |
@@ -329,6 +333,7 @@ How print jobs are moved.
 | REQ-LIF-005 | MUST | Transient network errors are logged and retried, and do not terminate the service. |
 | REQ-LIF-006 | MUST | While the printer is unreachable per REQ-RES-008, the service stops accepting new client connections, stops answering mDNS queries about itself, and withdraws its advertisement with goodbye records as REQ-LIF-003 requires on shutdown. It resumes all three when the printer answers again. Each change is logged once, with what was observed. The service does not offer a printer it has established it cannot reach. Measured: on 2026-09-20 the printer-side WLAN dropped at 06:49:38Z and the service, which correctly diagnosed the adapter as down, went on advertising and accepting jobs for nine hours; twelve jobs were accepted after the diagnosis and all twelve failed. |
 | REQ-LIF-007 | MUST | Under the Windows service control manager, a configuration the service refuses is reported to the control manager as a failure to start, not left to time out, and the reason is in the log. Measured: on 2026-09-18 and 2026-09-19 nine refusals, each logged at once with its reason, each reached Windows as error 1053, "did not respond to the start or control request in a timely fashion". The code returned before it had called `ServiceBase.Run`, so the control manager was never answered. See [the finding](docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md). |
+| REQ-LIF-008 | MUST | At startup the service does not refuse to start because the printer-side interface is unusable or the printer does not answer. It waits, offering nothing to the client network: no advertisement, no answer to any query, and no listener, as while withdrawn under REQ-LIF-006, with no goodbye records because nothing was announced. The printer-side adapter must exist by name when the configuration is loaded; its state is examined locally at a fixed interval, and it is usable once it is up, holds exactly one IPv4 address, that address is outside 169.254.0.0/16, and the platform does not report it tentative, deprecated or invalid. Then the printer is asked on the REQ-RES-008 schedule for an unreachable printer until both instances resolve. The adapter wait is logged when it begins, when its reason changes and when it ends; the printer wait when the printer first fails to answer and when it answers. A misspelled printer instance name is indistinguishable from a printer that is switched off, so it waits as well, and the log says so. Decided 2026-09-22, after nine refusals caused by the printer-side adapter being down at startup (`docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md`). |
 | REQ-OBS-001 | MUST | Startup logs list every interface in use, its resolved address, and its role. |
 | REQ-OBS-002 | MUST | Every advertisement published is logged, including the full TXT record set. |
 | REQ-OBS-003 | MUST | The operator can determine, from logs alone, exactly what the service told the client network. |

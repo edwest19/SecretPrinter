@@ -14,6 +14,11 @@
 // (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-22.
 // Reviewed by a human before merge.
 //
+// The startup-lookup test's description and message changed, because since
+// REQ-LIF-008 a failed lookup is retried rather than stopping startup, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-22. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies decisions ServiceHost makes that can be checked without opening a
 //   socket: which interfaces each of its two mDNS sockets joins, how each job's
@@ -150,7 +155,7 @@ internal static class ServiceHostTests
         Assert.Equal((ushort)8443, found.Connection.Port, "the connection port must be the one the _ipps service gave");
     }
 
-    [TestCase("Startup fails, naming the _ipps instance, when the printer does not advertise it")]
+    [TestCase("The startup lookup fails, naming the _ipps instance, when the printer does not advertise it")]
     [Requirement("REQ-RES-007")]
     public static void Startup_fails_when_ipps_does_not_answer()
     {
@@ -162,7 +167,7 @@ internal static class ServiceHostTests
                 .ResolveAtStartupAsync(
                     resolver, IppInstance, IppsInstance, TimeSpan.FromMilliseconds(300), CancellationToken.None)
                 .GetAwaiter().GetResult(),
-            "a printer that does not advertise the configured _ipps instance must stop startup");
+            "a printer that does not advertise the configured _ipps instance must fail the lookup, which startup then retries");
 
         Assert.True(ex.Message.Contains(IppsInstance.ToString(), StringComparison.Ordinal),
             "the failure must name the _ipps instance that did not answer");

@@ -12,10 +12,23 @@
 // names, added by Claude (Anthropic model, Claude Opus 5) at the direction of
 // Edwin West, 2026-09-16, for REQ-CFG-008. Reviewed by a human before merge.
 //
+// The printer-side adapter checked for existence instead of resolved, so that
+// one which is down no longer refuses the configuration, by Claude (Anthropic
+// model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-22, for
+// REQ-LIF-008. Reviewed by a human before merge.
+//
 // Purpose:
-//   Reads the configuration file, checks every setting, resolves every
-//   interface name, and either returns something the service can run on or
-//   refuses with a list of what is wrong.
+//   Reads the configuration file, checks every setting, resolves every client
+//   interface name, confirms the printer-side adapter exists, and either
+//   returns something the service can run on or refuses with a list of what is
+//   wrong.
+//
+//   The printer-side adapter must exist by name, so a misspelled name is still
+//   refused at once, with the adapters that do exist listed. Whether it is up,
+//   and what address it holds, is not checked here: the service waits for that
+//   (StartupWait, REQ-LIF-008). One consequence: an adapter that is absent
+//   altogether when the service starts, such as a USB adapter not yet present,
+//   is refused rather than waited for.
 //
 // Two decisions worth explaining:
 //
@@ -70,7 +83,7 @@ public static class ConfigurationLoader
     [Requirement("REQ-CFG-003",
         "Validates every setting and throws naming each offending one, rather than failing on the first or starting with a bad value.")]
     [Requirement("REQ-CFG-005",
-        "Validation and interface resolution complete before any configuration is returned, so the service never begins with a partially usable set.")]
+        "Validation and client interface resolution complete before any configuration is returned, so the service never begins with a partially usable set of client interfaces.")]
     public static ServiceConfiguration Load(string json, IInterfaceInventory inventory)
     {
         ArgumentNullException.ThrowIfNull(json);
@@ -119,7 +132,7 @@ public static class ConfigurationLoader
             // Interfaces are resolved only once the names themselves are sound,
             // so a missing name does not also produce a confusing lookup error.
             var clientInterfaces = new List<MdnsInterface>();
-            MdnsInterface? printerInterface = null;
+            LocalAdapter? printerAdapter = null;
 
             foreach (string name in clientNames)
             {
@@ -135,17 +148,21 @@ public static class ConfigurationLoader
 
             if (printerName is not null)
             {
-                try
+                // Existence only. Up, and holding an address, is waited for by
+                // the service (REQ-LIF-008); a name that matches nothing is a
+                // mistake in this file and is refused now.
+                printerAdapter = inventory.Adapters.FirstOrDefault(
+                    a => string.Equals(a.Name, printerName, StringComparison.OrdinalIgnoreCase));
+
+                if (printerAdapter is null)
                 {
-                    printerInterface = MdnsInterfaceResolver.ResolveByName(printerName, inventory);
-                }
-                catch (MdnsInterfaceException ex)
-                {
-                    problems.Add($"printerInterface: {ex.Message}");
+                    problems.Add(
+                        $"printerInterface: No interface is named '{printerName}'. Interfaces on this machine: "
+                        + string.Join(", ", inventory.Adapters.Select(a => a.Name)));
                 }
             }
 
-            CheckInterfacesAreDistinct(clientInterfaces, printerInterface, problems);
+            CheckInterfacesAreDistinct(clientInterfaces, printerAdapter, problems);
 
             if (problems.Count > 0)
             {
@@ -154,7 +171,7 @@ public static class ConfigurationLoader
 
             return new ServiceConfiguration(
                 clientInterfaces,
-                printerInterface!,
+                printerAdapter!.Name,
                 printerInstance!,
                 printerIppsInstance!,
                 certificateSha256!,
@@ -172,9 +189,9 @@ public static class ConfigurationLoader
     /// a client from a printer.
     /// </summary>
     [Requirement("REQ-CFG-006",
-        "Refuses a configuration where a client interface and the printer interface are the same adapter.")]
+        "Refuses a configuration where a client interface and the printer interface are the same adapter, compared by name and, where the adapter reports one, by index.")]
     private static void CheckInterfacesAreDistinct(
-        List<MdnsInterface> clientInterfaces, MdnsInterface? printerInterface, List<string> problems)
+        List<MdnsInterface> clientInterfaces, LocalAdapter? printerAdapter, List<string> problems)
     {
         var seen = new Dictionary<int, string>();
 
@@ -190,10 +207,24 @@ public static class ConfigurationLoader
             seen[client.Index] = client.Name;
         }
 
-        if (printerInterface is not null && seen.TryGetValue(printerInterface.Index, out string? clash))
+        if (printerAdapter is null)
+        {
+            return;
+        }
+
+        string? clash = clientInterfaces
+            .FirstOrDefault(c => string.Equals(c.Name, printerAdapter.Name, StringComparison.OrdinalIgnoreCase))
+            ?.Name;
+
+        if (clash is null && printerAdapter.Index is { } printerIndex)
+        {
+            seen.TryGetValue(printerIndex, out clash);
+        }
+
+        if (clash is not null)
         {
             problems.Add(
-                $"printerInterface: '{printerInterface.Name}' is also a client interface (as '{clash}'). "
+                $"printerInterface: '{printerAdapter.Name}' is also a client interface (as '{clash}'). "
                 + "The two sides must be different networks, or arriving traffic could not be attributed "
                 + "to one side or the other.");
         }
