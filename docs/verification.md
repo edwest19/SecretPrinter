@@ -11,6 +11,10 @@ Reviewed by a human before merge.*
 direction of Edwin West, 2026-09-22, when a fifth disclosure was added to the
 README. Reviewed by a human before merge.*
 
+*The REQ-LIF-007 entry added by Claude (Anthropic model, Claude Opus 5.5) at the
+direction of Edwin West, 2026-09-22, after the change was measured on
+FIOS-STB-01. Reviewed by a human before merge.*
+
 Some requirements in [README.md](../README.md) cannot be satisfied by code.
 "Release binaries are signed" and "CI runs the specification checker" are
 properties of the build and release process; no attribute on a class will ever
@@ -62,6 +66,7 @@ proportion resting on evidence rather than tests is always visible.
 | REQ-SEC-006 | `docs/findings/2026-09-04-service-runs-unelevated.md`, `docs/findings/2026-09-18-running-as-localservice.md`, `docs/operating.md` | Measured, not assumed: the service bound UDP 5353 with `SO_REUSEADDR`, joined the multicast group on two interfaces, bound TCP 631 and relayed print jobs, all from an unelevated session with standard-user privileges. Since 2026-09-18 it has run as a Windows service under `NT AUTHORITY\LocalService` on FIOS-STB-01, and on 2026-09-21 it bound its sockets, joined both multicast groups, opened TLS to the printer and relayed printed pages under that account. The operating guide states both, and that `LocalService` has been measured on that one machine only. |
 | REQ-DIST-003 | `.github/workflows/ci.yml` | Builds the solution in Release with warnings as errors, discovers every `tests/*.Tests` project and runs it with `--results`, then runs SpecCheck with all of those files and fails the job on a non-zero exit. Suite discovery is enumerated rather than listed so a missing `--test-results` flag cannot under-report coverage. |
 | REQ-DIST-010 | `tests/SecretPrinter.TestKit/TestHarness.cs`, `tools/SecretPrinter.SpecCheck/CoverageMatrix.cs` | The harness records each exercised assembly's module version id; SpecCheck compares them against the assemblies it scans and fails on any mismatch. Verified by editing a source file, rebuilding without re-running the tests, and confirming the check named the rebuilt assembly and failed. |
+| REQ-LIF-007 | `docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md`, `src/SecretPrinter.Service/RefusedStartService.cs`, `src/SecretPrinter.Service/Program.cs` | No test can reach the control manager, so this rests on a recorded run. On FIOS-STB-01, with `937de66` installed and the printer-side adapter disconnected, `Start-Service` failed and returned within three seconds; the service log recorded the refusal and its reason at 21:00:13Z; the System log recorded event 7023, "terminated with the following error: An exception occurred in the service when handling the control request", in the same second, with no 7009 timeout and no "timely fashion"; and `sc.exe query` reported `WIN32_EXIT_CODE : 1064`. Before the change, each of nine refusals was recorded as a timeout, event 7009, with event 7000 "did not respond ... in a timely fashion". Measured for one kind of refusal, the adapter being down, on one machine. |
 | REQ-DIST-009 | `tools/SecretPrinter.SpecCheck/TestResultsDocument.cs`, `tests/SecretPrinter.TestKit/TestHarness.cs` | The harness records PASS/FAIL/SKIP per requirement; SpecCheck counts a requirement as tested only on a recorded PASS, and reports `TEST DID NOT RUN` otherwise. Verified by flipping a PASS to FAIL in a results file and confirming the requirement lost its coverage. |
 
 ---

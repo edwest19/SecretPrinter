@@ -3,7 +3,14 @@
 *Written by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
 West, 2026-09-22. Reviewed by a human before merge.*
 
-**Status: measured from the records on FIOS-STB-01, NOT fixed. Nine times
+*Updated the same day by Claude (Claude Opus 5.5), after the fix in `937de66`
+was measured on FIOS-STB-01: the status line, the section "Measured after the
+fix", and the list of what is owed. Nothing measured before the fix was
+changed. Reviewed by a human before merge.*
+
+**Status: fixed in `937de66` (`REQ-LIF-007`) and measured on FIOS-STB-01 the
+same day; see "Measured after the fix" below. What follows first is the
+defect as found. Nine times
 between 2026-09-18 and 2026-09-19 the service refused its configuration under
 the Windows service control manager. Each time it wrote the reason to its log
 at once, and each time Windows recorded something else: "did not respond to the
@@ -113,19 +120,55 @@ an error", but nothing in `WindowsService` asks the control manager to stop,
 and `Failure` is read only in `OnStop`. Whether the service is then left
 showing as running with nothing running has not been checked.
 
+## Measured after the fix
+
+On 2026-09-22 Edwin stopped the service, pulled `937de66` on FIOS-STB-01,
+published it to `C:\Program Files\SecretPrinter`
+(`SecretPrinter.Service.dll` written 20:57:57Z), disconnected the printer-side
+adapter with `netsh wlan disconnect interface="Wi-Fi 2"` (status then
+`Disconnected`), and started the service. All outputs are his pastes; times are
+UTC.
+
+- **`Start-Service`**, bracketed by the clock: issued at 21:00:12, failed with
+  "Failed to start service 'SecretPrinter (SecretPrinter)'", and returned at
+  21:00:15.
+- **Service log**, 21:00:13:
+  `Configuration is not usable, so the service will not start.`,
+  `printerInterface: Interface 'Wi-Fi 2' holds 192.168.12.136 but is not up.`,
+  and the new line from `RefusedStartService`,
+  `Telling the service control manager that the service did not start.`
+  No "starting under the service control manager" line.
+- **System log**, every `Service Control Manager` event naming SecretPrinter
+  from 21:00 on: one, event **7023** at 21:00:13, "The SecretPrinter service
+  terminated with the following error: An exception occurred in the service
+  when handling the control request." No 7009, and no 7000 "did not respond
+  ... in a timely fashion".
+- **`sc.exe query SecretPrinter`**: `STATE : 1 STOPPED`,
+  `WIN32_EXIT_CODE : 1064 (0x428)`, `SERVICE_EXIT_CODE : 0 (0x0)`.
+
+Each of those matched what Claude predicted beforehand from the source of
+`System.ServiceProcess.ServiceController` 10.0.11, except the event ID, which
+Claude said it believed was 7023 but was not certain of.
+
+Edwin then reconnected the adapter (`netsh wlan connect name="TMOBILE-9992"
+interface="Wi-Fi 2"`; `192.168.12.136`, `Preferred`) and started the service,
+which came up at 21:06:29Z on `Wi-Fi 2` and was answering queries and
+accepting print jobs by 21:06:31Z.
+
+What this does not cover: only the adapter-down refusal was run, on one
+machine. Other refusals (a malformed file, a missing setting) take the same
+code path but were not started under the control manager. Whether
+`ServiceBase` also wrote to the Application event log, as its `AutoLog`
+default attempts, was not checked.
+
 ## What is owed
 
-1. **A requirement.** Proposed wording, not yet in the README: *Under the
-   Windows service control manager, a refusal to start is reported to the
-   control manager as a failure to start, not left to time out, and the reason
-   is in the log.* The ID is assigned when it is added.
-2. **The fix, in its own commit.** Under `--service`, the process has to reach
-   `ServiceBase.Run` before it can report anything to the control manager, so
-   the refusal must be reported from inside the service rather than before it.
-   The exact mechanism is to be chosen against the `ServiceBase` documentation
-   and verified on FIOS-STB-01 by starting the service with its printer-side
-   adapter down, reading the same two logs as above.
-3. **Whether the service should start at all while the printer side is down**,
-   or start withdrawn as `REQ-LIF-006` behaves after startup. That changes what
-   startup refuses, which is a design decision for Edwin, separate from how a
-   refusal is reported.
+1. **A requirement.** Done: `REQ-LIF-007`, added in `937de66`.
+2. **The fix.** Done in `937de66`: a refusal under `--service` is carried into
+   `RefusedStartService`, whose start throws it, so it is reported from inside
+   the service. Measured above.
+3. **Whether the service should start at all while the printer side is down.**
+   Decided by Edwin on 2026-09-22: it should start withdrawn, offering nothing
+   to the client network, and come up by itself when the adapter returns, as
+   `REQ-LIF-006` already behaves after startup. Not yet built. Once it is, an
+   adapter that is down at startup will no longer be a refusal at all.
