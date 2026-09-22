@@ -10,9 +10,14 @@
 //
 // PrinterCertificateSha256 added by Claude (Anthropic model, Claude Opus 5) at
 // the direction of Edwin West, 2026-09-15, for REQ-CFG-007. Its line in
-// Describe() is the startup half of REQ-OBS-008 and deliberately carries no
-// marker: the per-connection half does not exist yet, and a marker is placed
-// only when a whole requirement is met. Reviewed by a human before merge.
+// Describe() is the startup half of REQ-OBS-008. Reviewed by a human before
+// merge.
+//
+// REQ-OBS-008 marker placed on Describe() by Claude (Anthropic model, Claude
+// Opus 5) at the direction of Edwin West, 2026-09-22, when the per-connection
+// half was added in SecretPrinter.Proxy and SecretPrinter.Service. Until then
+// it deliberately carried none, because a marker is placed only when a whole
+// requirement is met. Reviewed by a human before merge.
 //
 // Purpose:
 //   The service's settings, after loading and validation. A value of this type
@@ -159,6 +164,8 @@ public sealed class ServiceConfiguration
     /// </summary>
     [Requirement("REQ-OBS-001",
         "Produces a line per interface naming its role, the configured name, and the address and index it resolved to.")]
+    [Requirement("REQ-OBS-008",
+        "Produces the startup line recording the SHA-256 fingerprint every connection to the printer will require.")]
     public IReadOnlyList<string> Describe()
     {
         var lines = new List<string>();
@@ -173,8 +180,8 @@ public sealed class ServiceConfiguration
         lines.Add($"printer instance : {PrinterInstance}");
         lines.Add($"ipps instance    : {PrinterIppsInstance}");
 
-        // The startup half of REQ-OBS-008. No marker here until the relay logs
-        // the negotiated TLS protocol per connection; see the file header.
+        // The startup half of REQ-OBS-008. The per-connection half is the
+        // "relaying" line, which names the protocol each handshake negotiated.
         lines.Add($"certificate pin  : SHA-256 {PrinterCertificateSha256}");
         lines.Add($"advertised as    : {AdvertisedInstanceName} on {AdvertisedHostLabel}.local:{ListenPort}");
         lines.Add($"advertised uuid  : {AdvertisedUuid}");

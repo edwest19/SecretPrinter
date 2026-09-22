@@ -12,6 +12,10 @@
 // (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-14,
 // for REQ-PXY-009. Reviewed by a human before merge.
 //
+// FakeConnection.Encryption, and the encryption recorded when a relay starts,
+// added by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
+// West, 2026-09-22, for REQ-OBS-008. Reviewed by a human before merge.
+//
 // Purpose:
 //   In-memory stand-ins for TCP, so the relay's behaviour can be asserted
 //   exactly and deterministically: bytes in equal bytes out, closing one side
@@ -201,6 +205,12 @@ internal sealed class FakeConnection(Stream stream, EndPoint? remote) : IDuplexC
 
     public EndPoint? RemoteEndPoint { get; } = remote;
 
+    /// <summary>
+    /// What this stand-in reports as its protection. <c>none</c> unless a test
+    /// sets it, because an in-memory stream protects nothing.
+    /// </summary>
+    public string Encryption { get; init; } = "none";
+
     public bool Disposed { get; private set; }
 
     public ValueTask DisposeAsync()
@@ -258,7 +268,8 @@ internal sealed class RecordingObserver : IRelayObserver
 
     public void ConnectionRefused(EndPoint? client, string reason) => Events.Add($"refused {client}: {reason}");
 
-    public void RelayStarted(EndPoint? client, IPEndPoint printer) => Events.Add($"started {client} -> {printer}");
+    public void RelayStarted(EndPoint? client, IPEndPoint printer, string printerEncryption) =>
+        Events.Add($"started {client} -> {printer} over {printerEncryption}");
 
     public void RelayCompleted(
         EndPoint? client, IPEndPoint printer, long bytesToPrinter, long bytesToClient, TimeSpan duration)

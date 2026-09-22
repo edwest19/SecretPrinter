@@ -10,6 +10,10 @@
 // relay reports it. See docs/findings/2026-09-17-connect-timeout-is-not-reported.md.
 // Reviewed by a human before merge.
 //
+// IDuplexConnection.Encryption added by Claude (Anthropic model, Claude Opus
+// 5) at the direction of Edwin West, 2026-09-22, for REQ-OBS-008. Reviewed by
+// a human before merge.
+//
 // Purpose:
 //   The narrowest possible view of TCP, so the relay can be tested with
 //   in-memory streams.
@@ -41,6 +45,19 @@ public interface IDuplexConnection : IAsyncDisposable
 
     /// <summary>Who is at the other end, for logging. Null when unknown.</summary>
     EndPoint? RemoteEndPoint { get; }
+
+    /// <summary>
+    /// How this connection is protected, for logging: <c>none</c> for plain
+    /// TCP, or the negotiated protocol for a TLS connection.
+    /// </summary>
+    /// <remarks>
+    /// A description of the connection, fixed when it was opened. It is never
+    /// derived from anything the connection carries. It exists so the relay can
+    /// report how each connection to the printer was protected (REQ-OBS-008)
+    /// while knowing nothing about TLS itself: the relay passes this text on and
+    /// never reads it.
+    /// </remarks>
+    string Encryption { get; }
 }
 
 /// <summary>Accepts incoming connections.</summary>
@@ -85,6 +102,9 @@ public sealed class TcpConnection : IDuplexConnection
     public Stream Stream { get; }
 
     public EndPoint? RemoteEndPoint { get; }
+
+    /// <summary>Always <c>none</c>: this is TCP with nothing on top of it.</summary>
+    public string Encryption => "none";
 
     public ValueTask DisposeAsync()
     {

@@ -35,6 +35,11 @@
 // model, Claude Opus 5) at the direction of Edwin West, 2026-09-20, for
 // REQ-LIF-006. Reviewed by a human before merge.
 //
+// The encryption of each relayed connection added to its "relaying" log line,
+// and RelayLogger made public so a test can read that line, by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-22,
+// for REQ-OBS-008. Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -636,10 +641,15 @@ public sealed record MdnsSocketPlan(IReadOnlyList<MdnsBinding> Responder, IReadO
 
 /// <summary>Maps relay events onto the service log.</summary>
 /// <remarks>
-/// Endpoints, counts and durations only. The observer interface offers nothing
-/// else, and neither does this.
+/// Endpoints, counts, durations and the printer connection's encryption only.
+/// The observer interface offers nothing else, and neither does this.
+/// <para>
+/// Public so that SecretPrinter.Service.Tests can read the line it writes; it
+/// was internal until 2026-09-22. Nothing outside this assembly constructs it
+/// in shipped code.
+/// </para>
 /// </remarks>
-internal sealed class RelayLogger(IServiceLog log) : IRelayObserver
+public sealed class RelayLogger(IServiceLog log) : IRelayObserver
 {
     public void ConnectionAccepted(EndPoint? client) =>
         log.Info($"Job: accepted from {Describe(client)}.");
@@ -647,8 +657,10 @@ internal sealed class RelayLogger(IServiceLog log) : IRelayObserver
     public void ConnectionRefused(EndPoint? client, string reason) =>
         log.Warn($"Job: refused {Describe(client)}: {reason}");
 
-    public void RelayStarted(EndPoint? client, IPEndPoint printer) =>
-        log.Info($"Job: relaying {Describe(client)} -> {printer}.");
+    [Requirement("REQ-OBS-008",
+        "Writes the printer connection's encryption on the line that records each relayed connection beginning.")]
+    public void RelayStarted(EndPoint? client, IPEndPoint printer, string printerEncryption) =>
+        log.Info($"Job: relaying {Describe(client)} -> {printer}; encryption to printer: {printerEncryption}.");
 
     public void RelayCompleted(
         EndPoint? client, IPEndPoint printer, long bytesToPrinter, long bytesToClient, TimeSpan duration) =>

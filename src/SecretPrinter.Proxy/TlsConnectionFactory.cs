@@ -5,6 +5,11 @@
 // West, 2026-09-17, for the SecretPrinter project. Reviewed by a human before
 // merge.
 //
+// TlsConnection.Encryption and DescribeProtocol added by Claude (Anthropic
+// model, Claude Opus 5) at the direction of Edwin West, 2026-09-22, for
+// REQ-OBS-008: each relayed connection now reports the protocol its handshake
+// negotiated. Reviewed by a human before merge.
+//
 // Purpose:
 //   Opens the connection a print job travels on: TCP first, then a TLS
 //   handshake with the printer, and no job byte until both have succeeded.
@@ -105,12 +110,28 @@ public sealed class TlsConnection : IDuplexConnection
 
     /// <summary>The protocol version this handshake settled on.</summary>
     /// <remarks>
-    /// Nothing logs this yet. REQ-OBS-008 asks for it per relayed connection,
-    /// and that is the next commit; it is recorded here because this is the
-    /// only moment it can be observed, and stating it plainly is better than a
-    /// reader wondering why the class knows something it never says.
+    /// Read from the stream once, when the connection is made, because this is
+    /// the only moment it can be observed. It reaches the log through
+    /// <see cref="Encryption"/>.
     /// </remarks>
     public SslProtocols Protocol { get; }
+
+    /// <summary>
+    /// The negotiated protocol, and that the certificate matched the pin.
+    /// </summary>
+    /// <remarks>
+    /// The second half is true of every instance by construction: a
+    /// <see cref="TlsConnection"/> is only ever made after the pin approved the
+    /// certificate, so there is no instance of which it would be false. Saying
+    /// it on every relayed connection is what lets an operator confirm from the
+    /// log alone which device the job went to, against the fingerprint the
+    /// startup log records.
+    /// </remarks>
+    [Requirement("REQ-OBS-008",
+        "Describes each connection to the printer by the protocol its own handshake negotiated, and by the pin "
+        + "check every instance has passed. The relay reports this text for every relayed connection.")]
+    public string Encryption =>
+        $"{TlsConnectionFactory.DescribeProtocol(Protocol)}, certificate matched the pinned fingerprint";
 
     public async ValueTask DisposeAsync()
     {
@@ -170,6 +191,26 @@ public sealed class TlsConnectionFactory : IConnectionFactory
             : $"The handshake with the printer settled on {negotiated}. SecretPrinter carries print jobs "
               + "over TLS 1.2 or better only, so the connection was abandoned before any job byte was sent.";
     }
+
+    /// <summary>
+    /// Writes a negotiated protocol the way an operator reads it:
+    /// <c>TLS 1.2</c> or <c>TLS 1.3</c>.
+    /// </summary>
+    /// <remarks>
+    /// Only those two can reach a relayed connection, because
+    /// <see cref="UnacceptableProtocol"/> refuses everything else before a
+    /// <see cref="TlsConnection"/> is made. Anything else is written as the
+    /// enumeration's own name rather than mapped to a guess, so an unexpected
+    /// value would show up in the log as itself.
+    /// </remarks>
+    [Requirement("REQ-OBS-008",
+        "Names the negotiated protocol in the form an operator reads, and names anything unexpected as itself.")]
+    public static string DescribeProtocol(SslProtocols negotiated) => negotiated switch
+    {
+        SslProtocols.Tls12 => "TLS 1.2",
+        SslProtocols.Tls13 => "TLS 1.3",
+        _ => $"{negotiated}",
+    };
 
     /// <summary>
     /// Builds the options this factory hands to the handshake, including the

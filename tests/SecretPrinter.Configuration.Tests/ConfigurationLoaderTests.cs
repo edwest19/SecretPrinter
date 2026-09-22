@@ -12,6 +12,10 @@
 // (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-16.
 // Reviewed by a human before merge.
 //
+// REQ-OBS-008 marker placed on the certificate-pin description test by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-22.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that nothing is quietly defaulted, that every mistake is named,
 //   and that a configuration which would leave the service unable to tell a
@@ -405,11 +409,11 @@ internal static class ConfigurationLoaderTests
             "case carries no meaning in hexadecimal, so either case is the same fingerprint");
     }
 
-    // Deliberately carries no requirement marker. This is the startup half of
-    // REQ-OBS-008; the requirement also needs each relayed connection to log the
-    // TLS protocol negotiated, which does not exist yet. A marker is placed only
-    // when a whole requirement is met.
+    // The startup half of REQ-OBS-008. It carried no marker until 2026-09-22,
+    // when the per-connection half was added: a marker is placed only when a
+    // whole requirement is met.
     [TestCase("The startup description shows the pinned certificate fingerprint")]
+    [Requirement("REQ-OBS-008")]
     public static void Description_shows_certificate_pin()
     {
         IReadOnlyList<string> lines = LoadExample().Describe();

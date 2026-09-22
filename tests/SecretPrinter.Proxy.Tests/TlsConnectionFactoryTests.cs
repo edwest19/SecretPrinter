@@ -5,6 +5,10 @@
 // West, 2026-09-17, for the SecretPrinter project. Reviewed by a human before
 // merge.
 //
+// The test of how a negotiated protocol is named added by Claude (Anthropic
+// model, Claude Opus 5) at the direction of Edwin West, 2026-09-22, for
+// REQ-OBS-008. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the connection a print job travels on: that the first thing the
 //   printer receives is a TLS record and never a request line, that a handshake
@@ -376,6 +380,24 @@ internal static class TlsConnectionFactoryTests
         Assert.NotNull(TlsConnectionFactory.UnacceptableProtocol(SslProtocols.Tls11),
             "TLS 1.1 must not carry a document, even on a host that still enables it");
 #pragma warning restore SYSLIB0039, CA5397
+    }
+
+    [TestCase("A negotiated protocol is named the way an operator reads it")]
+    [Requirement("REQ-OBS-008")]
+    public static void Negotiated_protocol_is_named_for_the_log()
+    {
+        // What this cannot show, for the reason in the file header: that a
+        // TlsConnection reads SslStream.SslProtocol after a real handshake. That
+        // is one assignment in its constructor, and the line it produces is
+        // shown on the printer, not here.
+        Assert.Equal("TLS 1.2", TlsConnectionFactory.DescribeProtocol(SslProtocols.Tls12),
+            "TLS 1.2 must be written as an operator reads it");
+
+        Assert.Equal("TLS 1.3", TlsConnectionFactory.DescribeProtocol(SslProtocols.Tls13),
+            "TLS 1.3 must be written as an operator reads it");
+
+        Assert.Equal("None", TlsConnectionFactory.DescribeProtocol(SslProtocols.None),
+            "a value that should never reach a relayed connection is written as itself, not mapped to a guess");
     }
 
     [TestCase("The handshake fetches nothing from the network to make its decision")]

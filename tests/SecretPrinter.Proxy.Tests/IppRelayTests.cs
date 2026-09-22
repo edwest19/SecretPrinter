@@ -8,6 +8,10 @@
 // (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-14,
 // for REQ-PXY-009. Reviewed by a human before merge.
 //
+// The test that each relayed connection reports its printer connection's
+// encryption added by Claude (Anthropic model, Claude Opus 5) at the direction
+// of Edwin West, 2026-09-22, for REQ-OBS-008. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the print path: that bytes arrive unchanged, that both sides close
 //   together, that failures are prompt and reported, and - the two claims the
@@ -55,7 +59,8 @@ internal static class IppRelayTests
         FakeConnectionFactory Factory,
         RecordingObserver Observer);
 
-    private static Harness Build(RelayOptions? options = null, EndPoint? clientEndpoint = null)
+    private static Harness Build(
+        RelayOptions? options = null, EndPoint? clientEndpoint = null, string printerEncryption = "none")
     {
         StreamPair clientLink = StreamPair.Create();
         StreamPair printerLink = StreamPair.Create();
@@ -63,7 +68,7 @@ internal static class IppRelayTests
         var client = new FakeConnection(clientLink.Left, clientEndpoint ?? ClientEndpoint);
         var factory = new FakeConnectionFactory
         {
-            OnConnect = _ => new FakeConnection(printerLink.Left, PrinterEndpoint),
+            OnConnect = _ => new FakeConnection(printerLink.Left, PrinterEndpoint) { Encryption = printerEncryption },
         };
 
         var observer = new RecordingObserver();
@@ -391,6 +396,33 @@ internal static class IppRelayTests
 
         Assert.Equal(0, offending.Count,
             "no observer method may accept payload data, but found: " + string.Join(", ", offending));
+    }
+
+    // ---- What the log can say -----------------------------------------------
+
+    [TestCase("Each relayed connection reports how its connection to the printer is encrypted")]
+    [Requirement("REQ-OBS-008")]
+    public static void Relay_reports_the_printer_connections_encryption()
+    {
+        // Distinctive rather than merely plausible, so the assertion below can
+        // only pass if the relay handed on the connection's own text.
+        const string encryption = "TLS 1.2, certificate matched the pinned fingerprint";
+
+        Harness harness = Build(printerEncryption: encryption);
+
+        RelayOutcome outcome = Run(harness, () =>
+        {
+            harness.ClientSide.CloseWrite();
+            harness.PrinterSide.CloseWrite();
+        });
+
+        Assert.True(outcome.Succeeded, "the relay should complete cleanly");
+
+        string[] started = [.. harness.Observer.Events.Where(e => e.StartsWith("started ", StringComparison.Ordinal))];
+
+        Assert.Equal(1, started.Length, "a relayed connection is reported as started exactly once");
+        Assert.Equal($"started {ClientEndpoint} -> {PrinterEndpoint} over {encryption}", started[0],
+            "the report must carry the printer connection's own description of its encryption, unaltered");
     }
 
     // ---- Lifecycle and failure ----------------------------------------------

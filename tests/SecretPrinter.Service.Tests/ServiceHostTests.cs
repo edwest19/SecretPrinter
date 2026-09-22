@@ -10,6 +10,10 @@
 // Claude Opus 5) at the direction of Edwin West, 2026-09-16. Reviewed by a
 // human before merge.
 //
+// The test of RelayLogger's "relaying" line, for REQ-OBS-008, added by Claude
+// (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-22.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies decisions ServiceHost makes that can be checked without opening a
 //   socket: which interfaces each of its two mDNS sockets joins, how each job's
@@ -245,5 +249,33 @@ internal static class ServiceHostTests
             "Job: located Example Printer._ipp._tcp.local at 192.168.2.50:631 (queried, 0.412s).",
             line,
             "an answer obtained during the lookup must be reported as queried, with the time it took");
+    }
+
+    /// <summary>Collects what the relay logger chose to say.</summary>
+    private sealed class RecordingLog : IServiceLog
+    {
+        public List<string> Lines { get; } = [];
+
+        public void Write(LogLevel level, string message) => Lines.Add($"{level}: {message}");
+    }
+
+    [TestCase("The line recording a relayed connection names how the printer connection is encrypted")]
+    [Requirement("REQ-OBS-008")]
+    public static void Relaying_line_names_the_encryption()
+    {
+        var log = new RecordingLog();
+        var logger = new RelayLogger(log);
+
+        logger.RelayStarted(
+            new IPEndPoint(IPAddress.Parse("192.168.1.41"), 49152),
+            new IPEndPoint(IPAddress.Parse("192.168.2.50"), 631),
+            "TLS 1.2, certificate matched the pinned fingerprint");
+
+        Assert.Equal(1, log.Lines.Count, "one relayed connection beginning is one line");
+        Assert.Equal(
+            "Information: Job: relaying 192.168.1.41:49152 -> 192.168.2.50:631; "
+            + "encryption to printer: TLS 1.2, certificate matched the pinned fingerprint.",
+            log.Lines[0],
+            "an operator must be able to read from this line alone how the job travelled to the printer");
     }
 }

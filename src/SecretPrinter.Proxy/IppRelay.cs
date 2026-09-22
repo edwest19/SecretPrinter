@@ -12,6 +12,10 @@
 // model, Claude Opus 5) at the direction of Edwin West, 2026-09-14, for
 // REQ-PXY-009. Reviewed by a human before merge.
 //
+// The printer connection's encryption added to the relay-started report by
+// Claude (Anthropic model, Claude Opus 5) at the direction of Edwin West,
+// 2026-09-22, for REQ-OBS-008. Reviewed by a human before merge.
+//
 // Purpose:
 //   Moves print job bytes between a client and the printer, and does nothing
 //   else with them.
@@ -29,8 +33,9 @@
 //       contains no reference to any file-writing type, and a test inspects the
 //       compiled assembly's metadata to keep it that way.
 //     - The payload is never logged. The observer interface below has no
-//       parameter capable of carrying job content - only endpoints, counts and
-//       durations (REQ-PXY-009).
+//       parameter capable of carrying job content - only endpoints, counts,
+//       durations, failure reasons, and the printer connection's own
+//       description of its encryption (REQ-PXY-009, REQ-OBS-008).
 //     - A failed relay reports which peer the failure came from and whether it
 //       happened while reading or writing (REQ-OBS-006). That reason is built
 //       from two fixed labels and the exception's own message. Nothing in it is
@@ -74,7 +79,15 @@ public interface IRelayObserver
 
     void ConnectionRefused(EndPoint? client, string reason);
 
-    void RelayStarted(EndPoint? client, IPEndPoint printer);
+    /// <summary>Reports a connection whose relay has begun.</summary>
+    /// <param name="client">The client, when known.</param>
+    /// <param name="printer">Where the printer connection was made.</param>
+    /// <param name="printerEncryption">
+    /// The printer connection's own description of how it is protected
+    /// (<see cref="IDuplexConnection.Encryption"/>), passed on unread. Fixed
+    /// when the connection was opened; never derived from job content.
+    /// </param>
+    void RelayStarted(EndPoint? client, IPEndPoint printer, string printerEncryption);
 
     void RelayCompleted(
         EndPoint? client, IPEndPoint printer, long bytesToPrinter, long bytesToClient, TimeSpan duration);
@@ -254,6 +267,9 @@ public sealed class IppRelay
         "Builds the failure reason from the failing direction's own account of what it was doing, rather than from whichever exception happened to surface when both directions were awaited.")]
     [Requirement("REQ-SEC-011",
         "The destination comes solely from the resolvePrinter delegate supplied at construction. Nothing a client sends can influence where the relay connects, so this cannot be used as a general-purpose proxy.")]
+    [Requirement("REQ-OBS-008",
+        "Reports the printer connection's encryption once for every relayed connection, when the relay begins, "
+        + "as the connection itself describes it.")]
     public async Task<RelayOutcome> RelayOneAsync(IDuplexConnection client, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
@@ -304,7 +320,7 @@ public sealed class IppRelay
 
             await using (upstream.ConfigureAwait(false))
             {
-                _observer.RelayStarted(client.RemoteEndPoint, printer);
+                _observer.RelayStarted(client.RemoteEndPoint, printer, upstream.Encryption);
 
                 // One direction finishing means the conversation is over; the
                 // linked source stops the other rather than leaving it waiting
