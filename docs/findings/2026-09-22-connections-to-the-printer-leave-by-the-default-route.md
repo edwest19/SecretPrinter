@@ -3,6 +3,22 @@
 *Written by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
 West, 2026-09-22. Reviewed by a human before merge.*
 
+*Corrected later on 2026-09-22 by Claude (Anthropic model, Claude Opus 5) at
+the direction of Edwin West. As first committed, this file said the configured
+printer-side adapter was the Broadcom (`Wi-Fi`, index 9), and described the
+route through the Compact Wireless-G (`Wi-Fi 2`, index 49) as a connection
+leaving by "the adapter the configuration does not name". That was wrong:
+`Wi-Fi 2` was the configured adapter. The service log's startup lines show the
+configuration naming `Wi-Fi` at 2026-09-21 20:17:33Z and `Wi-Fi 2` from
+21:06:55Z on, and the service withdrew 28 seconds after `Wi-Fi 2` was
+disconnected this morning. Claude carried "the Broadcom is the printer side"
+from the previous handoff, which was true when written, without reading the
+configuration in force. The sections "The measurement", "The configured
+adapter was up", "What this does not establish" and "Prediction record" are
+rewritten below. The measured result - with no printer-side link, the SYNs left
+on Ethernet to the router - is unchanged, because both adapters were down when
+the capture ran. Reviewed by a human before merge.*
+
 **Status: measured on FIOS-STB-01. With no link on the printer side, a TCP
 connection to the printer's address left the machine on the client-side
 Ethernet and was handed to the client network's router. Five SYNs went out; no
@@ -38,18 +54,19 @@ reader is not misled.
 ## The measurement
 
 FIOS-STB-01, Windows 10 build 19045. Client side: `Ethernet`, index 15,
-`192.168.1.161`, default gateway `192.168.1.1`. Printer side: the Broadcom
-802.11n adapter (`Wi-Fi`, index 9), which had already dropped and was
-`Disconnected`. All commands were run by Edwin; the outputs quoted are his
-pastes. Timestamps are as `pktmon` printed them; their time zone was not
-established.
+`192.168.1.161`, default gateway `192.168.1.1`. Printer side, as configured:
+the Compact Wireless-G USB adapter (`Wi-Fi 2`, index 49), `192.168.12.136`. The
+machine's other Wi-Fi adapter, the Broadcom 802.11n (`Wi-Fi`, index 9), had
+been the printer side until 2026-09-21 and was `Disconnected`. All commands were
+run by Edwin; the outputs quoted are his pastes. Timestamps are as `pktmon`
+printed them. Their time zone was not established; they are consistent with
+local time (UTC-4), because the capture at "10:47" followed the disconnect that
+the WLAN event log records at 10:42:30 local.
 
-### A second printer-side adapter was connected
+### The configured adapter was up
 
-The first route query found something the previous handoff did not record: the
-Compact Wireless-G USB adapter (`Wi-Fi 2`, index 49) was `Up` on the printer
-network with the DHCP address `192.168.12.136`. Asked for the route to the
-printer, Windows chose it:
+The first route query was taken with `Wi-Fi 2` still connected. Windows chose
+its on-link route:
 
 ```
 Find-NetRoute -RemoteIPAddress 192.168.12.180
@@ -59,18 +76,20 @@ Find-NetRoute -RemoteIPAddress 192.168.12.180
   InterfaceMetric   : 55
 ```
 
-That is a separate observation, and it is **a routing decision only; no packets
-were captured in this state.** It says that with the configured printer-side
-adapter down and another adapter on the printer's subnet up, an unbound
-connection would leave by the adapter the configuration does not name. It stays
-on the printer network, but not on the configured interface. Whether both
-adapters being up at once would make the choice depend on interface metrics was
-not measured; the Broadcom's metric was not read.
+This is the ordinary case: the configured adapter is up, and Windows routes to
+the printer through it. It is a routing decision only; no packets were captured
+in this state. It does not answer the question this finding is about, which
+needs no printer-side link at all.
 
 ### With no printer-side link, the route is the default route
 
 `Wi-Fi 2` was disconnected with `netsh wlan disconnect interface="Wi-Fi 2"`.
-Five seconds later both Wi-Fi adapters reported `Disconnected`, and:
+The WLAN-AutoConfig log records it at 14:42:30Z (event 8003, *"The network is
+disconnected by the user."*), and the service log records the advertisement
+withdrawn and the listener closed at 14:42:58Z. Nothing reconnected the adapter
+until Edwin did, by hand, at 16:10:01Z (events 8000 and 8001, *"Manual
+connection with a profile"*). Five seconds after the disconnect both Wi-Fi
+adapters reported `Disconnected`, and:
 
 ```
 Find-NetRoute -RemoteIPAddress 192.168.12.180
@@ -150,7 +169,11 @@ was not committed.
 - **What the router did with them.** The capture is on FIOS-STB-01. Whether the
   router dropped the SYNs or forwarded them toward its own upstream was not
   observed.
-- **The two-adapter case.** See above: a route query, no capture.
+- **Two adapters on the printer's network at once.** Not observed. With both
+  up, Windows would have two on-link routes to the printer's subnet and could
+  choose either, so a connection could leave by an adapter the configuration
+  does not name. That follows from the unbound socket and the routing table; it
+  was never set up or measured here.
 
 ## Prediction record
 
@@ -159,8 +182,10 @@ calling it Windows' default "as far as I know". The measurement was five SYNs
 spaced 1, 2, 4 and 8 s. The prediction was wrong, and is recorded here rather
 than dropped. Claude also predicted, before the first route query, that it
 would return the default route; it returned the on-link route through
-`Wi-Fi 2`, because a second printer-side adapter was connected that Claude had
-not asked about.
+`Wi-Fi 2`. Claude then explained that as "a second printer-side adapter",
+because it had not read the configuration: `Wi-Fi 2` was the configured
+adapter, and it was up. Claude predicted the service would withdraw about a
+minute after the disconnect; it withdrew after 28 seconds.
 
 ## What goes with the job data
 

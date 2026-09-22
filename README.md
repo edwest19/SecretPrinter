@@ -86,11 +86,12 @@ client-side Ethernet, to the router, and nothing answered. No print job goes
 that way. The service sends job data only after a TLS
 handshake with the pinned printer succeeds, and a connection that is never
 answered never gets that far. What does leave is the attempt itself: the
-printer's address and port, from the proxy's client-side address. A second
-consequence follows from the same fact: if another adapter on the machine is
-connected to the printer's network, Windows may route the connection through
-that adapter rather than the one the configuration names. What the router does
-with such packets was not observed. See the
+printer's address and port, from the proxy's client-side address. The same
+fact has a second consequence, which follows from how routing works but has not
+been measured: if another adapter on the machine is connected to the printer's
+network, Windows may route the connection through that adapter rather than the
+one the configuration names. What the router does with such packets was not
+observed either. See the
 [finding](docs/findings/2026-09-22-connections-to-the-printer-leave-by-the-default-route.md).
 
 ---
