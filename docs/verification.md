@@ -7,6 +7,10 @@ West. Reviewed by a human before merge.*
 direction of Edwin West, 2026-09-21, when running as `LocalService` was measured.
 Reviewed by a human before merge.*
 
+*The REQ-SEC-010 entry updated by Claude (Anthropic model, Claude Opus 5) at the
+direction of Edwin West, 2026-09-22, when a fifth disclosure was added to the
+README. Reviewed by a human before merge.*
+
 Some requirements in [README.md](../README.md) cannot be satisfied by code.
 "Release binaries are signed" and "CI runs the specification checker" are
 properties of the build and release process; no attribute on a class will ever
@@ -50,7 +54,7 @@ proportion resting on evidence rather than tests is always visible.
 | REQ-DIST-002 | `Directory.Build.props` | Sets `TreatWarningsAsErrors`, `EnableNETAnalyzers` and `AnalysisLevel` for every project from one place. Individual project files no longer carry their own copies, so the setting cannot be quietly relaxed for one project. |
 | REQ-DIST-007 | `src/SecretPrinter.Dns/DnsMessage.cs` | The single analyzer suppression in the repository — CA1720 on `DnsRecordType`, because `PTR` is the IANA name for DNS record type 12 — is applied at the declaration with a written justification. No global suppression file exists. |
 | REQ-SEC-009 | `src/SecretPrinter.Dns/SecretPrinter.Dns.csproj`, `src/SecretPrinter.Spec/SecretPrinter.Spec.csproj`, `tools/SecretPrinter.Probe/SecretPrinter.Probe.csproj`, `tools/SecretPrinter.Listen/SecretPrinter.Listen.csproj`, `tools/SecretPrinter.SpecCheck/SecretPrinter.SpecCheck.csproj` | No project file contains a `PackageReference`. Every dependency is the .NET base class library or another project in this repository. Re-check by searching the repository for `PackageReference`. |
-| REQ-SEC-010 | `README.md` | The statement that print job data passes through the proxy host appears in "Read this before installing", above the table of contents, as the first of four disclosures. |
+| REQ-SEC-010 | `README.md` | The statement that print job data passes through the proxy host appears in "Read this before installing", above the table of contents, as the first of five disclosures. |
 | REQ-SEC-015 | `README.md` | The fourth disclosure in "Read this before installing", above the table of contents, states that the job is plain IPP between the client and the proxy and TLS between the proxy and the printer, and names the proxy as the point where it becomes encrypted. Section 3 repeats it against the architecture diagram, where step 4 is marked plaintext and step 5 TLS. |
 | REQ-OBS-005 | `tools/SecretPrinter.Listen/README.md` | Carries a "Privacy note" section warning that captured mDNS traffic contains household device names, and instructing the reader to review output before publishing it. The tool prints the same warning in its `--help` text. |
 | REQ-DIST-008 | `docs/verification.md` | This document. Recursive by construction: the requirement to record non-code evidence is itself satisfied by the file that records it, and SpecCheck confirms the file exists. |

@@ -35,7 +35,7 @@ correction.
 
 ## Read this before installing
 
-Four things about this software that you should know before it runs on your
+Five things about this software that you should know before it runs on your
 machine. They are here, at the top, because burying them would defeat the
 purpose of the project.
 
@@ -71,6 +71,27 @@ so that anyone for whom it is not acceptable finds out before installing rather
 than after. The certificate the proxy will accept is pinned by fingerprint in
 configuration and checked on every connection; see
 [Section 8](#8-requirements-security-and-trust-sec).
+
+**5. The connection to the printer follows the Windows routing table.**
+The service does not tie its connection to the printer to the printer-side
+network adapter. Windows chooses the way out from its routing table, as it would
+for any program. Normally that is the printer-side adapter, because it gives
+Windows the most specific route to the printer's address. When the printer-side
+adapter has no link - a WLAN drop, for instance - Windows uses its default route
+instead, and the attempt to connect leaves on the client network, addressed to
+the printer and handed to the client network's router. This was measured: with
+no printer-side link, a test connection to the printer's address (made with
+`Test-NetConnection`, not by the service) sent five TCP SYN packets out the
+client-side Ethernet, to the router, and nothing answered. No print job goes
+that way. The service sends job data only after a TLS
+handshake with the pinned printer succeeds, and a connection that is never
+answered never gets that far. What does leave is the attempt itself: the
+printer's address and port, from the proxy's client-side address. A second
+consequence follows from the same fact: if another adapter on the machine is
+connected to the printer's network, Windows may route the connection through
+that adapter rather than the one the configuration names. What the router does
+with such packets was not observed. See the
+[finding](docs/findings/2026-09-22-connections-to-the-printer-leave-by-the-default-route.md).
 
 ---
 
@@ -181,6 +202,12 @@ TLS. The printer advertises `_ipps._tcp` on the same port 631 and accepts TLS
 from the first byte, which is why the relay needs no HTTP upgrade handshake and
 still parses nothing it carries. Measured on 2026-09-15; see
 [findings](docs/findings/2026-09-15-printer-requires-tls-for-job-operations.md).
+
+Step 5 is not bound to the printer-side interface. The relay's outbound socket
+is created without a local address, so Windows chooses its path from the
+routing table. With the printer-side link up, that is the printer network; with
+it down, the default route on the client network. This is disclosed as the fifth
+item under [Read this before installing](#read-this-before-installing).
 
 The address and port for step 5 come from the printer's `_ipps._tcp` service,
 and the capabilities advertised in step 2 come from the TXT record of its
@@ -523,60 +550,76 @@ Select-String -Path (Get-ChildItem -Recurse -Filter *.csproj) -Pattern 'PackageR
 SecretPrinter/
 ├── README.md                          This specification
 ├── LICENSE                            MIT                                [done]
-├── SECURITY.md                        How to report a vulnerability     [done]
+├── SECURITY.md                        How to report a vulnerability      [done]
 ├── CHANGELOG.md                       Per-release history
 ├── .gitignore                         Ignore rules, incl. captures       [done]
+├── .gitattributes                     Line endings, fixed per file type  [done]
 ├── global.json                        Pinned SDK version                 [done]
 ├── Directory.Build.props              Shared build settings              [done]
 ├── SecretPrinter.slnx                                                    [done]
+├── run-tests.ps1                      Build, run every suite, save results [done]
+├── run-speccheck.ps1                  Run SpecCheck on those results     [done]
 │
 ├── docs/
 │   ├── architecture.md                Design rationale in depth
-│   ├── verification.md                Evidence for non-code requirements  [done]
-│   ├── operating.md                   Install, firewall, privileges       [done]
+│   ├── verification.md                Evidence for non-code requirements [done]
+│   ├── operating.md                   Install, firewall, privileges      [done]
 │   ├── threat-model.md                What this does and does not defend against
-│   └── findings/                      Dated records of what was measured
-│       ├── 2026-09-01-printer-capabilities.md                        [done]
-│       ├── 2026-09-01-port-5353-sharing.md                           [done]
-│       ├── 2026-09-02-ios-accepts-advertisement.md                   [done]
-│       ├── 2026-09-04-service-runs-unelevated.md                     [done]
-│       ├── 2026-09-04-windows-service-run.md                         [done]
-│       └── 2026-09-04-pre-publication-audit.md                       [done]
+│   └── findings/                      Dated records of what was measured [done]
+│                                      One file each, YYYY-MM-DD-subject.md
 │
 ├── src/
-│   ├── SecretPrinter.Spec/            The [Requirement] attribute     [done]
+│   ├── SecretPrinter.Spec/            The [Requirement] attribute        [done]
 │   ├── SecretPrinter.Dns/             DNS wire format; no sockets        [built]
 │   ├── SecretPrinter.Mdns/            mDNS socket layer                  [built]
 │   ├── SecretPrinter.Advertising/     What to publish; no sockets        [built]
 │   ├── SecretPrinter.Responder/       Answers queries; announces; goodbye [built]
 │   ├── SecretPrinter.Resolution/      Finds the printer, on demand       [built]
 │   ├── SecretPrinter.Configuration/   Loads and validates settings       [built]
-│   ├── SecretPrinter.Service/         The host; wires everything up      [built]
 │   ├── SecretPrinter.Proxy/           TCP relay; no file I/O at all      [built]
+│   └── SecretPrinter.Service/         The host; wires everything up      [built]
 │
 ├── tools/
 │   ├── SecretPrinter.Probe/           Read what a printer advertises     [built]
-│   ├── SecretPrinter.Listen/          Observe mDNS; transmits nothing    [built]
+│   ├── SecretPrinter.Listen/          Observe IPv4 mDNS; transmits nothing [built]
+│   ├── SecretPrinter.Listen6/         Observe IPv6 mDNS; transmits nothing [built]
+│   ├── SecretPrinter.Loop6/           Measure IPv6 multicast loopback    [built]
 │   ├── SecretPrinter.Respond/         Advertise a fake printer (test)    [built]
-│   └── SecretPrinter.SpecCheck/       README-to-code coverage matrix    [built]
+│   ├── SecretPrinter.Respond6/        IPv6 advertisement experiment      [built]
+│   └── SecretPrinter.SpecCheck/       README-to-code coverage matrix     [built]
 │
 ├── tests/
 │   ├── SecretPrinter.TestKit/         Shared harness, no NuGet deps      [built]
-│   ├── SecretPrinter.Dns.Tests/
-│   ├── SecretPrinter.Mdns.Tests/      19 tests                           [built]
-│   ├── SecretPrinter.Advertising.Tests/  18 tests                        [built]
-│   ├── SecretPrinter.Responder.Tests/ 17 tests, fake transport           [built]
-│   ├── SecretPrinter.Resolution.Tests/ 14 tests, fake transport + clock  [built]
-│   ├── SecretPrinter.Proxy.Tests/     18 tests, in-memory streams        [built]
-│   ├── SecretPrinter.Configuration.Tests/ 20 tests, fake adapters        [built]
-│   ├── SecretPrinter.Service.Tests/   13 tests, assembly metadata scans  [built]
+│   ├── SecretPrinter.Dns.Tests/       (see below)
+│   ├── SecretPrinter.Mdns.Tests/                                         [built]
+│   ├── SecretPrinter.Advertising.Tests/                                  [built]
+│   ├── SecretPrinter.Responder.Tests/ Fake transport                     [built]
+│   ├── SecretPrinter.Resolution.Tests/ Fake transport and clock          [built]
+│   ├── SecretPrinter.Proxy.Tests/     In-memory streams                  [built]
+│   ├── SecretPrinter.Configuration.Tests/ Fake adapters                  [built]
+│   └── SecretPrinter.Service.Tests/   Includes assembly metadata scans   [built]
 │
 └── .github/workflows/
-    └── ci.yml                         Build, test, spec-check           [done]
+    └── ci.yml                         Build, test, spec-check            [done]
 ```
 
 `[done]` and `[built]` mark what exists today. The rest is specified and not
 yet written.
+
+`SecretPrinter.Dns.Tests` carries no mark because it does not exist yet.
+Until it does, `SecretPrinter.Dns` has no test project of its own; its types are used by the test kit and by the Advertising,
+Responder, Resolution and Service suites, which is not the same as being tested
+directly.
+
+The tree does not list test counts or individual findings, because both change
+with almost every commit and a list that goes stale is a false statement. The
+current count is whatever `run-tests.ps1` reports; the findings are the files in
+`docs/findings/`.
+
+`SecretPrinter.Listen6`, `SecretPrinter.Loop6` and `SecretPrinter.Respond6` are
+measurement tools written to answer one question each while IPv6 was being
+added; each one's header states its question and the finding that records the
+answer. None is part of the service.
 
 ### Why the layering is what it is
 
