@@ -165,6 +165,10 @@ is done at a time. In the order I would take them:
   dispatcher, so the SCM waits its full 30 seconds and reports a hang. The
   service in fact refused instantly and wrote the reason to its log. Exit code 3
   never reaches the SCM. Observed three times this evening.
+  *(Added 2026-09-22 by Claude, Claude Opus 5.5: recorded in
+  [`2026-09-22-a-refused-start-is-reported-as-a-timeout.md`](2026-09-22-a-refused-start-is-reported-as-a-timeout.md).
+  The event timestamps there carry the same second as each refusal, so "waits
+  its full 30 seconds" above is not shown by the records.)*
 - **`MdnsResponder.ServeAsync` calls `HandleAsync` outside its `SocketException`
   guard**, and `HandleAsync` sends. A send that throws ends the responder loop.
   `ServiceHost` awaits `Task.WhenAll(running)`, and the relay tasks in that list
