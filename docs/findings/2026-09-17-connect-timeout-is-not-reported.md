@@ -29,6 +29,12 @@ disconnecting at 19:53:55Z, before eight of the ten connections. The bullet is
 rewritten, and the event is added to the table. Reviewed by a human before
 merge.*
 
+*Updated 2026-09-22 by Claude (Anthropic model, Claude Opus 5), at the direction
+of Edwin West: a dated note is added after the last bullet under "What this does
+not establish", recording that the default-route hypothesis in that bullet has
+since been measured. The bullet itself is unchanged. Reviewed by a human before
+merge.*
+
 *Original status (2026-09-17): found while writing the TLS connection factory,
 reasoned from the code and from Microsoft's documentation, NOT observed on
 hardware. Not fixed. The new TLS code avoids the same shape;
@@ -146,6 +152,17 @@ What this does **not** establish:
   leave that way, since the TLS handshake with the pinned printer never
   completes, but it is a question about confinement that needs its own
   measurement.
+
+*Measured 2026-09-22.* The hypothesis in the bullet above was tested on
+FIOS-STB-01 with no printer-side link: a connection to `192.168.12.180:631`
+sent five SYNs out the client-side Ethernet, from `192.168.1.161`, to the client
+network's router, and nothing answered. The connection was made by
+`Test-NetConnection`, not by the service, so it confirms where Windows routes
+such a connection and does not by itself show where the ten connections of
+2026-09-21 went. The relay's outbound socket is unbound and is subject to the
+same routing decision. The README now states that the connection to the printer
+follows the routing table. See
+[`2026-09-22-connections-to-the-printer-leave-by-the-default-route.md`](2026-09-22-connections-to-the-printer-leave-by-the-default-route.md).
 
 ## The fix
 
