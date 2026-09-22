@@ -12,6 +12,15 @@
 // Claude (Anthropic model, Claude Opus 5) at the direction of Edwin West,
 // 2026-09-16. Reviewed by a human before merge.
 //
+// Every resolver in this file given a fake interface inventory, instead of the
+// adapters of whatever machine runs the tests, by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-09-22. Until then
+// Silence_fails_with_a_reason passed only while the machine running it had an
+// adapter at index 11 that was up and held 192.168.12.245, so it failed on the
+// CI runner. See
+// docs/findings/2026-09-22-a-test-read-the-real-network-adapters.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that the printer is found by name rather than by remembered
 //   address, and that a stale answer is never returned.
@@ -23,8 +32,9 @@
 //   job failed at TCP connect - the worst possible failure, because nothing
 //   reports an error.
 //
-//   Every test runs against a fake transport and a fake clock, so none needs a
-//   printer, a network, or real elapsed time.
+//   Every test runs against a fake transport, a fake clock where time matters,
+//   and a fake interface inventory, so none needs a printer, a network, real
+//   elapsed time, or any particular state of this machine's adapters.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -43,6 +53,21 @@ internal static class PrinterResolverTests
 
     private static readonly MdnsInterface ClientNic =
         new("Ethernet 2", IPAddress.Parse("192.168.1.234"), 13, AddressFamily.InterNetwork);
+
+    /// <summary>
+    /// The adapters a timeout is diagnosed against: the printer-side adapter,
+    /// up and holding PrinterNic's address as preferred. Supplied so that what
+    /// a timeout reports depends on the test, not on the machine running it.
+    /// Without it the resolver reads SystemInterfaceInventory.
+    /// </summary>
+    private static readonly FakeInventory LocalAdapters = new(new LocalAdapter(
+        "Wi-Fi",
+        11,
+        true,
+        true,
+        [IPAddress.Parse("192.168.12.245")],
+        null,
+        [new LocalIPv4Address(IPAddress.Parse("192.168.12.245"), LocalAddressCondition.Preferred)]));
 
     private static readonly DnsName Instance =
         new(["EPSON ET-3760 Series", "_ipp", "_tcp", "local"]);
@@ -96,7 +121,7 @@ internal static class PrinterResolverTests
     public static void Resolves_instance_to_address()
     {
         FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180"));
-        var resolver = new PrinterResolver(transport, PrinterNic);
+        var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
 
         ResolvedPrinter resolved = Resolve(resolver);
 
@@ -110,7 +135,7 @@ internal static class PrinterResolverTests
     public static void Resolution_returns_txt_for_the_advertisement()
     {
         FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180"));
-        var resolver = new PrinterResolver(transport, PrinterNic);
+        var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
 
         ResolvedPrinter resolved = Resolve(resolver);
 
@@ -123,7 +148,7 @@ internal static class PrinterResolverTests
     public static void Query_uses_only_the_printer_interface()
     {
         FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180"));
-        var resolver = new PrinterResolver(transport, PrinterNic);
+        var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
 
         Resolve(resolver);
 
@@ -151,7 +176,7 @@ internal static class PrinterResolverTests
             transport.Enqueue(PrinterReply("10.0.0.9", interfaceIndex: ClientNic.Index));
         };
 
-        var resolver = new PrinterResolver(transport, PrinterNic);
+        var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
 
         Assert.Throws<PrinterResolutionException>(
             () => resolver.ResolveAsync(Instance, TimeSpan.FromMilliseconds(300), CancellationToken.None)
@@ -167,7 +192,7 @@ internal static class PrinterResolverTests
         FakeTransport transport = TransportAnswering(
             () => PrinterReply("192.168.12.99", instance: other));
 
-        var resolver = new PrinterResolver(transport, PrinterNic);
+        var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
 
         Assert.Throws<PrinterResolutionException>(
             () => resolver.ResolveAsync(Instance, TimeSpan.FromMilliseconds(300), CancellationToken.None)
@@ -183,7 +208,7 @@ internal static class PrinterResolverTests
     {
         FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180", ttl: 120));
         var clock = new FakeClock(DateTimeOffset.UnixEpoch);
-        var resolver = new PrinterResolver(transport, PrinterNic, clock);
+        var resolver = new PrinterResolver(transport, PrinterNic, clock, LocalAdapters);
 
         Resolve(resolver);
         int afterFirst = transport.Sent.Count;
@@ -204,7 +229,7 @@ internal static class PrinterResolverTests
         string current = "192.168.12.186";
         FakeTransport transport = TransportAnswering(() => PrinterReply(current, ttl: 120));
         var clock = new FakeClock(DateTimeOffset.UnixEpoch);
-        var resolver = new PrinterResolver(transport, PrinterNic, clock);
+        var resolver = new PrinterResolver(transport, PrinterNic, clock, LocalAdapters);
 
         Assert.Equal(IPAddress.Parse("192.168.12.186"), Resolve(resolver).Address, "first lookup");
 
@@ -221,7 +246,7 @@ internal static class PrinterResolverTests
     {
         FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180", ttl: 30));
         var clock = new FakeClock(DateTimeOffset.UnixEpoch);
-        var resolver = new PrinterResolver(transport, PrinterNic, clock);
+        var resolver = new PrinterResolver(transport, PrinterNic, clock, LocalAdapters);
 
         ResolvedPrinter resolved = Resolve(resolver);
 
@@ -237,7 +262,7 @@ internal static class PrinterResolverTests
     public static void Silence_fails_with_a_reason()
     {
         var transport = new FakeTransport(PrinterNic, ClientNic);
-        var resolver = new PrinterResolver(transport, PrinterNic);
+        var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
 
         var ex = Assert.Throws<PrinterResolutionException>(
             () => resolver.ResolveAsync(Instance, TimeSpan.FromMilliseconds(300), CancellationToken.None)
@@ -265,7 +290,7 @@ internal static class PrinterResolverTests
         };
 
         var clock = new FakeClock(DateTimeOffset.UnixEpoch);
-        var resolver = new PrinterResolver(transport, PrinterNic, clock);
+        var resolver = new PrinterResolver(transport, PrinterNic, clock, LocalAdapters);
 
         Resolve(resolver);
         Assert.NotNull(resolver.Cached, "the first lookup should be cached");
@@ -286,7 +311,7 @@ internal static class PrinterResolverTests
     public static void Invalidate_clears_the_cache()
     {
         FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180"));
-        var resolver = new PrinterResolver(transport, PrinterNic);
+        var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
 
         Resolve(resolver);
         int afterFirst = transport.Sent.Count;
@@ -353,8 +378,8 @@ internal static class PrinterResolverTests
         FakeTransport first = TransportAnswering(() => PrinterReply("192.168.12.50"));
         FakeTransport second = TransportAnswering(() => PrinterReply("192.168.12.51"));
 
-        using var a = new PrinterResolver(first, PrinterNic);
-        using var b = new PrinterResolver(second, PrinterNic);
+        using var a = new PrinterResolver(first, PrinterNic, inventory: LocalAdapters);
+        using var b = new PrinterResolver(second, PrinterNic, inventory: LocalAdapters);
 
         Assert.Equal(IPAddress.Parse("192.168.12.50"), Resolve(a).Address, "first resolver follows its network");
         Assert.Equal(IPAddress.Parse("192.168.12.51"), Resolve(b).Address, "second follows its own");
@@ -368,7 +393,7 @@ internal static class PrinterResolverTests
         // Unmarked. No requirement row states this directly; it protects
         // REQ-RES-004 and REQ-RES-005 from an old reply being treated as new.
         var transport = new FakeTransport(PrinterNic, ClientNic);
-        using var resolver = new PrinterResolver(transport, PrinterNic);
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
 
         // The printer at an address it has since left, answering while no
         // lookup is waiting - as it would answer another device's query.
@@ -402,7 +427,7 @@ internal static class PrinterResolverTests
         var transport = new FakeTransport(ClientNic);
 
         Assert.Throws<ArgumentException>(
-            () => _ = new PrinterResolver(transport, PrinterNic),
+            () => _ = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters),
             "resolution would send nothing and time out, which is a confusing way to fail");
     }
 }
