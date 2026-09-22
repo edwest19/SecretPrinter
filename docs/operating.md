@@ -31,8 +31,9 @@ iPhone contradicted. Reviewed by a human before merge.*
 
 *The limit "the service will not start while the printer-side adapter is
 down" replaced, when REQ-LIF-008 changed startup to wait instead, by Claude
-(Anthropic model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-22.
-Reviewed by a human before merge.*
+(Anthropic model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-22,
+and marked as run on FIOS-STB-01 the same evening. Reviewed by a human before
+merge.*
 
 Everything an operator has to do by hand, and why the software does not do it
 for them.
@@ -510,8 +511,10 @@ know:
   the printer answers. Until 2026-09-22 it refused to start instead, so a reboot
   during an outage left it stopped. The adapter must still exist by name: an
   adapter that is absent altogether, such as a USB adapter that is unplugged, is
-  refused when the configuration is loaded. Not yet run on FIOS-STB-01 at the
-  time of writing.
+  refused when the configuration is loaded. Run on FIOS-STB-01 on 2026-09-22:
+  started with the adapter down, came up 8 seconds after it was reconnected,
+  and relayed a print from an iPhone
+  ([the finding](findings/2026-09-22-the-withdrawn-start-on-hardware.md)).
 
 To see whether the link has been dropping, and why:
 
