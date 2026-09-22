@@ -5,7 +5,7 @@ another network, without joining those networks together.**
 
 > **Authorship.** The source code, tests and documentation in this repository
 > were written by Claude (Anthropic models: Claude Opus 4.5 for the original
-> work, Claude Opus 5 for later changes), at the direction of
+> work, Claude Opus 5 and Claude Opus 5.5 for later changes), at the direction of
 > Edwin West, and reviewed by a human before merge. Each file's header names the
 > model that wrote it and, where a file has been changed since, the model that
 > changed it. This is stated plainly
@@ -328,6 +328,7 @@ How print jobs are moved.
 | REQ-LIF-004 | MUST | Fatal configuration or binding errors cause a fast, loud failure — never silent partial operation. |
 | REQ-LIF-005 | MUST | Transient network errors are logged and retried, and do not terminate the service. |
 | REQ-LIF-006 | MUST | While the printer is unreachable per REQ-RES-008, the service stops accepting new client connections, stops answering mDNS queries about itself, and withdraws its advertisement with goodbye records as REQ-LIF-003 requires on shutdown. It resumes all three when the printer answers again. Each change is logged once, with what was observed. The service does not offer a printer it has established it cannot reach. Measured: on 2026-09-20 the printer-side WLAN dropped at 06:49:38Z and the service, which correctly diagnosed the adapter as down, went on advertising and accepting jobs for nine hours; twelve jobs were accepted after the diagnosis and all twelve failed. |
+| REQ-LIF-007 | MUST | Under the Windows service control manager, a configuration the service refuses is reported to the control manager as a failure to start, not left to time out, and the reason is in the log. Measured: on 2026-09-18 and 2026-09-19 nine refusals, each logged at once with its reason, each reached Windows as error 1053, "did not respond to the start or control request in a timely fashion". The code returned before it had called `ServiceBase.Run`, so the control manager was never answered. See [the finding](docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md). |
 | REQ-OBS-001 | MUST | Startup logs list every interface in use, its resolved address, and its role. |
 | REQ-OBS-002 | MUST | Every advertisement published is logged, including the full TXT record set. |
 | REQ-OBS-003 | MUST | The operator can determine, from logs alone, exactly what the service told the client network. |

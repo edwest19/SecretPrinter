@@ -8,6 +8,13 @@
 // (Anthropic model, Claude Opus 5) at the direction of Edwin West, 2026-09-18,
 // for REQ-OBS-009. Reviewed by a human before merge.
 //
+// A refused configuration under --service handed to the service control
+// manager as a failure to start, instead of ending the process before the
+// control manager was ever answered, by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, 2026-09-22, for REQ-LIF-007. See
+// docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Entry point. Loads configuration, runs the host, stops cleanly on Ctrl+C.
 //
@@ -154,6 +161,22 @@ internal static class Program
                 log.Error($"  {problem}");
             }
 
+            // Under --service the control manager is waiting to be answered.
+            // Returning here, as this method did until 2026-09-22, ended the
+            // process before it had connected to the control manager at all,
+            // and Windows recorded a timeout (error 1053) for what was an
+            // immediate, logged refusal (REQ-LIF-007). The refusal is handed to
+            // the control manager first, and the process still exits with 3.
+            if (asService)
+            {
+                // Guarded the same way as RunAsWindowsService below: the
+                // control manager exists only on Windows.
+                if (OperatingSystem.IsWindows())
+                {
+                    ReportRefusalToServiceControlManager(ex, log);
+                }
+            }
+
             return 3;
         }
 
@@ -209,6 +232,49 @@ internal static class Program
         return 0;
     }
 
+    /// <summary>
+    /// Answers the service control manager with a failure to start, for a
+    /// configuration that has already been refused and logged.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A process started by the control manager can report nothing to it until
+    /// it has called <c>ServiceBase.Run</c>.
+    /// So the refusal is carried into a service whose start throws it; see
+    /// <see cref="RefusedStartService"/> for what the control manager is then
+    /// told.
+    /// </para>
+    /// <para>
+    /// <c>ServiceBase.Run</c> rethrows whatever <c>OnStart</c> threw, once the
+    /// dispatcher has returned. That is the refusal, and it has been logged
+    /// already, so it is caught here and the caller returns 3. This is read
+    /// from the source of System.ServiceProcess.ServiceController 10.0.11, the
+    /// version this project references; it has not yet been run under the
+    /// control manager.
+    /// </para>
+    /// <para>
+    /// If the process was started from a console with <c>--service</c>, there is
+    /// no control manager to answer. <c>ServiceBase.Run</c> then prints its own
+    /// message and returns without starting anything, and the caller still
+    /// returns 3.
+    /// </para>
+    /// </remarks>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void ReportRefusalToServiceControlManager(ConfigurationException refusal, IServiceLog log)
+    {
+        using var service = new RefusedStartService(refusal, log);
+
+        try
+        {
+            System.ServiceProcess.ServiceBase.Run(service);
+        }
+        catch (ConfigurationException)
+        {
+            // The refusal, rethrown by ServiceBase.Run after the control manager
+            // was told the start failed. Already logged by the caller.
+        }
+    }
+
     private static void PrintUsage() =>
         Console.WriteLine("""
             SecretPrinter - makes an AirPrint printer on one network reachable from another.
@@ -237,7 +303,8 @@ internal static class Program
             Exit codes:
               0  Stopped cleanly.
               2  Bad arguments.
-              3  Configuration is not usable; every problem is listed.
+              3  Configuration is not usable; every problem is listed. Under
+                 --service the control manager is told the start failed.
               4  Could not start: an interface, socket or the printer was unavailable.
               5  The log file could not be opened.
             """);
