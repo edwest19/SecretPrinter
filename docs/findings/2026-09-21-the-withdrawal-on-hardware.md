@@ -10,6 +10,16 @@ WLAN-AutoConfig log records it at 19:53:55Z. The section is rewritten from the
 event log, and the one later mention of the drop's time is corrected to match.
 Reviewed by a human before merge.*
 
+*Corrected again 2026-09-23 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. The first gap said "iOS asks only over IPv6". That
+rested on the 2026-09-06 and 2026-09-14 findings, which measured what reached
+FIOS-STB-01, not what iOS sent. On 2026-09-23 another machine on the client
+network saw IPv4 queries for the advertised names from `192.168.1.152` and from
+an iPad, and saw the goodbye leave over IPv4
+([2026-09-23](2026-09-23-the-goodbye-and-ipv4-on-the-wire.md)). The sentence
+now says what had been measured. The explanation it belongs to is still not
+established. Reviewed by a human before merge.*
+
 **Status: measured on FIOS-STB-01. The service withdrew when the printer stopped
 answering and came back when it answered again, in the order `REQ-LIF-006`
 requires and on the schedule `REQ-RES-008` gives, against both a deliberate
@@ -91,8 +101,9 @@ the printer when its record expires, not on the first silence.
 withdrawal the entry stayed in the iPhone's list; tapping it failed, since
 nothing was listening. The code suggests why, but it is **not established**:
 announcements and goodbyes go out over IPv4 only — deliberately, per a comment in
-`MdnsResponder`, pending "a separate, measured decision" — while iOS asks only
-over IPv6 and our answers go back over the family the question arrived on. The
+`MdnsResponder`, pending "a separate, measured decision" — while every query
+from iOS known to have reached FIOS-STB-01 had come over IPv6, and our answers
+go back over the family the question arrived on. The
 record that lists the printer is a PTR with TTL 4500 s, which the withdrawn
 responder will not refresh. If iOS does not apply an IPv4 goodbye to records it
 learned over IPv6, the entry would stay for up to 75 minutes. How long it

@@ -1,11 +1,26 @@
-# iOS asked 23 questions and not one of them was IPv4
+# The service saw 23 questions and not one of them was IPv4
 
 *Written by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
 West, 2026-09-14. Reviewed by a human before merge.*
 
+*Corrected 2026-09-23 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. The title first read "iOS asked 23 questions and not
+one of them was IPv4". The status said "REQ-ADV-018 is validated in the field
+by this run", when only its IPv6 half was. The passage now headed "What arrived
+was IPv6 alone" first opened "The original diagnosis was understated", endorsing
+the diagnosis that iOS queries mDNS exclusively over IPv6, and the last section
+ended by calling IPv6 "the only transport in play". This run measured what
+reached the service, not what iOS sent. On 2026-09-23 another machine on the
+client network saw IPv4 queries for the advertised names from `192.168.1.152`
+and from an iPad, while the service counted none that asked for them
+([2026-09-23](2026-09-23-the-goodbye-and-ipv4-on-the-wire.md)). The title, the
+status, that passage and that sentence now say only what was measured. The file
+name keeps the original claim, because other documents link to it. Reviewed by
+a human before merge.*
+
 **Status: measured on `FIOS-STB-01`, one run, 2026-09-14 16:57:14Z to 16:58:41Z.
-REQ-ADV-018 is validated in the field by this run. Printing still does not
-work, and the cause is narrowed but not found.**
+The IPv6 half of REQ-ADV-018 is validated in the field by this run. Printing
+still does not work, and the cause is narrowed but not found.**
 
 ## What was measured
 
@@ -31,12 +46,12 @@ NOT validated in the field", and that the responder's counters could not tell an
 IPv4 discovery from an IPv6 one. REQ-OBS-007 exists to remove that ambiguity and
 it did so on its first run.
 
-**The original diagnosis was understated.** It was recorded as "iOS queries mDNS
-exclusively over IPv6". This run says something stronger than a preference: in
-87 seconds, on a dual-stack interface with both sockets bound and both groups
-joined, **zero IPv4 mDNS queries arrived at all**. Before the IPv6 socket
-existed, this service was not answering a reduced share of queries. It was
-answering none.
+**What arrived was IPv6 alone.** The earlier diagnosis was recorded as "iOS
+queries mDNS exclusively over IPv6". What this run measured is what reached the
+service, not what iOS sent: in 87 seconds, on a dual-stack interface with both
+sockets bound and both groups joined, **zero IPv4 mDNS queries arrived at all**.
+Before the IPv6 socket existed, this service was not answering a reduced share
+of queries. It was answering none.
 
 That also revises an open item recorded on 2026-09-13: *the Verizon router sends
 a high volume of IPv4 mDNS queries, which may interact with the relay*. No IPv4
@@ -137,5 +152,5 @@ to 56 seconds each and ended cleanly.
 The picture is unchanged in substance: **iOS discovers the proxy, connects,
 negotiates, and does not send the document.** What has changed is that two
 distractions are gone. The resets are the printer's, not the client's, and they
-are almost certainly not the blocker; and the mDNS transport is not merely
-working but is the only transport in play.
+are almost certainly not the blocker; and the mDNS transport is working, and
+every query that reached it came over IPv6.
