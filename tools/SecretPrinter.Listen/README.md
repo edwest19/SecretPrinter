@@ -6,6 +6,12 @@ depends on.
 *Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of Edwin
 West. Reviewed by a human before merge.*
 
+*Changed 2026-09-23 by Claude (Anthropic model, Claude Opus 5.5) at the
+direction of Edwin West: packet lines carry the UTC arrival time and, for
+replies, the TTL of every answer record, so the tool can show whether the
+service's goodbye records reach the network. Reviewed by a human before
+merge.*
+
 ## The question
 
 > Can this process receive multicast DNS on UDP port 5353 while the Windows DNS
@@ -25,7 +31,8 @@ before any service code is written. This tool finds out cheaply.
    it.
 2. Joins multicast group `224.0.0.251` on each interface you name.
 3. Enables `IP_PKTINFO`, so the OS reports the arrival interface per datagram.
-4. Prints one line per packet, then a summary.
+4. Prints one line per packet, then a summary. See
+   [Reading a packet line](#reading-a-packet-line).
 
 Binding to the wildcard address rather than a specific interface address is
 deliberate. On Windows, a socket bound to a single unicast address is not
@@ -71,6 +78,26 @@ dotnet run -- --interface 192.168.1.234 --interface 192.168.12.245 --duration 60
 | 2 | Bad arguments. |
 | 3 | Socket error, including failure to bind or join a group. |
 
+## Reading a packet line
+
+Each line gives, in order:
+
+- the time the packet arrived, in UTC, to a tenth of a second. The date is
+  printed once, on the `Started …Z` line before the first packet;
+- the interface index and name it arrived on, as `IP_PKTINFO` reported them;
+- the source address and the size in bytes;
+- `QUERY` and the questions asked, or `REPLY`, then `ttl=[…]` holding the TTL of
+  every answer record in the order they appear, then the answer names.
+
+Long name lists are cut to fit the line. The TTL list is placed before them so
+that it is never cut.
+
+A reply whose TTLs are all `0` is a goodbye (RFC 6762 section 10.1): the sender
+is withdrawing those records. That is what to look for from the SecretPrinter
+service's address when it stops or withdraws (`REQ-LIF-003`, `REQ-LIF-006`).
+UTC is used so that a line here can be matched against the service log, whose
+timestamps are UTC.
+
 ## Reading the result
 
 The summary separates what the run **established** from what it did **not**,
@@ -105,3 +132,7 @@ automated tests is a tracked follow-up. Note also that the container is Linux;
 the port-sharing behaviour this tool exists to measure is
 **Windows-specific and has not yet been observed on Windows.** That is the run
 you are about to do.
+
+The 2026-09-23 change (UTC arrival times and answer TTLs) was written without a
+compiler, because there is no .NET SDK where Claude works. When it was delivered
+it had been neither built nor run, and nothing above covers it.

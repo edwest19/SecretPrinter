@@ -4,6 +4,16 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// Changed 2026-09-23 by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West. Each packet line now begins with the UTC time it
+// arrived, instead of seconds since the run began, and each reply lists the
+// TTL of every answer record. Both serve one check that had never been made:
+// that the service's goodbye records (TTL 0, REQ-LIF-003) actually reach the
+// network, at a time that can be matched against the UTC timestamps in the
+// service log. See docs/findings/2026-09-04-windows-service-run.md, "Still
+// not directly observed". Receive-only, as before: this change adds no send.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Answer one specific engineering question before any service code is
 //   written:
@@ -21,7 +31,9 @@
 //   2. Joins multicast group 224.0.0.251 on each interface you name.
 //   3. Enables IP_PKTINFO so the operating system reports the arrival
 //      interface for every datagram.
-//   4. Prints one line per packet received, and a summary when time is up.
+//   4. Prints one line per packet received - its UTC arrival time, arrival
+//      interface, source and size, and for a reply the TTL of each answer
+//      record - and a summary when time is up.
 //
 // What this program does NOT do:
 //   - It never transmits. Not a query, not a response, not an advertisement.
@@ -127,8 +139,13 @@ internal static class Program
             Console.WriteLine($"Joined {MdnsGroup} on {address}.");
         }
 
+        // Stated once with the date, so the per-line times (which carry none)
+        // can be matched against the service log, which is written in UTC.
+        string startedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
         Console.WriteLine();
         Console.WriteLine($"Listening for {options.Duration.TotalSeconds:0.#} s. Press Ctrl+C to stop early.");
+        Console.WriteLine($"Started {startedAt}Z. Every time below is UTC.");
         Console.WriteLine();
 
         var statistics = new Statistics();
@@ -155,7 +172,6 @@ internal static class Program
         Console.CancelKeyPress += handler;
 
         var buffer = new byte[9000];
-        DateTime start = DateTime.UtcNow;
 
         try
         {
@@ -181,7 +197,9 @@ internal static class Program
 
                 statistics.Record(interfaceIndex, interfaceLabel, source.Address, result.ReceivedBytes);
 
-                double seconds = (DateTime.UtcNow - start).TotalSeconds;
+                // Invariant culture: a custom format's ':' is the culture's time
+                // separator, which is not ':' everywhere.
+                string arrived = DateTime.UtcNow.ToString("HH:mm:ss.f", CultureInfo.InvariantCulture);
                 string summary;
                 try
                 {
@@ -196,7 +214,7 @@ internal static class Program
                 }
 
                 Console.WriteLine(
-                    $"[{seconds,6:0.0}s] if={interfaceIndex,-3} {interfaceLabel,-14} "
+                    $"[{arrived}Z] if={interfaceIndex,-3} {interfaceLabel,-14} "
                     + $"from {source.Address,-15} {result.ReceivedBytes,5}B  {summary}");
             }
         }
@@ -221,14 +239,20 @@ internal static class Program
             return $"QUERY  {Truncate(joined, 90)}";
         }
 
+        // The TTL of every answer, in the order the answers appear, ahead of
+        // the names: the names are truncated to fit the line and the TTLs must
+        // never be. A goodbye (RFC 6762 s10.1) is a reply whose TTLs are all 0.
         var described = new List<string>();
+        var ttls = new List<string>();
         foreach (DnsRecord record in message.Answers)
         {
             described.Add($"{record.Type} {record.Name}");
+            ttls.Add(record.Ttl.ToString(CultureInfo.InvariantCulture));
         }
 
         string answers = described.Count > 0 ? string.Join(", ", described) : "(no answers)";
-        return $"REPLY  {Truncate(answers, 90)}";
+        string ttlList = string.Join(", ", ttls);
+        return $"REPLY  ttl=[{ttlList}]  {Truncate(answers, 90)}";
     }
 
     private static string Truncate(string text, int maximum) =>
