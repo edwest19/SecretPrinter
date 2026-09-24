@@ -5,10 +5,19 @@
 // Written by Claude (Anthropic model, Claude Opus 5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// The description of the 2026-09-06 capture below corrected by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-24. It said the capture showed an iPhone issuing mDNS queries
+// exclusively over IPv6. A capture on FIOS-STB-01 shows what reached that
+// machine; on 2026-09-24 the iPhone was seen sending its queries over IPv4 as
+// well as IPv6
+// (docs/findings/2026-09-24-the-ipv6-only-claim-was-in-more-places.md).
+// Comments only. Reviewed by a human before merge.
+//
 // THE ONE QUESTION THIS EXPERIMENT EXISTS TO ANSWER
 // -------------------------------------------------
-// A packet capture taken on 2026-09-06 on FIOS-STB-01 showed an iPhone issuing
-// mDNS queries exclusively over IPv6 (to ff02::fb), including queries for
+// A packet capture taken on 2026-09-06 on FIOS-STB-01 held mDNS queries from an
+// iPhone that had arrived over IPv6 only (to ff02::fb), including queries for
 // "_universal._sub._ipp._tcp.local" and for A, AAAA and HTTPS records of
 // "secretprinter.local". SecretPrinter.Service was running at the time but was
 // bound only to 0.0.0.0:5353, so it never received those queries and sent

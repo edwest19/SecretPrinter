@@ -17,6 +17,13 @@
 // at the direction of Edwin West, 2026-09-13. Comments only; no behaviour
 // changed. Reviewed by a human before merge.
 //
+// The reason given when a client interface has no IPv6 corrected by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-24: it said iOS queries over IPv6 only. The refusal is unchanged;
+// only the text of its message changed. The original words are kept in
+// docs/findings/2026-09-24-the-ipv6-only-claim-was-in-more-places.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns an IPv4 address from configuration into a fully identified network
 //   interface: its friendly name, its operating-system index, and which address
@@ -301,8 +308,9 @@ public static class MdnsInterfaceResolver
             {
                 throw new MdnsInterfaceException(
                     $"Interface '{adapter.Name}' ({ipv4Interface.Address}) has no IPv6 configuration, "
-                    + "so it cannot receive the mDNS queries iOS sends. iOS was measured querying over "
-                    + "IPv6 only, so a client interface without it is never discovered. Enable IPv6 on "
+                    + "so it cannot receive mDNS queries sent over IPv6. An iPhone was measured sending "
+                    + "its queries over both IPv4 and IPv6; where the IPv4 copies do not reach this "
+                    + "machine, only the IPv6 copies can be answered. Enable IPv6 on "
                     + "the adapter, or configure a different client interface. On Windows, check with: "
                     + "Get-NetAdapterBinding -Name '" + adapter.Name + "' -ComponentID ms_tcpip6");
             }

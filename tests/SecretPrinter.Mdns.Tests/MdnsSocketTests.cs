@@ -20,6 +20,11 @@
 // stopped sharing one socket between the responder and the resolver. Comments
 // only; no test changed. Reviewed by a human before merge.
 //
+// One assertion message in Interface_without_ipv6_is_rejected corrected by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-24: it said a client interface without IPv6 can never be discovered
+// by iOS. What the test checks is unchanged. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that MdnsSocket is configured the way the specification requires,
 //   by reading the options back from the operating system rather than trusting
@@ -354,7 +359,7 @@ internal static class MdnsSocketTests
 
         var ex = Assert.Throws<MdnsInterfaceException>(
             () => MdnsInterfaceResolver.ResolveIPv6(ipv4, inventory),
-            "a client interface without IPv6 can never be discovered by iOS");
+            "a client interface without IPv6 cannot receive mDNS queries sent over IPv6");
 
         Assert.True(ex.Message.Contains("IPv6", StringComparison.Ordinal),
             "the operator needs to know it is IPv6 that is missing, not merely that something failed");

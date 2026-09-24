@@ -3,11 +3,16 @@
 *Written by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
 West, 2026-09-24. Reviewed by a human before merge.*
 
-**Status: the documents are corrected with this finding. The four places in
-source, tests and an experiment tool are not yet corrected: they need a build
-and the tests, so they are left for a separate commit. Until this status says
-otherwise, they still carry the claim. What the service does is unchanged by
-either commit; the second changes comments and the text of one message.**
+*Status and the entries for source, tests and the experiment tool updated the
+same day, when those places were corrected, by Claude (Anthropic model, Claude
+Opus 5.5) at the direction of Edwin West. The status first said they were not
+yet corrected. Reviewed by a human before merge.*
+
+**Status: all nine places are corrected. The documents were corrected in
+`33b2e6d`, with this finding. The places in source, tests and an experiment
+tool were corrected in the commit that updated this status, after a build, the
+tests and SpecCheck. What the service does is unchanged: that commit changed
+comments, one assertion message and the text of one refusal message.**
 
 ## The claim, and why it is wrong
 
@@ -79,28 +84,40 @@ as well.
    place for a dated note inside a requirement table, so the original words are
    kept here.
 
-**Not yet corrected (source, tests and a tool, which need a build):**
+**Corrected in a second commit (source, tests and a tool, which needed a
+build).** Each file's header records the change and points here for the
+original words:
 
 5. `src/SecretPrinter.Service/ServiceHost.cs`, a comment on the socket plan, on
    the list: "iOS was measured querying over IPv6 alone, so the client side
-   needs both (docs/findings/2026-09-06-ipv6-mdns-transport.md)."
+   needs both (docs/findings/2026-09-06-ipv6-mdns-transport.md)." It now says an
+   iPhone was measured sending the same queries over both, only the IPv6 copies
+   reached the service's machine on the network this was built on, and so the
+   client side needs both.
 6. `src/SecretPrinter.Mdns/MdnsInterface.cs`, not on the list. This is the
    message an operator sees when a client interface has no IPv6: "... has no
    IPv6 configuration, so it cannot receive the mDNS queries iOS sends. iOS was
    measured querying over IPv6 only, so a client interface without it is never
-   discovered." The refusal itself stays; only the reason it gives is to
-   change.
+   discovered." It now says the interface cannot receive mDNS queries sent over
+   IPv6, that an iPhone was measured sending its queries over both, and that
+   where the IPv4 copies do not reach the machine only the IPv6 copies can be
+   answered. The refusal itself is unchanged.
 7. `src/SecretPrinter.Mdns/MdnsBinding.cs`, a comment on `JoinIPv6`, not on the
    list: "a client interface without IPv6 can never be discovered by iOS, which
    was measured querying over IPv6 only
-   (docs/findings/2026-09-06-ipv6-mdns-transport.md)".
+   (docs/findings/2026-09-06-ipv6-mdns-transport.md)". It now gives the same
+   measurement as entry 5, and says that there, starting without IPv6 would
+   answer none of the iPhone's queries.
 8. `tests/SecretPrinter.Mdns.Tests/MdnsSocketTests.cs`, an assertion message in
    `Interface_without_ipv6_is_rejected`, not on the list: "a client interface
-   without IPv6 can never be discovered by iOS".
+   without IPv6 can never be discovered by iOS". It now reads "a client
+   interface without IPv6 cannot receive mDNS queries sent over IPv6". What the
+   test checks is unchanged.
 9. `tools/SecretPrinter.Respond6/Program.cs`, the header comment, not on the
-   list. It says the 2026-09-06 capture "showed an iPhone issuing mDNS queries
-   exclusively over IPv6 (to ff02::fb)". The tool is to be deleted once IPv6 is
-   in the product, which is a separate item.
+   list. It said the 2026-09-06 capture "showed an iPhone issuing mDNS queries
+   exclusively over IPv6 (to ff02::fb)". It now says the capture held queries
+   from an iPhone that had arrived over IPv6 only. The tool is to be deleted
+   once IPv6 is in the product, which is a separate item.
 
 The sentence in the 2026-09-24 access-point finding that called the list
 complete is corrected with this finding, and the 2026-09-23 finding gains a

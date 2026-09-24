@@ -46,6 +46,12 @@
 // Opus 5.5) at the direction of Edwin West, 2026-09-22, for REQ-LIF-008.
 // Reviewed by a human before merge.
 //
+// A comment that said iOS queries over IPv6 alone corrected by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-24. Comments only; no behaviour changed. The original words are kept
+// in docs/findings/2026-09-24-the-ipv6-only-claim-was-in-more-places.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -493,8 +499,10 @@ public sealed class ServiceHost
     /// <remarks>
     /// <para>
     /// The responder's socket joins every client interface, for IPv4 and IPv6.
-    /// iOS was measured querying over IPv6 alone, so the client side needs both
-    /// (docs/findings/2026-09-06-ipv6-mdns-transport.md).
+    /// An iPhone was measured sending the same queries over both, and on the
+    /// network this was built on only the IPv6 copies reached the service's
+    /// machine, so the client side needs both
+    /// (docs/findings/2026-09-24-ipv4-mdns-from-behind-the-access-point.md).
     /// </para>
     /// <para>
     /// The resolver's socket joins the printer interface, for IPv4 only, and

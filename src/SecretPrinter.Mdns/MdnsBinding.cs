@@ -4,6 +4,12 @@
 // Written by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
 // West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// A comment on JoinIPv6 that said iOS queries over IPv6 only corrected by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-24. Comments only; no behaviour changed. The original words are kept
+// in docs/findings/2026-09-24-the-ipv6-only-claim-was-in-more-places.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   One line of instruction to MdnsSocket: use this interface, and join the
 //   IPv6 mDNS group on it or do not.
@@ -43,10 +49,12 @@ namespace SecretPrinter.Mdns;
 /// <param name="JoinIPv6">
 /// True to also join <c>ff02::fb</c> on this interface, in addition to
 /// <c>224.0.0.251</c>. When true, the adapter must have IPv6 configured or
-/// opening the socket fails: a client interface without IPv6 can never be
-/// discovered by iOS, which was measured querying over IPv6 only
-/// (docs/findings/2026-09-06-ipv6-mdns-transport.md), so starting anyway would
-/// produce a service that runs and does nothing.
+/// opening the socket fails. An iPhone was measured sending the same queries
+/// over IPv4 and IPv6, and on the network this was built on only the IPv6
+/// copies reached the service's machine
+/// (docs/findings/2026-09-24-ipv4-mdns-from-behind-the-access-point.md). There,
+/// starting without IPv6 would produce a service that runs and answers none of
+/// the iPhone's queries.
 /// </param>
 public readonly record struct MdnsBinding(IPAddress Address, bool JoinIPv6)
 {
