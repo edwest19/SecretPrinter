@@ -3,6 +3,15 @@
 *Written by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
 West, 2026-09-24. Reviewed by a human before merge.*
 
+*Corrected 2026-09-24, the same day, by Claude (Anthropic model, Claude Opus
+5.5), at the direction of Edwin West. Under "What this means for earlier
+findings", a sentence said the places that still carry the claim "are listed in
+that day's finding", which read as a complete list. It was not: a search of the
+whole repository found five more
+([finding](2026-09-24-the-ipv6-only-claim-was-in-more-places.md)). The sentence
+now says so. Nothing else is changed. Reviewed by a human before
+merge.*
+
 **Status: measured on FIOS-STB-01 and the dev box, 2026-09-24. For ten minutes,
 a packet capture taken at FIOS-STB-01's network adapters, below the firewall,
 held none of the IPv4 mDNS sent by the iPhone, an iPad or the dev box. All
@@ -221,10 +230,12 @@ FIOS-STB-01 is the vantage point that, in this capture's window, did not
 receive IPv4 multicast from behind the N450, where the phone is. Seeing no IPv4 from the
 phone there fits this path, rather than a preference in iOS.
 
-Two findings were corrected on 2026-09-23. The places that still carry the
-claim are listed in that day's finding under "The same claim, not corrected
-here"; none is changed by this one. A dated note is added to the 2026-09-23
-finding pointing here.
+Two findings were corrected on 2026-09-23. That day's finding lists four places
+that still carried the claim, under "The same claim, not corrected here". That
+list was not complete, and none of its places is changed by this finding. All
+the places found are recorded in
+[a separate finding](2026-09-24-the-ipv6-only-claim-was-in-more-places.md). A dated
+note is added to the 2026-09-23 finding pointing here.
 
 ## Also recorded, not chased
 

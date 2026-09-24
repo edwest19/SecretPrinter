@@ -3,6 +3,18 @@
 *Written by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
 West, 2026-09-21. Reviewed by a human before merge.*
 
+*Corrected 2026-09-24 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. Under "What this does not establish", the IPv6 point
+said "The iPhone queries exclusively over IPv6", citing the 2026-09-14 finding,
+which measured what reached FIOS-STB-01 rather than what the phone sent. On
+2026-09-24 the iPhone was seen sending the same mDNS queries over IPv4 and
+IPv6, and only the IPv6 copies reached FIOS-STB-01
+([2026-09-24](2026-09-24-ipv4-mdns-from-behind-the-access-point.md)). The point now
+says that. What it leaves open, an advertisement present only over IPv6, is
+unchanged. All the places that carried the claim are listed in
+[a separate finding](2026-09-24-the-ipv6-only-claim-was-in-more-places.md).
+Reviewed by a human before merge.*
+
 **Status: observed twice in different forms, cause NOT established. The second
 entry went away when the iPhone was restarted. Recorded and deliberately left
 open; nothing in the code was changed because of it.**
@@ -61,9 +73,11 @@ does not say which state, or how it came to exist.
 
 ## What this does not establish
 
-- **IPv6.** The probe queries over IPv4. The iPhone queries exclusively over IPv6
-  (`2026-09-14-ipv6-is-the-only-transport.md`). An advertisement present only
-  over IPv6 would not have appeared.
+- **IPv6.** The probe queries over IPv4, so an advertisement present only over
+  IPv6 would not have appeared to it. The iPhone was seen sending mDNS over IPv6
+  as well as IPv4 ([2026-09-24](2026-09-24-ipv4-mdns-from-behind-the-access-point.md)), so
+  an advertisement present only over IPv6 is not ruled out as the source of the
+  second entry.
 - **Where the name comes from.** "EPSON ET-3760" is not the name of anything we
   publish. The words do appear in two places the iPhone can read:
   - our TXT record, which copies `usb_MFG=EPSON`, `usb_MDL=ET-3760 Series` and

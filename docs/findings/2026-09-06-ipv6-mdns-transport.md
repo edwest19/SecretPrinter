@@ -3,6 +3,23 @@
 *Written by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
 West. Reviewed by a human before merge.*
 
+*Corrected 2026-09-24 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. Under "What this implies for the specification", the
+first point said: "A client network offering IPv6 makes iOS query over IPv6
+exclusively, and an IPv4-only responder is invisible there." Under
+"Limitations", a point said: "Here the client had both and chose IPv6 for mDNS,
+IPv4 for IPP." Both read what reached FIOS-STB-01 as what iOS sent. On
+2026-09-24 the iPhone was seen sending the same mDNS queries over IPv4 and
+IPv6, and only the IPv6 copies reached FIOS-STB-01
+([2026-09-24](2026-09-24-ipv4-mdns-from-behind-the-access-point.md)). Whether the
+iPhone sent IPv4 on 2026-09-06 was not measured. The two passages now say what
+reached this machine. The capture results stand as measured; where they say
+"on the segment", they mean what reached FIOS-STB-01's interface, which is all
+a capture there can see. The result, that iOS accepted an `A` record over IPv6
+and connected over IPv4, is unaffected. All the places that carried the claim
+are listed in [a separate finding](2026-09-24-the-ipv6-only-claim-was-in-more-places.md).
+Reviewed by a human before merge.*
+
 **Date:** 2026-09-06
 **Status:** Concluded. Result positive, reproducible.
 **Instrument:** `tools/SecretPrinter.Respond6`
@@ -115,9 +132,9 @@ exists was accepted as a definite negative and did not stall the address lookup.
 No requirement IDs are claimed here. This section states what the README will
 need to say; assigning IDs is a separate, deliberate step.
 
-1. IPv6 mDNS transport is **required**, not optional. A client network offering
-   IPv6 makes iOS query over IPv6 exclusively, and an IPv4-only responder is
-   invisible there. Same character as `REQ-ADV-002`.
+1. IPv6 mDNS transport is **required**, not optional. On this client network
+   the iPhone's mDNS queries reached FIOS-STB-01 over IPv6 and not over IPv4, so
+   an IPv4-only responder there was invisible. Same character as `REQ-ADV-002`.
 2. The change is scoped to transport. The `A` record may keep carrying the IPv4
    address of the proxy interface; the printer stays IPv4-only. Advertising,
    Resolution and Proxy need no IPv6 awareness.
@@ -161,8 +178,8 @@ This does **not** establish:
   values measured from the ET-3760. iOS attempted the connection regardless, so
   TXT sufficiency remains untested.
 - Behaviour on any other iOS version, or on macOS, or on Android.
-- Behaviour on an IPv6-only client network. Here the client had both and chose
-  IPv6 for mDNS, IPv4 for IPP.
+- Behaviour on an IPv6-only client network. Here the client had both; its mDNS
+  reached this machine over IPv6, and it connected for IPP over IPv4.
 - That `SecretPrinter.Respond6`'s wire format matches `SecretPrinter.Dns`. The
   experiment reimplements DNS encoding independently and deliberately, so a
   defect in it would say nothing about the product.

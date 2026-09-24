@@ -14,6 +14,13 @@ and the service answered the IPv4 queries that did arrive. The iPhone's address,
 below were true when written. Nothing below is changed. Reviewed by a human
 before merge.*
 
+*Added again 2026-09-24 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. The list under "The same claim, not corrected here"
+names four places. A search of the whole repository on 2026-09-24 found five
+more. All nine, what each says now, and which are still to be corrected, are in
+[a separate finding](2026-09-24-the-ipv6-only-claim-was-in-more-places.md).
+The list below is left as written. Reviewed by a human before merge.*
+
 **Status: measured on the client network from a second machine, 2026-09-23.
 The service's goodbye (`REQ-LIF-003`) was seen reaching another host for the
 first time, with every TTL at zero, and its startup announcements were seen

@@ -35,6 +35,14 @@ down" replaced, when REQ-LIF-008 changed startup to wait instead, by Claude
 and marked as run on FIOS-STB-01 the same evening. Reviewed by a human before
 merge.*
 
+*The sentence under Uninstalling that read "The goodbyes go out over IPv4 only,
+and iPhones ask over IPv6." corrected by Claude (Anthropic model, Claude Opus
+5.5) at the direction of Edwin West, 2026-09-24. The warning after it relied on
+reading it as "only over IPv6". An iPhone was measured sending the same mDNS
+questions over IPv4 and IPv6, with only the IPv6 copies reaching the service's
+machine ([finding](findings/2026-09-24-the-ipv6-only-claim-was-in-more-places.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -538,7 +546,12 @@ netsh wlan connect name="<profile>" interface="<adapter name>"
 
 Stop the process. It sends mDNS goodbye records on the way out, which ask
 clients to forget the printer at once. **Do not count on that.** The goodbyes go
-out over IPv4 only, and iPhones ask over IPv6. On 2026-09-21 an iPhone went on
+out over IPv4 only. An iPhone has been measured sending its mDNS questions over
+both IPv4 and IPv6, but where its IPv4 does not reach this machine, as on the
+network SecretPrinter was built on
+([finding](findings/2026-09-24-ipv4-mdns-from-behind-the-access-point.md)), only
+its IPv6 questions are answered. Whether iOS applies an IPv4 goodbye to
+what it learned that way is not established. On 2026-09-21 an iPhone went on
 listing the printer after a goodbye
 ([the finding](findings/2026-09-21-the-withdrawal-on-hardware.md)). If iOS
 ignores the goodbye, the entry would stay until the record that lists it
