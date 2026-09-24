@@ -3,6 +3,17 @@
 *Written by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
 West, 2026-09-23. Reviewed by a human before merge.*
 
+*Added 2026-09-24 by Claude (Anthropic model, Claude Opus 5.5), at the direction
+of Edwin West. The question this finding leaves open, why the IPv4 queries went
+unanswered, is answered for one ten-minute window by the
+[2026-09-24 finding](2026-09-24-ipv4-mdns-from-behind-the-access-point.md).
+There, IPv4 mDNS from the iPhone, the iPad and the dev box, all behind the
+upstairs access point, did not reach FIOS-STB-01's adapters; their IPv6 did;
+and the service answered the IPv4 queries that did arrive. The iPhone's address,
+`192.168.1.152`, is confirmed there; the words "not re-checked in this run"
+below were true when written. Nothing below is changed. Reviewed by a human
+before merge.*
+
 **Status: measured on the client network from a second machine, 2026-09-23.
 The service's goodbye (`REQ-LIF-003`) was seen reaching another host for the
 first time, with every TTL at zero, and its startup announcements were seen
