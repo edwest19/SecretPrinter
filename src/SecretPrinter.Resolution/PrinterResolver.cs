@@ -17,6 +17,11 @@
 // Reviewed by a human before merge. See "On what a timeout entitles us to say"
 // below.
 //
+// Lookups made at the same time share one query, including when it goes
+// unanswered, by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+// Edwin West, 2026-09-25. Reviewed by a human before merge. See "On sharing one
+// query" below.
+//
 // Purpose:
 //   Finds where the real printer currently is, by asking the printer network,
 //   at the moment the answer is needed.
@@ -69,6 +74,31 @@
 //   failure, it says so. When it does not, it says that the reason was not
 //   established and names both possibilities, rather than picking the one that
 //   blames someone else. See PrinterInterfaceReport.cs.
+//
+// On sharing one query:
+//   REQ-RES-008 says concurrent jobs share one in-flight query rather than
+//   issuing one apiece. Until 2026-09-25 lookups were only serialised: a lookup
+//   that arrived while another was running waited for it, and then used its
+//   answer from the cache - but if that query went unanswered, the waiting
+//   lookup asked again and waited out its own timeout. On 2026-09-18 that is
+//   how print jobs queued behind one another's failures. See
+//   docs/findings/2026-09-25-two-clauses-of-req-res-008-were-never-built.md.
+//
+//   Now a lookup that arrives while a query for the same instance is running
+//   joins it, and every caller receives that query's outcome: its answer, or
+//   its failure. The query belongs to all of them, so it runs with the
+//   resolver's own lifetime rather than any caller's cancellation token. A
+//   caller that is cancelled stops waiting; the query goes on for the others,
+//   and ends at its own timeout or when the resolver is disposed. A caller that
+//   joins takes the running query's timeout, not the one it passed.
+//
+//   The resolver listens on behalf of one query at a time, so a lookup for a
+//   different instance cannot join and must not run beside it. It waits for the
+//   running query to end, whatever its outcome, and then starts its own.
+//
+//   A query's outcome is handed only to the callers that were waiting on it. It
+//   stops being joinable before it is delivered, so a lookup that arrives
+//   afterwards asks again rather than receiving an old failure.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -117,14 +147,21 @@ public sealed class PrinterResolver : IDisposable
     private readonly MdnsInterface _printerInterface;
     private readonly TimeProvider _clock;
     private readonly IInterfaceInventory _inventory;
-    private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _readerLifetime = new();
+    private readonly CancellationToken _lifetime;
     private readonly Task _reader;
+
+    // Guards _cached, _inFlight and _disposed. Never held across an await.
+    private readonly object _sync = new();
 
     private ResolvedPrinter? _cached;
 
-    // The inbox of the lookup that is waiting, or null when none is. Lookups are
-    // serialised by _gate, so there is at most one. Read and written with
+    // The query now running, which lookups for the same instance join, or null
+    // when none is running. See "On sharing one query" above.
+    private SharedLookup? _inFlight;
+
+    // The inbox of the query that is running, or null when none is. Only one
+    // query runs at a time, so there is at most one. Read and written with
     // Volatile because the reader loop runs on another thread.
     private Channel<MdnsDatagram>? _listening;
 
@@ -174,8 +211,13 @@ public sealed class PrinterResolver : IDisposable
         _clock = clock ?? TimeProvider.System;
         _inventory = inventory ?? SystemInterfaceInventory.Instance;
 
+        // Captured once. A query that is running when the resolver is disposed
+        // is ended through this token; reading Token from the source after it
+        // has been disposed would throw.
+        _lifetime = _readerLifetime.Token;
+
         // Started last, once nothing above can throw.
-        _reader = Task.Run(() => ReadContinuouslyAsync(_readerLifetime.Token));
+        _reader = Task.Run(() => ReadContinuouslyAsync(_lifetime));
     }
 
     /// <summary>The cached answer, if any. Exposed for logging and tests.</summary>
@@ -185,6 +227,13 @@ public sealed class PrinterResolver : IDisposable
     /// Resolves the printer, using a cached answer only while it is still
     /// within the TTL it was given.
     /// </summary>
+    /// <remarks>
+    /// A lookup made while a query for the same instance is running joins that
+    /// query and receives its outcome, answer or failure, with that query's
+    /// timeout. Cancelling <paramref name="cancellationToken"/> stops this
+    /// caller's wait only; the query goes on for any other caller waiting on it.
+    /// See "On sharing one query" at the top of this file.
+    /// </remarks>
     /// <exception cref="PrinterResolutionException">
     /// No usable answer arrived before the timeout. The caller must fail the
     /// print job; there is deliberately no fallback.
@@ -209,48 +258,86 @@ public sealed class PrinterResolver : IDisposable
             throw new ArgumentOutOfRangeException(nameof(timeout), "Resolution timeout must be positive.");
         }
 
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        while (true)
         {
-            DateTimeOffset now = _clock.GetUtcNow();
+            cancellationToken.ThrowIfCancellationRequested();
 
-            if (_cached is { } cached && cached.Instance.Equals(instance) && cached.IsFreshAt(now))
+            SharedLookup? started = null;
+            SharedLookup? joined = null;
+            SharedLookup? ahead = null;
+
+            lock (_sync)
             {
-                return cached;
+                ObjectDisposedException.ThrowIf(_disposed, this);
+
+                if (_cached is { } cached && cached.Instance.Equals(instance) && cached.IsFreshAt(_clock.GetUtcNow()))
+                {
+                    return cached;
+                }
+
+                if (_inFlight is null)
+                {
+                    // An expired entry is dropped before the lookup, so a failure
+                    // below cannot silently fall back to it.
+                    _cached = null;
+                    started = new SharedLookup(instance, timeout);
+                    _inFlight = started;
+                }
+                else if (_inFlight.Instance.Equals(instance))
+                {
+                    joined = _inFlight;
+                }
+                else
+                {
+                    ahead = _inFlight;
+                }
             }
 
-            // An expired entry is dropped before the lookup, so a failure below
-            // cannot silently fall back to it.
-            _cached = null;
+            if (ahead is not null)
+            {
+                await WaitForTurnAsync(ahead, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
 
-            ResolvedPrinter resolved = await QueryAsync(instance, timeout, cancellationToken)
-                .ConfigureAwait(false);
+            if (started is not null)
+            {
+                // Not awaited here. The query belongs to every caller that joins
+                // it, so this caller waits on its outcome like the others.
+                _ = RunAsync(started);
+            }
 
-            _cached = resolved;
-            return resolved;
-        }
-        finally
-        {
-            _gate.Release();
+            SharedLookup lookup = started ?? joined!;
+            return await lookup.Outcome.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
     /// <summary>Discards any cached answer, forcing the next resolution to query.</summary>
-    public void Invalidate() => _cached = null;
+    public void Invalidate()
+    {
+        lock (_sync)
+        {
+            _cached = null;
+        }
+    }
 
     /// <summary>
-    /// Stops reading the transport and releases the lock that serialises
-    /// lookups. The transport is not disposed here: this class was handed it and
-    /// does not own it.
+    /// Stops reading the transport and ends any query that is running, whose
+    /// callers then receive its failure. New lookups are refused. The transport
+    /// is not disposed here: this class was handed it and does not own it.
     /// </summary>
     public void Dispose()
     {
-        if (_disposed)
+        lock (_sync)
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _cached = null;
         }
 
-        _disposed = true;
         _readerLifetime.Cancel();
 
         // The reader stops as soon as its pending read observes the
@@ -263,9 +350,67 @@ public sealed class PrinterResolver : IDisposable
         {
             _readerLifetime.Dispose();
         }
+    }
 
-        _cached = null;
-        _gate.Dispose();
+    /// <summary>
+    /// Runs one query on behalf of every caller that joins it, and hands its
+    /// outcome to them. Never throws: every outcome, failure included, is
+    /// delivered through <see cref="SharedLookup.Outcome"/>.
+    /// </summary>
+    private async Task RunAsync(SharedLookup lookup)
+    {
+        ResolvedPrinter? resolved = null;
+        Exception? failure = null;
+
+        try
+        {
+            resolved = await QueryAsync(lookup.Instance, lookup.Timeout, _lifetime).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Not handled here: delivered below to every caller waiting on this
+            // query, exactly as it would have reached a single caller.
+            failure = ex;
+        }
+
+        lock (_sync)
+        {
+            if (resolved is not null)
+            {
+                _cached = resolved;
+            }
+
+            _inFlight = null;
+        }
+
+        // Delivered only after the query has stopped being joinable, so a
+        // lookup that arrives from here on asks again rather than being handed
+        // this outcome.
+        if (failure is null)
+        {
+            lookup.Outcome.SetResult(resolved!);
+        }
+        else
+        {
+            lookup.Outcome.SetException(failure);
+        }
+    }
+
+    /// <summary>
+    /// Waits for a query for another instance to end. Its outcome belongs to
+    /// the callers who asked for that instance, so it is not reported here;
+    /// only this caller's own cancellation is.
+    /// </summary>
+    private static async Task WaitForTurnAsync(SharedLookup ahead, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await ahead.Outcome.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // That query failed. It was not this caller's question.
+        }
     }
 
     /// <summary>
@@ -460,5 +605,34 @@ public sealed class PrinterResolver : IDisposable
                                 .ConfigureAwait(false);
             }
         }
+    }
+
+    /// <summary>One query, and the outcome every caller waiting on it receives.</summary>
+    private sealed class SharedLookup
+    {
+        public SharedLookup(DnsName instance, TimeSpan timeout)
+        {
+            Instance = instance;
+            Timeout = timeout;
+
+            // If every caller stops waiting before the query ends, nobody reads
+            // its failure. Observing it here keeps that from being reported
+            // later as an unobserved task exception. It changes nothing a
+            // waiting caller sees.
+            _ = Outcome.Task.ContinueWith(
+                static finished => _ = finished.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        public DnsName Instance { get; }
+
+        public TimeSpan Timeout { get; }
+
+        // Continuations run asynchronously, so completing this never runs a
+        // waiting caller's code on the thread that ran the query.
+        public TaskCompletionSource<ResolvedPrinter> Outcome { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }

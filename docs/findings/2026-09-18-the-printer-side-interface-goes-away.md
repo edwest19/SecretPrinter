@@ -150,6 +150,10 @@ is done at a time. In the order I would take them:
    reporting that instead is a smaller change than item 1 and removes the lie.
 3. **The lookup gate.** Concurrent jobs should share one in-flight lookup rather
    than queue behind repeated failures of it.
+   *(Added 2026-09-25 by Claude, Claude Opus 5.5: done. Lookups for the same
+   instance now share one query whether it is answered or not. See
+   [`2026-09-25-two-clauses-of-req-res-008-were-never-built.md`](2026-09-25-two-clauses-of-req-res-008-were-never-built.md),
+   which also records that `REQ-RES-008` had been marked met without this.)*
 4. **`docs/operating.md` must name this hazard**, with WLAN event ID 4003 and
    8003 and the command to check for them, so that an operator whose printer
    "stops working overnight" has somewhere to look. This is not hypothetical for

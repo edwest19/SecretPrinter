@@ -21,6 +21,12 @@
 // docs/findings/2026-09-22-a-test-read-the-real-network-adapters.md.
 // Reviewed by a human before merge.
 //
+// Tests that lookups made at the same time share one query, including when it
+// goes unanswered, added by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-09-25. See
+// docs/findings/2026-09-25-two-clauses-of-req-res-008-were-never-built.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that the printer is found by name rather than by remembered
 //   address, and that a stale answer is never returned.
@@ -321,6 +327,150 @@ internal static class PrinterResolverTests
 
         Assert.True(transport.Sent.Count > afterFirst,
             "after invalidation the printer must be looked up afresh");
+    }
+
+    // ---- Sharing one query ----------------------------------------------------
+
+    [TestCase("Lookups made together share one query when it goes unanswered")]
+    [Requirement("REQ-RES-008")]
+    public static void Concurrent_lookups_that_fail_share_one_query()
+    {
+        // On 2026-09-18 print jobs queued behind one another's failed lookups,
+        // each waiting out its own timeout in turn. Three jobs arriving together
+        // must put one question on the printer network and all fail with it.
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        Task<ResolvedPrinter>[] lookups =
+        [
+            .. Enumerable.Range(0, 3).Select(_ =>
+                resolver.ResolveAsync(Instance, TimeSpan.FromMilliseconds(300), CancellationToken.None)),
+        ];
+
+        foreach (Task<ResolvedPrinter> lookup in lookups)
+        {
+            Assert.Throws<PrinterResolutionException>(
+                () => lookup.GetAwaiter().GetResult(),
+                "every caller waiting on the unanswered query must get its failure");
+        }
+
+        Assert.Equal(1, transport.Sent.Count,
+            "three lookups made together must share one query, not ask three times in turn");
+    }
+
+    [TestCase("Lookups made together share one query when it is answered")]
+    [Requirement("REQ-RES-008")]
+    public static void Concurrent_lookups_that_succeed_share_one_query()
+    {
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        Task<ResolvedPrinter>[] lookups =
+        [
+            .. Enumerable.Range(0, 3).Select(_ =>
+                resolver.ResolveAsync(Instance, TimeSpan.FromSeconds(5), CancellationToken.None)),
+        ];
+
+        Assert.Equal(1, transport.Sent.Count, "one question is on the network while all three wait");
+
+        transport.Enqueue(PrinterReply("192.168.12.180"));
+
+        foreach (Task<ResolvedPrinter> lookup in lookups)
+        {
+            Assert.Equal(IPAddress.Parse("192.168.12.180"), lookup.GetAwaiter().GetResult().Address,
+                "every caller waiting on the query must get its answer");
+        }
+
+        Assert.Equal(1, transport.Sent.Count, "the answer must not prompt anyone to ask again");
+    }
+
+    [TestCase("A caller that stops waiting does not cancel the query others are waiting on")]
+    [Requirement("REQ-RES-008")]
+    public static void Caller_that_gives_up_leaves_the_shared_query_running()
+    {
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+        using var gaveUp = new CancellationTokenSource();
+
+        Task<ResolvedPrinter> first = resolver.ResolveAsync(Instance, TimeSpan.FromSeconds(5), gaveUp.Token);
+        Task<ResolvedPrinter> second = resolver.ResolveAsync(Instance, TimeSpan.FromSeconds(5), CancellationToken.None);
+
+        gaveUp.Cancel();
+
+        Assert.Throws<OperationCanceledException>(
+            () => first.GetAwaiter().GetResult(),
+            "the caller that was cancelled stops waiting");
+
+        transport.Enqueue(PrinterReply("192.168.12.180"));
+
+        Assert.Equal(IPAddress.Parse("192.168.12.180"), second.GetAwaiter().GetResult().Address,
+            "the caller still waiting must get the answer to the query already on the network");
+        Assert.Equal(1, transport.Sent.Count,
+            "one caller giving up must not end the query and make the other ask again");
+    }
+
+    [TestCase("A lookup for another instance waits for the one in flight, then asks its own question")]
+    [Requirement("REQ-RES-008")]
+    public static void Lookup_for_another_instance_waits_its_turn()
+    {
+        // The resolver listens on behalf of one query at a time, so a lookup for
+        // a different instance cannot share the one in flight and must not run
+        // beside it.
+        var other = new DnsName(["EPSON ET-3760 Series", "_ipps", "_tcp", "local"]);
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        int sends = 0;
+        transport.OnSend = _ =>
+        {
+            if (Interlocked.Increment(ref sends) == 2)
+            {
+                transport.Enqueue(PrinterReply("192.168.12.180", instance: other));
+            }
+        };
+
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        Task<ResolvedPrinter> first = resolver.ResolveAsync(
+            Instance, TimeSpan.FromMilliseconds(300), CancellationToken.None);
+        Task<ResolvedPrinter> second = resolver.ResolveAsync(
+            other, TimeSpan.FromSeconds(5), CancellationToken.None);
+
+        Assert.Equal(1, transport.Sent.Count, "the second instance must wait while the first is being asked");
+
+        Assert.Throws<PrinterResolutionException>(
+            () => first.GetAwaiter().GetResult(),
+            "the first lookup goes unanswered");
+
+        Assert.True(second.GetAwaiter().GetResult().Instance.Equals(other),
+            "the second lookup must ask its own question once the first is over, and get its own answer");
+        Assert.Equal(2, transport.Sent.Count, "one question for each instance");
+    }
+
+    [TestCase("A failed lookup is not handed to the next caller")]
+    [Requirement("REQ-RES-008")]
+    public static void Failed_lookup_is_not_handed_to_the_next_caller()
+    {
+        bool answering = false;
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        transport.OnSend = _ =>
+        {
+            if (answering)
+            {
+                transport.Enqueue(PrinterReply("192.168.12.180"));
+            }
+        };
+
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        Assert.Throws<PrinterResolutionException>(
+            () => resolver.ResolveAsync(Instance, TimeSpan.FromMilliseconds(300), CancellationToken.None)
+                          .GetAwaiter().GetResult(),
+            "the first lookup goes unanswered");
+
+        answering = true;
+
+        Assert.Equal(IPAddress.Parse("192.168.12.180"), Resolve(resolver).Address,
+            "a lookup that starts after a failure must ask again, not receive the old failure");
+        Assert.Equal(2, transport.Sent.Count, "the second lookup put its own question on the network");
     }
 
     // ---- Structure ----------------------------------------------------------
