@@ -20,6 +20,15 @@ an iPad, and saw the goodbye leave over IPv4
 now says what had been measured. The explanation it belongs to is still not
 established. Reviewed by a human before merge.*
 
+*Added 2026-09-25 by Claude (Anthropic model, Claude Opus 5.5), at the direction
+of Edwin West. The first gap's unmeasured time was measured for a stop. On
+2026-09-25, with the printer side up, the iPhone dropped the entry within about
+three seconds of the service stopping. That stop's goodbye, sent by the same
+method as a withdrawal's, was seen reaching another host on the client network
+([2026-09-25](2026-09-25-the-iphone-drops-the-printer-on-the-goodbye.md)). Why the
+entry stayed after the withdrawal below is still not established. Nothing below
+is changed. Reviewed by a human before merge.*
+
 **Status: measured on FIOS-STB-01. The service withdrew when the printer stopped
 answering and came back when it answered again, in the order `REQ-LIF-006`
 requires and on the schedule `REQ-RES-008` gives, against both a deliberate

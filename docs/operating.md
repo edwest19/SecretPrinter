@@ -43,6 +43,13 @@ questions over IPv4 and IPv6, with only the IPv6 copies reaching the service's
 machine ([finding](findings/2026-09-24-the-ipv6-only-claim-was-in-more-places.md)).
 Reviewed by a human before merge.*
 
+*Under Uninstalling, a sentence added by Claude (Anthropic model, Claude Opus
+5.5) at the direction of Edwin West, 2026-09-25, reporting that an iPhone
+dropped the printer within about three seconds of a stop. The last sentence
+there read "Why iOS kept it, and how long it actually stays, are not
+established."; it now limits both to the 2026-09-21 occasion. Reviewed by a
+human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -553,10 +560,13 @@ network SecretPrinter was built on
 its IPv6 questions are answered. Whether iOS applies an IPv4 goodbye to
 what it learned that way is not established. On 2026-09-21 an iPhone went on
 listing the printer after a goodbye
-([the finding](findings/2026-09-21-the-withdrawal-on-hardware.md)). If iOS
-ignores the goodbye, the entry would stay until the record that lists it
-expires, which is 4500 seconds — 75 minutes. Why iOS kept it, and how long it
-actually stays, are not established.
+([the finding](findings/2026-09-21-the-withdrawal-on-hardware.md)). On
+2026-09-25, with the printer's side up, an iPhone dropped it within about three
+seconds of a stop
+([finding](findings/2026-09-25-the-iphone-drops-the-printer-on-the-goodbye.md)).
+If iOS ignores a goodbye, the entry would stay until the record that lists it
+expires, which is 4500 seconds — 75 minutes. Why iOS kept it on 2026-09-21, and
+how long it stayed, are not established.
 
 Then remove the firewall rules you added:
 
