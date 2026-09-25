@@ -4,6 +4,13 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// A test that returns a Task waited for, and its outcome taken from that Task,
+// by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-25. Until then no async test could fail. See "Tests that return a
+// Task" below, and
+// docs/findings/2026-09-25-the-test-harness-never-waited-for-an-async-test.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   A very small test runner, so that this repository has automated tests
 //   without acquiring a third-party dependency. Shared by every test project.
@@ -23,6 +30,21 @@
 //
 // Tests are found by reflection over [TestCase] methods and run in declaration
 // order. A test fails by throwing; anything else is a pass.
+//
+// Tests that return a Task:
+//   The sentence above was true only of tests that return nothing. An async
+//   test returns a Task, and whatever it throws goes into that Task rather
+//   than out of the call. Until 2026-09-25 the harness called each test and
+//   never looked at what it returned, so an async test was counted as passed
+//   however it ended. From 2026-09-20, when the first async tests were added,
+//   fourteen tests were reported as passing that could not have failed, and
+//   one of them was in fact failing.
+//
+//   Now a test that returns a Task is waited for, and it fails, or is skipped,
+//   exactly as it would by throwing. A test that returns anything else - a
+//   ValueTask, for one - is failed rather than passed, because the harness
+//   cannot wait for it and will not guess. Execute holds this rule, and
+//   TestHarnessTests in SecretPrinter.Service.Tests holds Execute to it.
 //
 // Results file:
 //   The harness can write a plain-text record of which requirement identifiers
@@ -134,6 +156,11 @@ public static class Assert
 /// <param name="Test">Fully qualified type and method name.</param>
 public sealed record TestOutcome(string Outcome, string Requirement, string Test);
 
+/// <summary>What running one test came to.</summary>
+/// <param name="Outcome">PASS, FAIL or SKIP.</param>
+/// <param name="Message">Why the test failed or was skipped; null when it passed.</param>
+public sealed record TestResult(string Outcome, string? Message);
+
 public static class TestHarness
 {
     /// <summary>Runs every [TestCase] in the given types. Returns a process exit code.</summary>
@@ -175,29 +202,28 @@ public static class TestHarness
                     requirements = ["-"];
                 }
 
-                string outcome;
-                try
+                TestResult result = Execute(test);
+                string outcome = result.Outcome;
+
+                switch (outcome)
                 {
-                    test.Invoke(null, null);
-                    passed++;
-                    outcome = "PASS";
-                    Console.WriteLine($"  PASS  {label}");
-                }
-                catch (TargetInvocationException ex) when (ex.InnerException is SkipException skip)
-                {
-                    skipped++;
-                    outcome = "SKIP";
-                    Console.WriteLine($"  SKIP  {label}");
-                    Console.WriteLine($"        {skip.Message}");
-                }
-                catch (TargetInvocationException ex)
-                {
-                    failed++;
-                    outcome = "FAIL";
-                    Exception inner = ex.InnerException ?? ex;
-                    Console.WriteLine($"  FAIL  {label}");
-                    Console.WriteLine($"        {inner.Message}");
-                    failures.Add($"{suite.Name}.{test.Name}: {inner.Message}");
+                    case "PASS":
+                        passed++;
+                        Console.WriteLine($"  PASS  {label}");
+                        break;
+
+                    case "SKIP":
+                        skipped++;
+                        Console.WriteLine($"  SKIP  {label}");
+                        Console.WriteLine($"        {result.Message}");
+                        break;
+
+                    default:
+                        failed++;
+                        Console.WriteLine($"  FAIL  {label}");
+                        Console.WriteLine($"        {result.Message}");
+                        failures.Add($"{suite.Name}.{test.Name}: {result.Message}");
+                        break;
                 }
 
                 foreach (string requirement in requirements)
@@ -242,6 +268,51 @@ public static class TestHarness
 
         Console.WriteLine(new string('=', 70));
         return failed == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Runs one test and says what it came to. A test that returns a Task is
+    /// waited for, and the Task's ending is the test's: see "Tests that return
+    /// a Task" at the top of this file.
+    /// </summary>
+    /// <param name="test">A public or private static method with no parameters.</param>
+    public static TestResult Execute(MethodInfo test)
+    {
+        ArgumentNullException.ThrowIfNull(test);
+
+        try
+        {
+            object? returned = test.Invoke(null, null);
+
+            switch (returned)
+            {
+                case null:
+                    break;
+
+                case Task task:
+                    // Throws what the test threw, unwrapped.
+                    task.GetAwaiter().GetResult();
+                    break;
+
+                default:
+                    return new TestResult(
+                        "FAIL",
+                        $"The test returned {returned.GetType().Name}, which the harness cannot wait for. "
+                        + "A test must return nothing or a Task; it is failed rather than counted as passed.");
+            }
+
+            return new TestResult("PASS", null);
+        }
+        catch (Exception ex)
+        {
+            // Whatever the test threw, or its Task ended with, is its outcome.
+            // Invoke wraps what a test throws; waiting on a Task does not.
+            Exception cause = ex is TargetInvocationException { InnerException: { } inner } ? inner : ex;
+
+            return cause is SkipException skip
+                ? new TestResult("SKIP", skip.Message)
+                : new TestResult("FAIL", cause.Message);
+        }
     }
 
     /// <summary>

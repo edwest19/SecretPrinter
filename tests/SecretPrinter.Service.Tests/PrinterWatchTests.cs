@@ -5,6 +5,15 @@
 // West, for the SecretPrinter project, 2026-09-20. Reviewed by a human before
 // merge.
 //
+// Loss_claims_nothing_it_did_not_measure corrected by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-09-25. It forbade the
+// word "off" anywhere in the log, and the watch's own line says "backing off to
+// hourly", so it had failed since it was written - unseen, because until the
+// same day the harness never waited for an async test. It now forbids the
+// phrases that would claim the printer is off. See
+// docs/findings/2026-09-25-the-test-harness-never-waited-for-an-async-test.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Holds the watch to two things: that it actually asks, and that it only
 //   speaks when something changed.
@@ -153,7 +162,12 @@ internal static class PrinterWatchTests
 
         string all = string.Join(" ", log.Lines);
 
-        foreach (string forbidden in new[] { "asleep", "off", "powered", "broken", "adapter" })
+        // Phrases rather than the bare word "off", which the line uses in
+        // "backing off to hourly" and which says nothing about the printer.
+        foreach (string forbidden in new[]
+                 {
+                     "asleep", "is off", "turned off", "switched off", "powered", "broken", "adapter",
+                 })
         {
             Assert.False(
                 all.Contains(forbidden, StringComparison.OrdinalIgnoreCase),
