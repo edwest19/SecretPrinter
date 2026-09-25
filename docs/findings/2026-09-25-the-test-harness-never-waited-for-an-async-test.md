@@ -134,3 +134,7 @@ tests were not supported. And there was no test of the harness itself.
 The job-answer change adds two more async tests to `PrinterWatchTests`. They
 were run before this fix, so their passing then meant nothing. They are rerun
 under the fixed harness before that change is committed.
+*(Added 2026-09-25 by Claude, Claude Opus 5.5: done. The rerun found a defect
+in that change itself, which the old harness had hidden. It is recorded in
+[`2026-09-25-two-clauses-of-req-res-008-were-never-built.md`](2026-09-25-two-clauses-of-req-res-008-were-never-built.md),
+under "The second clause, built".)*

@@ -14,6 +14,11 @@
 // docs/findings/2026-09-25-the-test-harness-never-waited-for-an-async-test.md.
 // Reviewed by a human before merge.
 //
+// Tests that an answer a print job's lookup obtained wakes the watch, moves
+// its schedule and can report recovery, added by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-09-25, for
+// REQ-RES-008. Reviewed by a human before merge.
+//
 // Purpose:
 //   Holds the watch to two things: that it actually asks, and that it only
 //   speaks when something changed.
@@ -29,13 +34,19 @@
 //   PrinterResolutionException. A SocketException would have faulted the watch
 //   and taken the service down with it - worse than the fault it handles.
 //
-//   The clock and the waiting are both supplied, so nothing here sleeps.
+//   The clock and the waiting are both supplied, so nothing here sleeps on the
+//   schedule. The two cases about a job's answer wait on the watch's own loop
+//   instead: its wait never ends by itself, so the only thing that can end it
+//   is the answer. They poll every 10 ms, for at most 5 s, for the loop to
+//   reach the point being tested.
 // -----------------------------------------------------------------------------
 
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using SecretPrinter.Dns;
 using SecretPrinter.Resolution;
+using SecretPrinter.Spec;
 using SecretPrinter.TestKit;
 
 namespace SecretPrinter.Service.Tests;
@@ -331,5 +342,117 @@ internal static class PrinterWatchTests
         Assert.True(
             log.Lines.Exists(line => line.Contains("InvalidOperationException", StringComparison.Ordinal)),
             "an unexpected failure must be named in the log rather than swallowed");
+    }
+
+    // ---- Answers that jobs obtain -------------------------------------------
+
+    /// <summary>Polls until the watch's loop has reached the point a test needs.</summary>
+    private static async Task WaitUntilAsync(Func<bool> reached, string what)
+    {
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+
+        while (!reached())
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new AssertionException($"The watch did not reach this point within 5 s: {what}");
+            }
+
+            await Task.Delay(10).ConfigureAwait(false);
+        }
+    }
+
+    [TestCase("A job's answer wakes the watch and moves its next query")]
+    [Requirement("REQ-RES-008")]
+    public static async Task A_job_answer_moves_the_next_query()
+    {
+        var clock = new TestClock(Start);
+        var log = new RecordingLog();
+        var reachability = new PrinterReachability(Answer(Start), clock, () => 0.0);
+        var waits = new ConcurrentQueue<TimeSpan>();
+        using var stop = new CancellationTokenSource();
+
+        var watch = new PrinterWatch(
+            reachability,
+            _ => throw new InvalidOperationException("the watch must not ask before its schedule says"),
+            log,
+            clock,
+
+            // A wait that never ends by itself: only a job's answer, or the
+            // stop, can end it.
+            (wait, token) =>
+            {
+                waits.Enqueue(wait);
+                return Task.Delay(Timeout.Infinite, token);
+            });
+
+        Task watching = watch.WatchAsync(stop.Token);
+        await WaitUntilAsync(() => waits.Count == 1, "waiting for the first reconfirmation").ConfigureAwait(false);
+
+        DateTimeOffset jobAnsweredAt = Start + TimeSpan.FromSeconds(50);
+        clock.MoveTo(jobAnsweredAt);
+        watch.RecordJobAnswer(Answer(jobAnsweredAt));
+
+        await WaitUntilAsync(() => waits.Count == 2, "waiting again after the job's answer").ConfigureAwait(false);
+        await stop.CancelAsync().ConfigureAwait(false);
+        await watching.ConfigureAwait(false);
+
+        TimeSpan[] recorded = [.. waits];
+
+        Assert.Equal(TimeSpan.FromSeconds(96), recorded[0],
+            "before the job, the first reconfirmation is at 80% of a 120s lifetime");
+        Assert.Equal(TimeSpan.FromSeconds(96), recorded[1],
+            "after the job's answer at 50s the next query is 96s from that answer; without it, 46s would remain");
+        Assert.Equal(jobAnsweredAt + TimeSpan.FromSeconds(96), reachability.NextQueryDue,
+            "the schedule now runs from the job's answer");
+        Assert.Equal(0, log.Lines.Count,
+            "a job's answer about a printer already reachable is not a transition, and nothing is logged");
+    }
+
+    [TestCase("A job's answer while the printer is held unreachable brings it back")]
+    [Requirement("REQ-RES-008")]
+    public static async Task A_job_answer_reports_recovery()
+    {
+        // The startup answer's 120s lifetime has already run out, so the watch's
+        // first pass finds the printer unreachable and asks once, unanswered.
+        var clock = new TestClock(Start + TimeSpan.FromSeconds(200));
+        var log = new RecordingLog();
+        var reachability = new PrinterReachability(Answer(Start), clock, () => 0.0);
+        var changes = new ConcurrentQueue<bool>();
+        int asked = 0;
+        using var stop = new CancellationTokenSource();
+
+        var watch = new PrinterWatch(
+            reachability,
+            _ =>
+            {
+                Interlocked.Increment(ref asked);
+                throw new PrinterResolutionException("silent, for the test");
+            },
+            log,
+            clock,
+            (_, token) => Task.Delay(Timeout.Infinite, token),
+            (reachable, _) =>
+            {
+                changes.Enqueue(reachable);
+                return Task.CompletedTask;
+            });
+
+        Task watching = watch.WatchAsync(stop.Token);
+        await WaitUntilAsync(() => Volatile.Read(ref asked) == 1, "asking once and going unanswered")
+            .ConfigureAwait(false);
+
+        watch.RecordJobAnswer(Answer(clock.GetUtcNow()));
+
+        await WaitUntilAsync(() => changes.Count == 2, "reporting the recovery").ConfigureAwait(false);
+        await stop.CancelAsync().ConfigureAwait(false);
+        await watching.ConfigureAwait(false);
+
+        Assert.Equal("False, True", string.Join(", ", changes),
+            "the printer was withdrawn when its record expired, and offered again on the job's answer");
+        Assert.True(reachability.IsReachable, "the state must follow");
+        Assert.Equal(1,
+            log.Lines.FindAll(line => line.Contains("reachable again", StringComparison.Ordinal)).Count,
+            "the recovery is logged once, as when the watch's own query is answered");
     }
 }

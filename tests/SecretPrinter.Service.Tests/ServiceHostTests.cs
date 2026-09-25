@@ -19,6 +19,10 @@
 // (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 // 2026-09-22. Reviewed by a human before merge.
 //
+// The test that a job's lookup hands its answer to the watch, for REQ-RES-008,
+// added by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
+// West, 2026-09-25. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies decisions ServiceHost makes that can be checked without opening a
 //   socket: which interfaces each of its two mDNS sockets joins, how each job's
@@ -187,13 +191,33 @@ internal static class ServiceHostTests
                     .GetAwaiter().GetResult();
 
         IPEndPoint endpoint = ServiceHost
-            .LocateConnectionAsync(resolver, IppsInstance, TimeSpan.FromSeconds(5), log, CancellationToken.None)
+            .LocateConnectionAsync(resolver, IppsInstance, TimeSpan.FromSeconds(5), log, _ => { }, CancellationToken.None)
             .GetAwaiter().GetResult();
 
         Assert.Equal(new IPEndPoint(IPAddress.Parse("192.168.2.51"), 8443), endpoint,
             "the connection must go to the _ipps service's address and port, not the _ipp service's");
         Assert.True(log.Entries.Any(e => e.Message.Contains(IppsInstance.ToString(), StringComparison.Ordinal)),
             "the lookup must be logged, naming the _ipps instance");
+    }
+
+    [TestCase("A job's lookup hands the answer it used to the watch")]
+    [Requirement("REQ-RES-008")]
+    public static void A_job_lookup_hands_its_answer_over()
+    {
+        FakeTransport transport = PrinterNetwork();
+        using var resolver = new PrinterResolver(transport, Printer);
+        var handed = new List<ResolvedPrinter>();
+
+        IPEndPoint endpoint = ServiceHost
+            .LocateConnectionAsync(
+                resolver, IppsInstance, TimeSpan.FromSeconds(5), new CollectingServiceLog(), handed.Add,
+                CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Assert.Equal(1, handed.Count,
+            "a resolution performed because a job arrived must reach the watch, or it cannot reset the schedule");
+        Assert.Equal(endpoint, new IPEndPoint(handed[0].Address, handed[0].Port),
+            "what reaches the watch must be the answer the job used");
     }
 
     [TestCase("The resolver's socket joins the printer interface, for IPv4 only, and nothing else")]

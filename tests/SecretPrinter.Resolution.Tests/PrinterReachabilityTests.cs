@@ -5,6 +5,10 @@
 // West, for the SecretPrinter project, 2026-09-20. Reviewed by a human before
 // merge.
 //
+// Tests of RecordDemandAnswer, the answer a print job's lookup obtained, added
+// by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-25. Reviewed by a human before merge.
+//
 // Purpose:
 //   Pins the reachability schedule to RFC 6762 section 5.2 rather than to
 //   whatever the implementation happens to do.
@@ -303,5 +307,79 @@ internal static class PrinterReachabilityTests
             answeredAt + TimeSpan.FromSeconds(96),
             reachability.NextQueryDue,
             "recovery returns to the cache-maintenance schedule");
+    }
+
+    [TestCase("An answer a job's lookup obtained resets the schedule like any other")]
+    [Requirement("REQ-RES-008")]
+    public static void A_job_answer_resets_the_schedule()
+    {
+        var clock = new TestClock(Start);
+        PrinterReachability reachability = Fresh(clock);
+
+        DateTimeOffset answeredAt = Start + TimeSpan.FromSeconds(50);
+        clock.MoveTo(answeredAt);
+
+        Assert.Equal(
+            ReachabilityTransition.None,
+            reachability.RecordDemandAnswer(Answer(answeredAt)),
+            "a printer that was already reachable has not changed state");
+
+        Assert.Equal(
+            answeredAt + TimeSpan.FromSeconds(96),
+            reachability.NextQueryDue,
+            "a job's answer starts a fresh lifetime, so the next reconfirmation is at 80% of it");
+        Assert.Equal(
+            answeredAt + TimeSpan.FromSeconds(120),
+            reachability.RecordExpiresAt,
+            "and the record now lasts from the job's answer");
+    }
+
+    [TestCase("A job's answer no newer than the one held changes nothing")]
+    [Requirement("REQ-RES-008")]
+    public static void A_job_answer_no_newer_than_the_one_held_changes_nothing()
+    {
+        var clock = new TestClock(Start);
+        PrinterReachability reachability = Fresh(clock);
+
+        DateTimeOffset watchAnsweredAt = Start + TimeSpan.FromSeconds(96);
+        clock.MoveTo(watchAnsweredAt);
+        reachability.RecordAnswer(Answer(watchAnsweredAt));
+        DateTimeOffset due = reachability.NextQueryDue;
+
+        clock.Advance(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(
+            ReachabilityTransition.None,
+            reachability.RecordDemandAnswer(Answer(watchAnsweredAt)),
+            "the same answer, received by a job that shared the watch's query, is not news");
+        Assert.Equal(due, reachability.NextQueryDue, "the same answer twice must not move the schedule");
+
+        Assert.Equal(
+            ReachabilityTransition.None,
+            reachability.RecordDemandAnswer(Answer(watchAnsweredAt - TimeSpan.FromSeconds(1))),
+            "an answer older than the one held is not news either");
+        Assert.Equal(due, reachability.NextQueryDue, "an older answer must not move the schedule back");
+    }
+
+    [TestCase("A job's answer whose lifetime is over does not revive the printer")]
+    [Requirement("REQ-RES-008")]
+    public static void A_job_answer_already_expired_changes_nothing()
+    {
+        var clock = new TestClock(Start);
+        PrinterReachability reachability = Fresh(clock);
+
+        clock.MoveTo(Start + TimeSpan.FromSeconds(120));
+        reachability.Tick();
+
+        // The job asked at 130s and was answered, but its answer reached the
+        // record only after the answer's own 120s lifetime had run out.
+        DateTimeOffset answeredAt = Start + TimeSpan.FromSeconds(130);
+        clock.MoveTo(answeredAt + TimeSpan.FromSeconds(120));
+
+        Assert.Equal(
+            ReachabilityTransition.None,
+            reachability.RecordDemandAnswer(Answer(answeredAt)),
+            "a record already dead must not report the printer reachable for one tick");
+        Assert.False(reachability.IsReachable, "the printer is still held unreachable");
     }
 }

@@ -52,6 +52,13 @@
 // in docs/findings/2026-09-24-the-ipv6-only-claim-was-in-more-places.md.
 // Reviewed by a human before merge.
 //
+// Each job's printer lookup hands its answer to the watch, so that a resolution
+// performed because a job arrived resets the reachability schedule, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-25, for REQ-RES-008. Until then nothing did; see
+// docs/findings/2026-09-25-two-clauses-of-req-res-008-were-never-built.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -317,7 +324,7 @@ public sealed class ServiceHost
 
             foreach (MdnsInterface client in _configuration.ClientInterfaces)
             {
-                running.Add(RunRelayAsync(client, resolver, ippsInstance, printerPin, offering, stopping.Token));
+                running.Add(RunRelayAsync(client, resolver, ippsInstance, printerPin, offering, watch, stopping.Token));
             }
 
             await Task.WhenAll(running).ConfigureAwait(false);
@@ -370,6 +377,7 @@ public sealed class ServiceHost
         DnsName ippsInstance,
         CertificatePin printerPin,
         AvailabilityGate offering,
+        PrinterWatch watch,
         CancellationToken cancellationToken)
     {
         // The permitted network is derived from the interface itself rather than
@@ -391,7 +399,7 @@ public sealed class ServiceHost
             Task withdrawn = offering.WaitForCloseAsync(serving.Token);
 
             await AcceptUntilWithdrawnAsync(
-                    client, permitted, resolver, ippsInstance, printerPin, withdrawn, serving)
+                    client, permitted, resolver, ippsInstance, printerPin, watch, withdrawn, serving)
                 .ConfigureAwait(false);
         }
     }
@@ -406,6 +414,7 @@ public sealed class ServiceHost
         PrinterResolver resolver,
         DnsName ippsInstance,
         CertificatePin printerPin,
+        PrinterWatch watch,
         Task withdrawn,
         CancellationTokenSource serving)
     {
@@ -423,7 +432,12 @@ public sealed class ServiceHost
             // nothing about TLS and did not change when this was added.
             new TlsConnectionFactory(new TcpConnectionFactory(), printerPin),
             token => LocateConnectionAsync(
-                resolver, ippsInstance, _configuration.Tuning.PrinterResolveTimeout, _log, token),
+                resolver,
+                ippsInstance,
+                _configuration.Tuning.PrinterResolveTimeout,
+                _log,
+                watch.RecordJobAnswer,
+                token),
             new RelayOptions
             {
                 BufferSize = _configuration.Tuning.RelayBufferBytes,
@@ -585,10 +599,20 @@ public sealed class ServiceHost
 
     /// <summary>
     /// Finds where one connection to the printer should go: resolves the
-    /// printer's <c>_ipps._tcp</c> instance, logs the lookup, and returns the
-    /// address and port from that answer.
+    /// printer's <c>_ipps._tcp</c> instance, logs the lookup, hands the answer
+    /// to <paramref name="answered"/>, and returns the address and port from
+    /// that answer.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// In the service, <paramref name="answered"/> is
+    /// <see cref="PrinterWatch.RecordJobAnswer"/>, so a resolution performed
+    /// because a job arrived resets the reachability schedule (REQ-RES-008).
+    /// Every answer is handed over, including one the resolver gave from its
+    /// cache; <see cref="PrinterReachability.RecordDemandAnswer"/> takes only an
+    /// answer newer than the one it holds, so a cached one changes nothing. A
+    /// lookup that fails throws before anything is handed over.
+    /// </para>
     /// <para>
     /// The resolver used by the service is built without a clock, so its answers
     /// are stamped by <see cref="TimeProvider.System"/>, the same clock read
@@ -604,16 +628,21 @@ public sealed class ServiceHost
     /// </remarks>
     [Requirement("REQ-RES-007",
         "Resolves the _ipps._tcp instance for each connection and returns the address and port from that answer, never from the _ipp._tcp one.")]
+    [Requirement("REQ-RES-008",
+        "Hands the answer each job's lookup obtains to the watch, so that a resolution performed because a job "
+        + "arrived resets the reachability schedule.")]
     public static async Task<IPEndPoint> LocateConnectionAsync(
         PrinterResolver resolver,
         DnsName ippsInstance,
         TimeSpan timeout,
         IServiceLog log,
+        Action<ResolvedPrinter> answered,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(resolver);
         ArgumentNullException.ThrowIfNull(ippsInstance);
         ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(answered);
 
         DateTimeOffset started = TimeProvider.System.GetUtcNow();
         long startedTimestamp = Stopwatch.GetTimestamp();
@@ -623,6 +652,7 @@ public sealed class ServiceHost
             .ConfigureAwait(false);
 
         log.Info(DescribeLookup(current, started, Stopwatch.GetElapsedTime(startedTimestamp)));
+        answered(current);
 
         return new IPEndPoint(current.Address, current.Port);
     }

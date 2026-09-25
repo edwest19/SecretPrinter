@@ -3,10 +3,15 @@
 *Written by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
 West, 2026-09-25. Reviewed by a human before merge.*
 
-**Status: found by reading the code, not observed on hardware. One of the two
-clauses is built in the commit that adds this finding; the other is not yet.
-Until it is, the `REQ-RES-008` markers in the code claim more than the code
-does.**
+**Status: found by reading the code, not observed on hardware. Both clauses
+are now built: the first in the commit that added this finding (`739a2e5`), the
+second in the commit that adds the section "The second clause, built" below.
+The `REQ-RES-008` markers now claim what the code does.**
+
+*(Status updated 2026-09-25 by Claude, Claude Opus 5.5. It first read: "One of
+the two clauses is built in the commit that adds this finding; the other is not
+yet. Until it is, the `REQ-RES-008` markers in the code claim more than the code
+does.")*
 
 ## What the requirement says
 
@@ -105,6 +110,7 @@ counts.
 **2. A job's lookup reaches the schedule.** Not built yet; it is the next
 commit. It will also correct `PrinterReachability`'s header. Until then the
 `REQ-RES-008` markers still claim a clause the code does not implement.
+*(Added 2026-09-25: built. See "The second clause, built" below.)*
 
 ## Also recorded
 
@@ -114,3 +120,85 @@ reachable, each call advances the reconfirmation stream by one step, so a job
 that failed early in a record's lifetime would move the next reconfirmation
 from 80% of the lifetime to 85%, and the 80% query would never be sent. The
 next commit has to settle this, and the README text with it.
+*(Added 2026-09-25: settled. Edwin West chose to record answers only. See
+below.)*
+
+## The second clause, built
+
+*Added 2026-09-25 by Claude (Anthropic model, Claude Opus 5.5) at the direction
+of Edwin West. Reviewed by a human before merge.*
+
+**What a job's lookup does to the schedule.** Edwin West decided: an answer is
+recorded, and a silence is not. An answer obtained because a job arrived resets
+the schedule like any other answer. A job's lookup that goes unanswered changes
+nothing, because the record is still within its lifetime, RFC 6762 §5.2 holds
+it until 100%, and the watch's own reconfirmations already decide when it has
+gone. The alternative, treating a failed job as a reason to check sooner, was
+set aside. RFC 6762 has a section on reacting to a record that turns out to be
+unusable. It was not read for this change, and taking it up would be a change
+of its own.
+
+**Two answers change nothing.** An answer no newer than the one already held
+changes nothing. A job and the watch can share one query and receive the same
+answer, and a job's answer can reach the watch after the watch has recorded a
+later one of its own. An answer whose lifetime is already over changes nothing
+either. Taking it would report the printer reachable only for the next tick to
+report it gone.
+
+**The README.** `REQ-RES-008` now says exactly that. Its two clauses read, until
+this commit:
+
+> A resolution performed because a job arrived resets the schedule; concurrent
+> jobs share one in-flight query rather than issuing one apiece.
+
+They now read:
+
+> An answer obtained by a resolution performed because a job arrived resets the
+> schedule like any other answer, unless it is no newer than the answer already
+> held or its lifetime is already over; a job's resolution that goes unanswered
+> is not counted, because the reconfirmations already decide when the record has
+> gone. Concurrent jobs share one in-flight query rather than issuing one apiece,
+> whether or not it is answered.
+
+**The code.**
+
+- `PrinterReachability.RecordDemandAnswer` takes a job's answer and applies the
+  two rules above. The header sentence quoted earlier in this finding is
+  replaced by one that says what happens, and why a silence is not passed to
+  `RecordSilence`.
+- `PrinterWatch.RecordJobAnswer` queues a job's answer, and the watch's own
+  loop records it. The job goes on at once. The reachability state is still
+  changed by that one loop only, so it is never touched from two threads, and
+  changes are reported one at a time, in order. The loop's wait ends early when
+  an answer is queued, because the answer moves the schedule.
+- `ServiceHost.LocateConnectionAsync` hands every answer a job's lookup obtains
+  to the watch, including one from the resolver's cache, which the first rule
+  turns away.
+
+**The tests.** Three in `PrinterReachabilityTests`: a job's answer resets the
+schedule, one no newer than the answer held changes nothing, and one whose
+lifetime is over does not revive the printer. Two in `PrinterWatchTests`: a
+job's answer wakes the watch and moves its next query, and a job's answer while
+the printer is held unreachable reports the recovery. One in
+`ServiceHostTests`: a job's lookup hands the answer it used to the watch.
+
+The two watch tests are async. They were first written and run before the fix
+recorded in
+[`2026-09-25-the-test-harness-never-waited-for-an-async-test.md`](2026-09-25-the-test-harness-never-waited-for-an-async-test.md),
+when their passing meant nothing, and that is how the fault was found.
+
+Rerun after that fix, in Claude's container, the change failed. As first
+written, the watch's loop checked `ChannelReader.Count` to see whether a job's
+answer had ended its wait, on a channel created as single-reader. That kind of
+channel does not support `Count`; it throws `NotSupportedException`. The loop
+would have thrown the first time it came round, and the watch would have
+stopped. Ten tests failed with it: seven existing `PrinterWatchTests`, the
+`AvailabilityGateTests` case that drives a real watch, and the two new ones.
+Under the old harness all ten had reported PASS. The version committed never
+reads `Count`. The wait itself now says whether an answer arrived, and the
+channel is created with default options.
+
+After that correction, all of them pass. With the recording of a job's answer
+removed on purpose, both new watch tests failed. With the two rules in
+`RecordDemandAnswer` removed on purpose, the two reachability tests that check
+them failed.

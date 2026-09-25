@@ -5,6 +5,13 @@
 // West, for the SecretPrinter project, 2026-09-20. Reviewed by a human before
 // merge.
 //
+// RecordDemandAnswer added, and the paragraph on lookups made because a print
+// job arrived corrected, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-09-25. Until then that paragraph said such a
+// lookup's outcome was recorded here, and nothing recorded it. See
+// docs/findings/2026-09-25-two-clauses-of-req-res-008-were-never-built.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Holds the service's belief about whether the printer can be reached, and
 //   says when the next query is due.
@@ -37,8 +44,14 @@
 //   reply. Silence therefore means something.
 //
 // A lookup performed because a print job arrived is a demand-driven query
-// rather than part of either stream. Its outcome is recorded here just the
-// same, and resets the schedule.
+// rather than part of either stream. An answer it obtains is recorded through
+// RecordDemandAnswer and resets the schedule like any other answer. A job's
+// lookup that goes unanswered is not recorded at all: the record is still
+// within its lifetime, section 5.2 holds it until 100%, and the
+// reconfirmations above already decide when it has gone. It could not be
+// passed to RecordSilence in any case. That call advances the reconfirmation
+// stream by one step, so a job that failed early in a lifetime would move the
+// next reconfirmation from 80% to 85%, and the 80% query would never be sent.
 //
 // This type decides nothing and sends nothing. It holds no socket, starts no
 // timer and performs no lookup; the caller queries when NextQueryDue arrives
@@ -151,6 +164,36 @@ public sealed class PrinterReachability
         return wasReachable
             ? ReachabilityTransition.None
             : ReachabilityTransition.BecameReachable;
+    }
+
+    /// <summary>
+    /// Records an answer obtained on demand, because a print job arrived,
+    /// rather than on this schedule. It resets the schedule exactly as
+    /// <see cref="RecordAnswer"/> does, unless it tells nothing new.
+    /// </summary>
+    /// <remarks>
+    /// Two kinds of answer tell nothing new, and change nothing. One obtained no
+    /// later than the answer already held: a job and the watch can share one
+    /// query and so receive the same answer, and a job's answer can arrive after
+    /// the watch has recorded a later one of its own. And one whose lifetime is
+    /// already over: the record it would create is already dead, and taking it
+    /// would report the printer reachable only for the next tick to report it
+    /// gone. A job's lookup that went unanswered has no counterpart here; see
+    /// the note at the top of this file.
+    /// </remarks>
+    [Requirement("REQ-RES-008",
+        "Takes an answer a job's lookup obtained and resets the schedule with it, as with any other answer, "
+        + "unless it is no newer than the answer already held or its lifetime is already over.")]
+    public ReachabilityTransition RecordDemandAnswer(ResolvedPrinter answer)
+    {
+        ArgumentNullException.ThrowIfNull(answer);
+
+        if (answer.ResolvedAt <= _answeredAt || !answer.IsFreshAt(_clock.GetUtcNow()))
+        {
+            return ReachabilityTransition.None;
+        }
+
+        return RecordAnswer(answer);
     }
 
     /// <summary>
