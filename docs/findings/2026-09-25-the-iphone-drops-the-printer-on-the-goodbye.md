@@ -156,6 +156,10 @@ about a second later, and that both work.
     announced at 01:53:33Z.
   - It later withdrew again and restored at 02:58:55Z. When that withdrawal
     happened was not examined.
+    *(Added 2026-09-25 by Claude, Claude Opus 5.5: examined. It withdrew at
+    02:56:10Z, 71 s after the Wi-Fi was disconnected by its driver at
+    02:54:59Z, and the adapter reconnected at 02:57:58Z. See
+    [`2026-09-25-a-reconnect-did-not-restore-the-membership.md`](2026-09-25-a-reconnect-did-not-restore-the-membership.md).)*
   - Whether each loss was the adapter or the printer is not in the log, by
     design.
 - **A `Listen` run lost half an hour of timing.** An earlier run, started
@@ -165,6 +169,12 @@ about a second later, and that both work.
     announcements. Edwin did not stop or restart the service, so they came
     from its own withdrawal and restore. The service log for that window was not
     read.
+    *(Added 2026-09-25 by Claude, Claude Opus 5.5: read. The log's only
+    withdrawal inside the gap is at 02:26:22Z, restored at 02:26:37Z, with no
+    WLAN event around it and no stop. The service sends goodbye records only on
+    a stop or a withdrawal, so the goodbye was that withdrawal and the three
+    announcements its restore. This assumes the dev box's and FIOS-STB-01's
+    clocks do not differ by minutes, which was not checked.)*
   - `Listen` stamps a packet when it reads it (`DateTime.UtcNow` after the
     receive returns), not when it arrives. A process that stops reading
     therefore stamps a whole queue of packets with one time, and any packets

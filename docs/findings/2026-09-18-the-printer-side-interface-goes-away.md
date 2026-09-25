@@ -7,6 +7,11 @@ West, 2026-09-18. Reviewed by a human before merge.*
 separate adapter resets in one evening, two of them confirmed as Windows' own
 doing. One of the two resulting failure messages is false.**
 
+*(Status updated 2026-09-25 by Claude, Claude Opus 5.5: items 1 to 3 of what
+this finding owes are now done in code, and item 4 in part; see the notes under
+each. What remains is item 4's event 4003. Item 1's rebinding has not yet run
+on hardware.)*
+
 ## What happened
 
 The printer-side interface on FIOS-STB-01 is Wi-Fi, on the printer network. It
@@ -144,10 +149,21 @@ is done at a time. In the order I would take them:
    stop advertising and stop accepting jobs. Silently accepting work it cannot
    do is the behaviour to remove. This needs its own `REQ-` entry and its own
    commit.
+   *(Added 2026-09-25 by Claude, Claude Opus 5.5: done, in two parts, though not
+   by watching the interface. `REQ-RES-008` chose to judge the printer by
+   whether it answers, because interface state has been observed wrong in both
+   directions. When it stops answering, the service stops advertising and
+   accepting jobs (`REQ-LIF-006`, 2026-09-20). While it is not answering, the
+   service reopens its printer-side socket on the adapter's current address
+   before each question (`REQ-RES-009`, 2026-09-25), which is the rebinding. See
+   [`2026-09-25-a-reconnect-did-not-restore-the-membership.md`](2026-09-25-a-reconnect-did-not-restore-the-membership.md).)*
 2. **The false message.** Until the interface is watched, the resolver timeout
    must not assert anything about the printer when the local interface cannot be
    shown to be usable. Checking the interface at the moment of failure and
    reporting that instead is a smaller change than item 1 and removes the lie.
+   *(Added 2026-09-25 by Claude, Claude Opus 5.5: done on 2026-09-19; see
+   [`2026-09-19-the-printer-side-multicast-membership-is-lost.md`](2026-09-19-the-printer-side-multicast-membership-is-lost.md),
+   item 1 of what it owes.)*
 3. **The lookup gate.** Concurrent jobs should share one in-flight lookup rather
    than queue behind repeated failures of it.
    *(Added 2026-09-25 by Claude, Claude Opus 5.5: done. Lookups for the same
@@ -158,6 +174,9 @@ is done at a time. In the order I would take them:
    8003 and the command to check for them, so that an operator whose printer
    "stops working overnight" has somewhere to look. This is not hypothetical for
    users; it is the normal shape of a dual-homed Windows host.
+   *(Added 2026-09-25 by Claude, Claude Opus 5.5: in part. `docs/operating.md`
+   names the hazard under "When the printer-side network drops", with events
+   8000 to 8003 and the command to read them. It does not name 4003.)*
 
 ## Separately found while investigating, each owing its own finding
 

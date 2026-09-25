@@ -23,6 +23,11 @@
 // added by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
 // West, 2026-09-25. Reviewed by a human before merge.
 //
+// The tests that the watch's question to a printer it holds unreachable, and a
+// startup attempt after an unanswered one, go out on a reopened socket, for
+// REQ-RES-009, added by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-09-25. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies decisions ServiceHost makes that can be checked without opening a
 //   socket: which interfaces each of its two mDNS sockets joins, how each job's
@@ -218,6 +223,82 @@ internal static class ServiceHostTests
             "a resolution performed because a job arrived must reach the watch, or it cannot reset the schedule");
         Assert.Equal(endpoint, new IPEndPoint(handed[0].Address, handed[0].Port),
             "what reaches the watch must be the answer the job used");
+    }
+
+    [TestCase("The watch asks a printer it holds unreachable through a reopened socket, and a reachable one through the same")]
+    [Requirement("REQ-RES-009")]
+    public static void Watch_reopens_before_asking_an_unreachable_printer()
+    {
+        FakeTransport first = PrinterNetwork();
+        FakeTransport reopened = PrinterNetwork();
+        int opens = 0;
+
+        using var printerSide = new PrinterSide(
+            Printer,
+            first,
+            _ =>
+            {
+                opens++;
+                return reopened;
+            },
+            () => (Printer, null),
+            new CollectingServiceLog());
+
+        ResolvedPrinter answer = ServiceHost
+            .AskForWatchAsync(printerSide, printerHeldReachable: false, IppsInstance, TimeSpan.FromSeconds(5),
+                CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Assert.Equal(1, opens, "a printer held unreachable is asked only after the socket is reopened");
+        Assert.Equal(0, first.Sent.Count, "nothing is asked through the socket that was open during the outage");
+        Assert.Equal(1, reopened.Sent.Count, "the question goes out on the reopened socket");
+        Assert.Equal(IPAddress.Parse("192.168.2.51"), answer.Address, "and its answer is the one returned");
+
+        _ = ServiceHost
+            .AskForWatchAsync(printerSide, printerHeldReachable: true, IppsInstance, TimeSpan.FromSeconds(5),
+                CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Assert.Equal(1, opens, "a printer held reachable is asked without reopening anything");
+        Assert.Equal(2, reopened.Sent.Count,
+            "and it is asked on the network, not answered from the cache, as the reconfirmations require");
+    }
+
+    [TestCase("A startup attempt after an unanswered one asks through a reopened socket; the first does not")]
+    [Requirement("REQ-RES-009")]
+    public static void Startup_reopens_before_asking_again()
+    {
+        FakeTransport first = PrinterNetwork();
+        FakeTransport reopened = PrinterNetwork();
+        int opens = 0;
+
+        using var printerSide = new PrinterSide(
+            Printer,
+            first,
+            _ =>
+            {
+                opens++;
+                return reopened;
+            },
+            () => (Printer, null),
+            new CollectingServiceLog());
+
+        _ = ServiceHost
+            .AskAtStartupAsync(printerSide, afterUnanswered: false, IppInstance, IppsInstance,
+                TimeSpan.FromSeconds(5), CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Assert.Equal(0, opens, "the first attempt uses the socket startup opened");
+        Assert.Equal(2, first.Sent.Count, "and asks both instances through it");
+
+        PrinterAtStartup found = ServiceHost
+            .AskAtStartupAsync(printerSide, afterUnanswered: true, IppInstance, IppsInstance,
+                TimeSpan.FromSeconds(5), CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Assert.Equal(1, opens, "an attempt after an unanswered one reopens first");
+        Assert.Equal(2, reopened.Sent.Count, "and asks both instances through the reopened socket");
+        Assert.True(found.Connection.Instance.Equals(IppsInstance), "and resolves as before");
     }
 
     [TestCase("The resolver's socket joins the printer interface, for IPv4 only, and nothing else")]

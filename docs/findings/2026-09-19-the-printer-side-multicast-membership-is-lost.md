@@ -9,6 +9,12 @@ membership of 224.0.0.251 on the printer-side interface disappeared while the
 service was running and had logged that it joined. The service did not notice,
 kept accepting jobs, and blamed the printer for the failures.**
 
+*(Status updated 2026-09-25 by Claude, Claude Opus 5.5: measured again on
+2026-09-25, on the Broadcom adapter, with a control, and repaired in code under
+`REQ-RES-009`. The printer-side socket is now reopened before every question put
+to a printer held unreachable. The repair has not yet run on hardware. See
+[`2026-09-25-a-reconnect-did-not-restore-the-membership.md`](2026-09-25-a-reconnect-did-not-restore-the-membership.md).)*
+
 This is the mechanism behind the false message recorded in
 [2026-09-18-the-printer-side-interface-goes-away.md](2026-09-18-the-printer-side-interface-goes-away.md).
 That finding established that one of the two failure messages is false. This one
@@ -151,6 +157,12 @@ waited nearly 25 seconds.
    up and the address is valid and only the group is gone. Rebuilding the
    resolver socket on an interface change is the likely shape; this finding does
    not design it.
+   *(Added 2026-09-25 by Claude, Claude Opus 5.5: built as `REQ-RES-009`, with
+   the trigger Edwin West chose. The socket is rebuilt before every question put
+   to a printer held unreachable, rather than on an interface change. A group
+   lost while the interface stays up and the address valid lets the record
+   expire, withdraws the printer, and is repaired by the next question, seconds
+   later.)*
 3. **Detecting the loss from managed code looks unavailable.** `netsh` reads
    these membership counts, so Windows exposes them. .NET surfaces the groups an
    interface has joined, through `IPInterfaceProperties.MulticastAddresses`, but

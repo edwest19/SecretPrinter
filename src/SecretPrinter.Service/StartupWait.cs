@@ -61,6 +61,12 @@
 //   returns with a different address, the service does not rebind. That is
 //   part of docs/findings/2026-09-18-the-printer-side-interface-goes-away.md,
 //   which stays open.
+//   (Added 2026-09-25 by Claude, Claude Opus 5.5, at the direction of Edwin
+//   West: no longer so. Under REQ-RES-009 the printer-side socket is reopened,
+//   on the adapter's address as it is then, before every startup attempt after
+//   the first and before every question put to a printer held unreachable.
+//   The address is still resolved here first; see PrinterSide.cs. Reviewed by a
+//   human before merge.)
 // -----------------------------------------------------------------------------
 
 using System.Net.Sockets;

@@ -519,6 +519,15 @@ know:
   after 1, 2, 4, 8… seconds, up to once an hour. After a long outage, the printer
   may not reappear for up to an hour after the link returns. Restarting the
   service after reconnecting brings it back at once.
+- **Before each of those questions the service reopens its printer-side socket**
+  (`REQ-RES-009`), on the adapter's address as it is then. On 2026-09-25 the old
+  socket's membership of `224.0.0.251` was found gone after a long outage, and
+  the adapter reconnecting did not bring it back
+  ([the finding](findings/2026-09-25-a-reconnect-did-not-restore-the-membership.md)).
+  Without a new socket the service could not hear the printer at all, and would
+  have stayed withdrawn until restarted. Versions before this change behave that
+  way: after a long outage, if the printer has not reappeared within an hour of
+  the link returning, restart the service.
 - **Starting while the printer-side adapter is down waits rather than
   refusing** (`REQ-LIF-008`). The service runs and offers nothing, logs
   `Waiting for the printer-side interface:` with the reason, examines the

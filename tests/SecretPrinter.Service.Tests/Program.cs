@@ -27,6 +27,10 @@
 // 5.5) at the direction of Edwin West, 2026-09-25, so that a harness unable to
 // fail an async test is caught before any async test after it is believed.
 // Reviewed by a human before merge.
+//
+// PrinterSideTests registered by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-09-25, for REQ-RES-009. Reviewed by a human
+// before merge.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.TestKit;
@@ -66,6 +70,7 @@ internal static class Program
             typeof(ServiceHostTests),
             typeof(FileServiceLogTests),
             typeof(PrinterWatchTests),
+            typeof(PrinterSideTests),
             typeof(AvailabilityGateTests),
             typeof(StartupWaitTests));
     }

@@ -59,6 +59,13 @@
 // docs/findings/2026-09-25-two-clauses-of-req-res-008-were-never-built.md.
 // Reviewed by a human before merge.
 //
+// The printer-side socket and resolver held in a PrinterSide and reopened
+// before every question put to a printer that has not been answering, at
+// startup and after, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-09-25, for REQ-RES-009. See
+// docs/findings/2026-09-25-a-reconnect-did-not-restore-the-membership.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -176,7 +183,18 @@ public sealed class ServiceHost
                   + $"joined {MdnsSocket.MulticastGroup} on "
                   + $"{string.Join(", ", resolverConfiguration.Interfaces)} only.");
 
-        using var resolver = new PrinterResolver(resolverSocket, printerInterface);
+        // The socket and the resolver on it are held together, so they can be
+        // reopened on the adapter's current address while the printer is not
+        // answering (REQ-RES-009). PrinterSide disposes whichever socket it
+        // holds last. The using on resolverSocket above still disposes the
+        // first one if anything between here and there throws; disposing a
+        // socket twice is harmless.
+        using var printerSide = new PrinterSide(
+            printerInterface,
+            resolverSocket,
+            reopenOn => MdnsSocket.Open(PlanMdnsBindings(_configuration.ClientInterfaces, reopenOn).Resolver),
+            () => StartupWait.Examine(_configuration.PrinterInterfaceName, SystemInterfaceInventory.Instance),
+            _log);
 
         // Open: by the time anything reads this gate, the printer has answered.
         // Everything that offers the printer to the client network reads this
@@ -192,11 +210,19 @@ public sealed class ServiceHost
                   + $"on {printerInterface}.");
 
         PrinterAtStartup found;
+        int startupAttempts = 0;
         try
         {
             found = await StartupWait.ForPrinterAsync(
-                    token => ResolveAtStartupAsync(
-                        resolver, ippInstance, ippsInstance, _configuration.Tuning.PrinterResolveTimeout, token),
+                    // Every attempt after the first follows one that went
+                    // unanswered. See AskAtStartupAsync.
+                    token => AskAtStartupAsync(
+                        printerSide,
+                        afterUnanswered: startupAttempts++ > 0,
+                        ippInstance,
+                        ippsInstance,
+                        _configuration.Tuning.PrinterResolveTimeout,
+                        token),
                     _log,
                     (wait, token) => Task.Delay(wait, token),
                     cancellationToken)
@@ -304,19 +330,14 @@ public sealed class ServiceHost
             var watch = new PrinterWatch(
                 reachability,
 
-                // Invalidate first: every reconfirmation falls at 80% of the
-                // record's TTL or later, which is still inside the window
-                // REQ-RES-004 lets the resolver answer from memory. Without
-                // this the watch would be answered from the cache every time,
-                // would never put a question on the printer network, and would
-                // report a printer that had been gone for hours as healthy.
-                async token =>
-                {
-                    resolver.Invalidate();
-                    return await resolver
-                        .ResolveAsync(ippsInstance, _configuration.Tuning.PrinterResolveTimeout, token)
-                        .ConfigureAwait(false);
-                },
+                // See AskForWatchAsync. The watch calls this on its own loop,
+                // so reading reachability here is reading it in order.
+                token => AskForWatchAsync(
+                    printerSide,
+                    reachability.IsReachable,
+                    ippsInstance,
+                    _configuration.Tuning.PrinterResolveTimeout,
+                    token),
                 _log,
                 onChanged: (reachable, token) => OfferAsync(responder, offering, reachable, token));
 
@@ -324,7 +345,7 @@ public sealed class ServiceHost
 
             foreach (MdnsInterface client in _configuration.ClientInterfaces)
             {
-                running.Add(RunRelayAsync(client, resolver, ippsInstance, printerPin, offering, watch, stopping.Token));
+                running.Add(RunRelayAsync(client, printerSide, ippsInstance, printerPin, offering, watch, stopping.Token));
             }
 
             await Task.WhenAll(running).ConfigureAwait(false);
@@ -373,7 +394,7 @@ public sealed class ServiceHost
         + "timeout for a printer this service has established it cannot reach.")]
     private async Task RunRelayAsync(
         MdnsInterface client,
-        PrinterResolver resolver,
+        PrinterSide printerSide,
         DnsName ippsInstance,
         CertificatePin printerPin,
         AvailabilityGate offering,
@@ -399,7 +420,7 @@ public sealed class ServiceHost
             Task withdrawn = offering.WaitForCloseAsync(serving.Token);
 
             await AcceptUntilWithdrawnAsync(
-                    client, permitted, resolver, ippsInstance, printerPin, watch, withdrawn, serving)
+                    client, permitted, printerSide, ippsInstance, printerPin, watch, withdrawn, serving)
                 .ConfigureAwait(false);
         }
     }
@@ -411,7 +432,7 @@ public sealed class ServiceHost
     private async Task AcceptUntilWithdrawnAsync(
         MdnsInterface client,
         IPNetwork permitted,
-        PrinterResolver resolver,
+        PrinterSide printerSide,
         DnsName ippsInstance,
         CertificatePin printerPin,
         PrinterWatch watch,
@@ -431,8 +452,10 @@ public sealed class ServiceHost
             // passed the pin check, or none at all. IppRelay itself knows
             // nothing about TLS and did not change when this was added.
             new TlsConnectionFactory(new TcpConnectionFactory(), printerPin),
+            // The resolver is read for each connection, not captured once:
+            // it is replaced whenever the printer-side socket is reopened.
             token => LocateConnectionAsync(
-                resolver,
+                printerSide.Resolver,
                 ippsInstance,
                 _configuration.Tuning.PrinterResolveTimeout,
                 _log,
@@ -595,6 +618,69 @@ public sealed class ServiceHost
             .ConfigureAwait(false);
 
         return new PrinterAtStartup(capabilities, connection);
+    }
+
+    /// <summary>
+    /// One startup attempt to resolve both of the printer's services. An
+    /// attempt that follows one that went unanswered reopens the printer-side
+    /// socket first (REQ-RES-009), as the watch does for a printer it holds
+    /// unreachable: startup can wait for hours, and the adapter can drop and
+    /// return while it does.
+    /// </summary>
+    [Requirement("REQ-RES-009",
+        "Reopens the printer-side socket before each startup attempt that follows an unanswered one.")]
+    public static Task<PrinterAtStartup> AskAtStartupAsync(
+        PrinterSide printerSide,
+        bool afterUnanswered,
+        DnsName ippInstance,
+        DnsName ippsInstance,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(printerSide);
+
+        if (afterUnanswered)
+        {
+            printerSide.Reopen();
+        }
+
+        return ResolveAtStartupAsync(printerSide.Resolver, ippInstance, ippsInstance, timeout, cancellationToken);
+    }
+
+    /// <summary>
+    /// The watch's question to the printer. While the printer is held
+    /// unreachable the printer-side socket is reopened first (REQ-RES-009), so
+    /// a membership of 224.0.0.251 lost during the outage, or an address that
+    /// changed, cannot keep the answer from being heard. The cached answer is
+    /// then discarded, so that a question is always put on the printer network.
+    /// </summary>
+    /// <remarks>
+    /// Invalidating matters: every reconfirmation falls at 80% of the record's
+    /// TTL or later, which is still inside the window REQ-RES-004 lets the
+    /// resolver answer from memory. Without it the watch would be answered from
+    /// the cache every time, would never put a question on the printer network,
+    /// and would report a printer that had been gone for hours as healthy.
+    /// </remarks>
+    [Requirement("REQ-RES-009",
+        "Reopens the printer-side socket before each question the watch puts to a printer it holds unreachable.")]
+    public static Task<ResolvedPrinter> AskForWatchAsync(
+        PrinterSide printerSide,
+        bool printerHeldReachable,
+        DnsName ippsInstance,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(printerSide);
+        ArgumentNullException.ThrowIfNull(ippsInstance);
+
+        if (!printerHeldReachable)
+        {
+            printerSide.Reopen();
+        }
+
+        PrinterResolver resolver = printerSide.Resolver;
+        resolver.Invalidate();
+        return resolver.ResolveAsync(ippsInstance, timeout, cancellationToken);
     }
 
     /// <summary>
