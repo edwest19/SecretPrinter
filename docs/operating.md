@@ -50,6 +50,18 @@ there read "Why iOS kept it, and how long it actually stays, are not
 established."; it now limits both to the 2026-09-21 occasion. Reviewed by a
 human before merge.*
 
+*Under "When the printer-side network drops", the bullet on reopening the
+printer-side socket (`REQ-RES-009`) added by Claude (Anthropic model, Claude
+Opus 5.5) at the direction of Edwin West, 2026-09-25, and its run on
+FIOS-STB-01 added 2026-09-26. This note was left out when the bullet was
+written, and added 2026-09-26. Reviewed by a human before merge.*
+
+*In the same section, WLAN event `4003` added to the command and named, by
+Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+2026-09-26, as item 4 of
+[the 2026-09-18 finding](findings/2026-09-18-the-printer-side-interface-goes-away.md)
+asked. Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -547,7 +559,7 @@ know:
 To see whether the link has been dropping, and why:
 
 ```powershell
-Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-WLAN-AutoConfig/Operational'; Id = 8000, 8001, 8002, 8003; StartTime = (Get-Date).Date } -ErrorAction SilentlyContinue | Sort-Object TimeCreated | Format-List TimeCreated, Id, Message
+Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-WLAN-AutoConfig/Operational'; Id = 4003, 8000, 8001, 8002, 8003; StartTime = (Get-Date).Date } -ErrorAction SilentlyContinue | Sort-Object TimeCreated | Format-List TimeCreated, Id, Message
 ```
 
 `8003` is a disconnect, and its `Reason` says whether the driver or a user ended
@@ -555,6 +567,17 @@ it. `8000`, `8001` and `8002` are a connection starting, succeeding and failing.
 A `8003` from the driver with no `8000` after it is this problem. The event's
 `Connection Mode` line describes how *that* connection was started, not the
 profile's setting; check the profile with `netsh wlan show profile`.
+
+`4003` is WLAN-AutoConfig itself acting on the link: its message says it
+*"detected limited connectivity, attempting automatic recovery"*. On
+FIOS-STB-01 on 2026-09-18 it was logged twice. The first came in the same
+second as an `8003`, 20 seconds after the link had been connected by hand, and
+the finding attributes that disconnect and a later one to this recovery
+([the finding](findings/2026-09-18-the-printer-side-interface-goes-away.md)).
+Why Windows judged that network limited was not established. A drop can also
+come without it: in the log read on 2026-09-25, five disconnects were each
+ended by the driver and no `4003` appeared
+([the finding](findings/2026-09-25-a-reconnect-did-not-restore-the-membership.md)).
 
 To reconnect by hand, using the profile name that command shows:
 

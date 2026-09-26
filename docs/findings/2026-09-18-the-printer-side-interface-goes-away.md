@@ -15,6 +15,9 @@ on hardware.)*
 same address, through a deliberate outage. See
 [`2026-09-25-a-reconnect-did-not-restore-the-membership.md`](2026-09-25-a-reconnect-did-not-restore-the-membership.md),
 "The repair on hardware". A changed address has not been seen.)*
+*(Added 2026-09-26 by Claude, Claude Opus 5.5: item 4 is done. `docs/operating.md`
+now names event `4003`, and its command reads it. That was the last of the
+four items this finding owes.)*
 
 ## What happened
 
@@ -181,6 +184,8 @@ is done at a time. In the order I would take them:
    *(Added 2026-09-25 by Claude, Claude Opus 5.5: in part. `docs/operating.md`
    names the hazard under "When the printer-side network drops", with events
    8000 to 8003 and the command to read them. It does not name 4003.)*
+   *(Added 2026-09-26 by Claude, Claude Opus 5.5: done. `docs/operating.md` now
+   names `4003` beside `8003`, and its command reads both.)*
 
 ## Separately found while investigating, each owing its own finding
 
