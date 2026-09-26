@@ -527,7 +527,11 @@ know:
   Without a new socket the service could not hear the printer at all, and would
   have stayed withdrawn until restarted. Versions before this change behave that
   way: after a long outage, if the printer has not reappeared within an hour of
-  the link returning, restart the service.
+  the link returning, restart the service. Run on FIOS-STB-01 on 2026-09-25:
+  with the Wi-Fi disconnected for 33 minutes, the log said once why the socket
+  could not be reopened, and after the reconnect the service reopened it and
+  offered the printer again without a restart
+  ([the finding](findings/2026-09-25-a-reconnect-did-not-restore-the-membership.md)).
 - **Starting while the printer-side adapter is down waits rather than
   refusing** (`REQ-LIF-008`). The service runs and offers nothing, logs
   `Waiting for the printer-side interface:` with the reason, examines the

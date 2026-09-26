@@ -11,6 +11,10 @@ doing. One of the two resulting failure messages is false.**
 this finding owes are now done in code, and item 4 in part; see the notes under
 each. What remains is item 4's event 4003. Item 1's rebinding has not yet run
 on hardware.)*
+*(Added 2026-09-26: item 1's reopen has now run on FIOS-STB-01, once, on the
+same address, through a deliberate outage. See
+[`2026-09-25-a-reconnect-did-not-restore-the-membership.md`](2026-09-25-a-reconnect-did-not-restore-the-membership.md),
+"The repair on hardware". A changed address has not been seen.)*
 
 ## What happened
 

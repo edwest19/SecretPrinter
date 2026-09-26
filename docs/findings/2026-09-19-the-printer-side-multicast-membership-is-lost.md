@@ -14,6 +14,9 @@ kept accepting jobs, and blamed the printer for the failures.**
 `REQ-RES-009`. The printer-side socket is now reopened before every question put
 to a printer held unreachable. The repair has not yet run on hardware. See
 [`2026-09-25-a-reconnect-did-not-restore-the-membership.md`](2026-09-25-a-reconnect-did-not-restore-the-membership.md).)*
+*(Added 2026-09-26: installed on FIOS-STB-01 and run once, through a deliberate
+outage in which the join was not lost. Recovery from a loss is still to be seen.
+Recorded under "The repair on hardware" in the same finding.)*
 
 This is the mechanism behind the false message recorded in
 [2026-09-18-the-printer-side-interface-goes-away.md](2026-09-18-the-printer-side-interface-goes-away.md).

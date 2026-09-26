@@ -10,6 +10,13 @@ row, and the adapter reconnecting did not bring it back. Only a new socket
 joined the group again. The repair, `REQ-RES-009`, is built in the commit that
 adds this finding. It has not yet run on hardware.**
 
+*(Status updated 2026-09-26 by Claude, Claude Opus 5.5: the repair is installed
+on FIOS-STB-01 and has run there once, through a deliberate outage. It
+withdrew, logged once why it could not reopen, and after the reconnect reopened,
+heard the printer and restored, with no restart. The join did not go missing in
+that outage, so recovery from a lost membership itself is still to be seen. See
+"The repair on hardware" below.)*
+
 This is the mechanism recorded in
 [`2026-09-19-the-printer-side-multicast-membership-is-lost.md`](2026-09-19-the-printer-side-multicast-membership-is-lost.md),
 measured a second time on a different adapter, after a real outage and with a
@@ -179,6 +186,66 @@ takes three things: this build installed there, an outage that loses the
 membership, and the service coming back after the reconnect without a restart.
 While it is still withdrawn, `Wi-Fi` should read 2 again after the first query
 that follows the reconnect.
+*(Added 2026-09-26: installed, and run once. See "The repair on hardware"
+below.)*
+
+## The repair on hardware
+
+*Added 2026-09-26 by Claude (Anthropic model, Claude Opus 5.5) at the direction
+of Edwin West. Reviewed by a human before merge.*
+
+**Installed.** `76330ce` was published to `C:\Program Files\SecretPrinter\`
+on FIOS-STB-01 by the procedure in `docs/operating.md`, pulling first. The two
+DLLs checked were written at 23:15:48Z and 23:15:50Z on 2026-09-25, and the
+service started at 23:16:54Z on the same adapters as before. The Wi-Fi dropped
+while startup waited for the printer. Edwin reconnected it and restarted the
+service, and it announced at 23:22:04Z. With the new build running, `Wi-Fi` and
+`Ethernet` each read 2 for `224.0.0.251`.
+
+**The run.** It tested whether, with the printer-side adapter taken away and
+given back, the new build withdraws, says once why it cannot reopen, and after
+the reconnect reopens, hears the printer and restores, all with no restart.
+Edwin disconnected and reconnected the Wi-Fi by hand, with
+`netsh wlan disconnect` and `netsh wlan connect`.
+
+| Time (UTC) | What happened |
+|---|---|
+| 2026-09-25 23:25:51 | Wi-Fi disconnected by hand |
+| 23:27:16 | printer unreachable, listener closed, advertisement withdrawn |
+| 23:27:17 | `Could not reopen the printer-side socket: Interface 'Wi-Fi' holds 192.168.12.186 but is not up.` |
+| 23:59:10 | Wi-Fi reconnected by hand |
+| 2026-09-26 00:02:21 | `Printer-side socket reopened on Wi-Fi (192.168.12.186, IPv4 index 10), and 224.0.0.251 joined again.` |
+| 00:02:21 | printer reachable again; accepting print jobs |
+| 00:02:23 | advertisement restored |
+
+The warning was written once, although a reopen was tried, and failed, before
+every retry while the adapter was out: 33 min 19 s from the disconnect to the
+reconnect. The restore came 3 min 13 s after the reconnect, at the first retry
+the backoff allowed.
+
+**Predictions.** Claude predicted the withdrawal by about 23:28Z, and it came
+at 23:27:16Z. It predicted the first retry after the reconnect at 00:02:19Z,
+from the schedule's code, and it came at 00:02:21Z. It predicted the restore
+line before `Accepting print jobs`. The order was the other way: the listener
+opened at once, and the restore was logged 2 s later, when the announcements
+had gone out.
+
+**What it shows.**
+
+- On Windows, a reopen can fail with Windows' own reason and be reported once.
+- A reopen can then succeed after the adapter returns, and the printer is heard
+  through the new socket.
+- None of it needed a restart.
+- The old socket's sends did not fail while the adapter was down. No "lookup
+  failed before an answer could be expected" warning was logged; each question
+  waited out its timeout instead.
+
+**What it does not show.** Recovery from a lost membership. After the
+reconnect, and before the reopen, `Wi-Fi` read 2: the old socket's join had
+come through this 33-minute disconnect. That adds a deliberate 33-minute outage
+to the ones the join survived. So in this run the reopen replaced a socket that
+could still hear. Recovery from an actual loss waits for one to happen with
+this build installed.
 
 ## Side observations
 
