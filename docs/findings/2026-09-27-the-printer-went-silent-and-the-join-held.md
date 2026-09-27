@@ -15,6 +15,13 @@ on, the service heard it at its next scheduled question and restored itself,
 with no restart. Recovery from a lost membership is still not seen. No code
 changes here.**
 
+*(Status updated 2026-09-27 by Claude, Claude Opus 5.5: recovery from a lost
+membership was seen later the same day, with the loss caused on purpose; see
+[`2026-09-27-a-lost-membership-recovered-without-a-restart.md`](2026-09-27-a-lost-membership-recovered-without-a-restart.md).
+That file also gives this sampler's final numbers over the whole file, which
+cover the stretch from 16:30:49 to 16:44:00 listed below as not read: all 15,896
+samples, to 17:47:11, were `13=2  17=2`, with no gap over 15 s.)*
+
 This file also records what was read from FIOS-STB-01's logs for 2026-09-26,
 which no other finding holds: eleven withdrawals on the Linksys, two losses of
 its address with no WLAN disconnect logged, a driver installed by Windows

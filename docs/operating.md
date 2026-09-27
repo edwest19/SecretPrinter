@@ -66,6 +66,10 @@ asked. Reviewed by a human before merge.*
 WLAN event added by Claude (Anthropic model, Claude Opus 5.5) at the direction
 of Edwin West, 2026-09-27. Reviewed by a human before merge.*
 
+*In the same section, a sentence on recovery from a lost membership added to the
+`REQ-RES-009` bullet by Claude (Anthropic model, Claude Opus 5.5) at the
+direction of Edwin West, 2026-09-27. Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -548,6 +552,10 @@ know:
   could not be reopened, and after the reconnect the service reopened it and
   offered the printer again without a restart
   ([the finding](findings/2026-09-25-a-reconnect-did-not-restore-the-membership.md)).
+  On 2026-09-27 the membership was actually lost, with the adapter disabled and
+  enabled while the service ran, and the reopen restored it and offered the
+  printer again, also without a restart
+  ([the finding](findings/2026-09-27-a-lost-membership-recovered-without-a-restart.md)).
 - **Starting while the printer-side adapter is down waits rather than
   refusing** (`REQ-LIF-008`). The service runs and offers nothing, logs
   `Waiting for the printer-side interface:` with the reason, examines the

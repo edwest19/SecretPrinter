@@ -17,6 +17,14 @@ heard the printer and restored, with no restart. The join did not go missing in
 that outage, so recovery from a lost membership itself is still to be seen. See
 "The repair on hardware" below.)*
 
+*(Status updated 2026-09-27 by Claude, Claude Opus 5.5: recovery from a lost
+membership has now been seen on hardware. With the printer-side adapter disabled
+and enabled while the service ran, its membership was gone when the adapter came
+back, and the reopen at the next retry restored it, with no restart. The loss
+was caused on purpose; a natural 17-minute outage the same evening did not cause
+one. See
+[`2026-09-27-a-lost-membership-recovered-without-a-restart.md`](2026-09-27-a-lost-membership-recovered-without-a-restart.md).)*
+
 This is the mechanism recorded in
 [`2026-09-19-the-printer-side-multicast-membership-is-lost.md`](2026-09-19-the-printer-side-multicast-membership-is-lost.md),
 measured a second time on a different adapter, after a real outage and with a

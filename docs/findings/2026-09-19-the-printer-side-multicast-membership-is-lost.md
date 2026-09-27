@@ -17,6 +17,11 @@ to a printer held unreachable. The repair has not yet run on hardware. See
 *(Added 2026-09-26: installed on FIOS-STB-01 and run once, through a deliberate
 outage in which the join was not lost. Recovery from a loss is still to be seen.
 Recorded under "The repair on hardware" in the same finding.)*
+*(Added 2026-09-27: recovery from a loss has now been seen on hardware. With the
+printer-side adapter disabled and enabled while the service ran, its membership
+was gone when the adapter came back, and the reopen at the next retry restored
+it, with no restart. See
+[`2026-09-27-a-lost-membership-recovered-without-a-restart.md`](2026-09-27-a-lost-membership-recovered-without-a-restart.md).)*
 
 This is the mechanism behind the false message recorded in
 [2026-09-18-the-printer-side-interface-goes-away.md](2026-09-18-the-printer-side-interface-goes-away.md).
