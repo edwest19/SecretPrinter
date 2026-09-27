@@ -223,6 +223,17 @@ every retry while the adapter was out: 33 min 19 s from the disconnect to the
 reconnect. The restore came 3 min 13 s after the reconnect, at the first retry
 the backoff allowed.
 
+*(Note added 2026-09-27 by Claude (Anthropic model, Claude Opus 5.5) at the
+direction of Edwin West. Reviewed by a human before merge. The WLAN-AutoConfig
+log, read on FIOS-STB-01 on 2026-09-26 at 19:01:53Z, records the disconnect as
+`8003`, by the user, at 23:25:52, and the reconnect as `8000` at 23:59:11 and
+`8001` at 23:59:12. That is 1 to 2 s later than the 23:25:51 and 23:59:10 in
+the table above. Where the table's two times were taken from was not re-checked.
+By the WLAN log's times the outage lasted 33 min 20 s, from the `8003` to the
+`8001`, and the restore came 3 min 11 s after the `8001`. No conclusion here
+changes: the withdrawal, the warning, the reopen and the restore are timed by
+the service log.)*
+
 **Predictions.** Claude predicted the withdrawal by about 23:28Z, and it came
 at 23:27:16Z. It predicted the first retry after the reconnect at 00:02:19Z,
 from the schedule's code, and it came at 00:02:21Z. It predicted the restore

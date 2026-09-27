@@ -26,6 +26,16 @@ reply came back. The connection was made by `Test-NetConnection`, standing in
 for the service's socket; see "What this does not establish". Nothing is fixed
 here. The README now discloses it (see "Decided"); the code is unchanged.**
 
+*(Status updated 2026-09-27 by Claude, Claude Opus 5.5: the default route was
+also chosen with the printer side up. On 2026-09-27 the printer-side adapter
+kept its link, its address and its route to the printer's network while the
+printer had stopped answering on it, and `Test-NetConnection` and
+`Find-NetRoute` gave the client-side Ethernet and the default route for the
+printer's address. Why Windows chose it is not established, and no packets were
+captured. See
+[`2026-09-27-the-printer-went-silent-and-the-join-held.md`](2026-09-27-the-printer-went-silent-and-the-join-held.md).
+The README's point 5 and Section 3 now describe both cases.)*
+
 ## Why this was measured
 
 [`2026-09-17-connect-timeout-is-not-reported.md`](2026-09-17-connect-timeout-is-not-reported.md)
