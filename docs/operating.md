@@ -62,6 +62,10 @@ Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 [the 2026-09-18 finding](findings/2026-09-18-the-printer-side-interface-goes-away.md)
 asked. Reviewed by a human before merge.*
 
+*In the same section, the paragraph and commands on a link that fails with no
+WLAN event added by Claude (Anthropic model, Claude Opus 5.5) at the direction
+of Edwin West, 2026-09-27. Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -583,6 +587,24 @@ To reconnect by hand, using the profile name that command shows:
 
 ```powershell
 netsh wlan connect name="<profile>" interface="<adapter name>"
+```
+
+The WLAN log does not see every failure of the link. On FIOS-STB-01 on
+2026-09-26 the printer-side adapter lost its address twice, falling back to one
+in `169.254.0.0/16`, and neither time did WLAN-AutoConfig log a disconnect. The
+second time the adapter was still without a usable address more than six hours
+later ([the finding](findings/2026-09-27-the-printer-went-silent-and-the-join-held.md)).
+So a quiet WLAN log does not show that the link stayed up. Both times the
+service's own log recorded it: lookups failing at once with
+`The requested address is not valid in its context.`, then a withdrawal whose
+reopen failed with `Could not reopen the printer-side socket:` and the reason,
+that the adapter held a `169.254` address and was not up. A start in that state
+logs `Waiting for the printer-side interface:` with the same kind of reason. To
+look for those lines, and at the adapter's address now:
+
+```powershell
+Select-String -Path C:\ProgramData\SecretPrinter\secretprinter.log -Pattern 'not valid in its context|Could not reopen|Waiting for the printer-side interface' | Select-Object -Last 20 | ForEach-Object { $_.Line }
+Get-NetIPAddress -InterfaceAlias '<adapter name>' -AddressFamily IPv4 | Select-Object IPAddress, AddressState
 ```
 
 ## Uninstalling
