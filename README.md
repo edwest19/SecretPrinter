@@ -76,23 +76,31 @@ configuration and checked on every connection; see
 The service does not tie its connection to the printer to the printer-side
 network adapter. Windows chooses the way out from its routing table, as it would
 for any program. Normally that is the printer-side adapter, because it gives
-Windows the most specific route to the printer's address. When the printer-side
-adapter has no link - a WLAN drop, for instance - Windows uses its default route
-instead, and the attempt to connect leaves on the client network, addressed to
-the printer and handed to the client network's router. This was measured: with
-no printer-side link, a test connection to the printer's address (made with
-`Test-NetConnection`, not by the service) sent five TCP SYN packets out the
-client-side Ethernet, to the router, and nothing answered. No print job goes
-that way. The service sends job data only after a TLS
-handshake with the pinned printer succeeds, and a connection that is never
+Windows the most specific route to the printer's address. On two occasions
+Windows has been measured choosing its default route instead, which sends the
+attempt to connect out on the client network, addressed to the printer and
+handed to the client network's router. The first time, the printer-side adapter
+had no link, as it would after a WLAN drop; it had been disconnected by hand for
+the measurement. The attempt was captured on the wire: five TCP SYN packets out
+the client-side Ethernet, to the router, and nothing answered. The second time,
+the printer-side adapter was up, with its address and its route to the printer's
+network, but the printer had stopped answering on that network. Measured again
+after the printer had come back, Windows chose the printer-side adapter. Why
+Windows chose the default route while the adapter was up was not established,
+and that time no packets were captured. Both were measured with Windows' own
+tools, `Test-NetConnection` and `Find-NetRoute`, not with the service's
+connection. No print job goes that way. The service sends job data only after a
+TLS handshake with the pinned printer succeeds, and a connection that is never
 answered never gets that far. What does leave is the attempt itself: the
-printer's address and port, from the proxy's client-side address. The same
-fact has a second consequence, which follows from how routing works but has not
-been measured: if another adapter on the machine is connected to the printer's
+printer's address and port, from the proxy's client-side address. The same fact
+has a further consequence, which follows from how routing works but has not been
+measured: if another adapter on the machine is connected to the printer's
 network, Windows may route the connection through that adapter rather than the
 one the configuration names. What the router does with such packets was not
-observed either. See the
-[finding](docs/findings/2026-09-22-connections-to-the-printer-leave-by-the-default-route.md).
+observed either. See the findings of
+[2026-09-22](docs/findings/2026-09-22-connections-to-the-printer-leave-by-the-default-route.md)
+and
+[2026-09-27](docs/findings/2026-09-27-the-printer-went-silent-and-the-join-held.md).
 
 ---
 
@@ -206,9 +214,13 @@ still parses nothing it carries. Measured on 2026-09-15; see
 
 Step 5 is not bound to the printer-side interface. The relay's outbound socket
 is created without a local address, so Windows chooses its path from the
-routing table. With the printer-side link up, that is the printer network; with
-it down, the default route on the client network. This is disclosed as the fifth
-item under [Read this before installing](#read-this-before-installing).
+routing table. Normally that is the printer network. Windows has been measured
+choosing the default route on the client network with the printer-side link
+down, and also with the link up while the printer was not answering on its
+network; why it chose that the second time is not established. Both were
+measured with `Test-NetConnection` and `Find-NetRoute`, not with the relay's
+socket. This is disclosed as the fifth item under
+[Read this before installing](#read-this-before-installing).
 
 The address and port for step 5 come from the printer's `_ipps._tcp` service,
 and the capabilities advertised in step 2 come from the TXT record of its

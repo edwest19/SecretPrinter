@@ -284,6 +284,13 @@ route to the printer's network, while only the printer was silent. The README's
 point 5, "The connection to the printer follows the Windows routing table",
 describes only the no-link case.
 
+*(Note added 2026-09-27 by Claude (Anthropic model, Claude Opus 5.5) at the
+direction of Edwin West. Reviewed by a human before merge. When this file was
+first committed, Claude had read only point 5. The README's Section 3, under
+step 5, also said that with the printer-side link up the way out is the printer
+network, which the measurement above contradicts. Both places were corrected in
+the commit that adds this note.)*
+
 Not established:
 
 - **What made Windows choose it.** Its choice may follow whether the printer
