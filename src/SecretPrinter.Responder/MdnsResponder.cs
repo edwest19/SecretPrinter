@@ -20,6 +20,14 @@
 // Claude Opus 5) at the direction of Edwin West, 2026-09-14, for REQ-OBS-007.
 // Reviewed by a human before merge.
 //
+// Made partial, with probing in MdnsResponder.Probing.cs, and HandleAsync
+// changed to read responses and other devices' probes for conflicts even while
+// nothing is on offer, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-09-28, for REQ-ADV-023 and REQ-ADV-024. The
+// REQ-SEC-001 note on HandleAsync corrected to match: it said received
+// datagrams were read for their questions only. Reviewed by a human before
+// merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -123,7 +131,7 @@ public sealed record ResponderActivity(
 }
 
 /// <summary>Answers mDNS queries for the names the proxy advertises, and nothing else.</summary>
-public sealed class MdnsResponder
+public sealed partial class MdnsResponder
 {
     /// <summary>
     /// TTL ceiling for answers to legacy unicast queriers (RFC 6762 §6.7). Such
@@ -358,7 +366,7 @@ public sealed class MdnsResponder
     [Requirement("REQ-ADV-017",
         "Answers a legacy unicast querier by unicast, echoing its query identifier and capping TTLs.")]
     [Requirement("REQ-SEC-001",
-        "Every record sent comes from this responder's own Advertisement. Received datagrams are read for their questions only; no byte of a received packet is ever re-emitted, so nothing is forwarded or reflected between networks.")]
+        "Every record sent comes from this responder's own Advertisement. Received datagrams are read for their questions and, to detect conflicts with the names this responder claims, for records about those names; no byte of a received packet is ever re-emitted, so nothing is forwarded or reflected between networks.")]
     [Requirement("REQ-ADV-018",
         "Answers over the transport the query arrived on: the advertisement is looked up by the arrival interface's address family as well as its index, and the answer is sent through the entry for that family. The receiving half of this requirement is MdnsSocket.ReceiveAsync.")]
     [Requirement("REQ-SEC-002",
@@ -372,13 +380,12 @@ public sealed class MdnsResponder
     {
         ArgumentNullException.ThrowIfNull(datagram);
 
-        if (!_advertising())
-        {
-            // Not counted as ignored-not-ours: the query was ours to answer, and
-            // we chose not to. The withdrawal itself is logged once, by the
-            // service, rather than once per query here.
-            return false;
-        }
+        // Read once, so everything below sees the same answer. What is heard
+        // must be read even while nothing is on offer: probing happens exactly
+        // then, before the first announcement and before a restore, and a
+        // conflict heard then is the one that matters most (REQ-ADV-023,
+        // REQ-ADV-024). Answering still waits for the gate, below.
+        bool advertising = _advertising();
 
         // Keyed off ArrivedOn, which already carries both the transport and the
         // index the socket attributed the datagram to, rather than off
@@ -387,7 +394,13 @@ public sealed class MdnsResponder
         if (datagram.ArrivedOn is not { } arrivedOn
             || !_answering.TryGetValue((arrivedOn.Transport, arrivedOn.Index), out AnsweringInterface? entry))
         {
-            _ignoredWrongInterface++;
+            // Counted only while on offer, as before datagrams were read while
+            // withdrawn, so the counter means what it meant.
+            if (advertising)
+            {
+                _ignoredWrongInterface++;
+            }
+
             return false;
         }
 
@@ -398,13 +411,33 @@ public sealed class MdnsResponder
         }
         catch (InvalidDataException)
         {
-            _unparseable++;
+            // As above: counted only while on offer.
+            if (advertising)
+            {
+                _unparseable++;
+            }
+
             return false;
         }
 
         if (query.IsResponse)
         {
-            // Somebody else's answer, or our own multicast looping back.
+            // Somebody else's answer, or our own multicast looping back. Never
+            // answered and never re-emitted: read only for records about the
+            // names this responder claims (REQ-ADV-024).
+            NoteConflicts(query, datagram, arrivedOn, entry.Advertisement);
+            return false;
+        }
+
+        // A query carrying proposed records is a probe. While this responder is
+        // probing too, the two may want the same name (RFC 6762 s8.2).
+        NoteSimultaneousProbe(query, entry.Advertisement);
+
+        if (!advertising)
+        {
+            // Not counted as ignored-not-ours: the query was ours to answer, and
+            // we chose not to. The withdrawal itself is logged once, by the
+            // service, rather than once per query here.
             return false;
         }
 

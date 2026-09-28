@@ -12,6 +12,11 @@
 // at the direction of Edwin West, 2026-09-14, for REQ-OBS-007. Reviewed by a
 // human before merge.
 //
+// ClientNic, ClientNicV6 and BuildAdvertisement made internal, so the probing
+// tests in MdnsProbeTests.cs use the same fixtures, by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-09-28. Reviewed by a
+// human before merge.
+//
 // Purpose:
 //   Verifies which queries get answered, which are ignored, what the answers
 //   contain, and how they are addressed.
@@ -34,7 +39,7 @@ namespace SecretPrinter.Responder.Tests;
 
 internal static class MdnsResponderTests
 {
-    private static readonly MdnsInterface ClientNic =
+    internal static readonly MdnsInterface ClientNic =
         new("Ethernet 2", IPAddress.Parse("192.168.1.234"), 13, AddressFamily.InterNetwork);
 
     private static readonly MdnsInterface PrinterNic =
@@ -54,7 +59,7 @@ internal static class MdnsResponderTests
     /// is the point: a responder keyed on the index alone would pass these tests
     /// by finding the IPv4 entry.
     /// </remarks>
-    private static readonly MdnsInterface ClientNicV6 =
+    internal static readonly MdnsInterface ClientNicV6 =
         new("Ethernet 2", IPAddress.Parse("192.168.1.234"), 13, AddressFamily.InterNetworkV6);
 
     /// <summary>
@@ -72,7 +77,7 @@ internal static class MdnsResponderTests
         "UUID=cfe92100-67c4-11d4-a45f-f8d027000000",
     ];
 
-    private static Advertisement BuildAdvertisement() =>
+    internal static Advertisement BuildAdvertisement() =>
         AdvertisementBuilder.Build(
             new PrinterCapabilities(EpsonTxt, 631, CapabilitySource.ForTest("responder tests")),
             new ProxyIdentity("SecretPrinter", "secretprinter", Guid.Parse("b6f4e2a1-9c37-4d58-8e0b-7a1f3d6c5e94"), 631),

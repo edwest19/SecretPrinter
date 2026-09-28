@@ -4,6 +4,11 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// DnsQueryBuilder.AddAuthority added, so a query can carry the records an mDNS
+// probe proposes (RFC 6762 s8.2), written by DnsRecordWriter, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-28. Reviewed by a human before merge.
+//
 // Purpose:
 //   A deliberately small, dependency-free DNS wire-format reader and writer,
 //   sufficient for the subset of DNS used by Multicast DNS (RFC 6762) and
@@ -462,6 +467,7 @@ public sealed class DnsQueryBuilder
 {
     private readonly List<byte> _bytes = new();
     private readonly List<(DnsName Name, DnsRecordType Type, bool UnicastResponse)> _questions = new();
+    private readonly List<OutgoingRecord> _authorities = [];
     private readonly ushort _id;
 
     public DnsQueryBuilder(ushort id) => _id = id;
@@ -469,6 +475,19 @@ public sealed class DnsQueryBuilder
     public DnsQueryBuilder AddQuestion(DnsName name, DnsRecordType type, bool requestUnicastResponse)
     {
         _questions.Add((name, type, requestUnicastResponse));
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a record to the Authority Section. In an mDNS probe this is a record
+    /// the sender proposes to publish, which is what a simultaneous probe is
+    /// compared on (RFC 6762 s8.2). Written exactly as given, cache-flush bit
+    /// included, so the caller decides it.
+    /// </summary>
+    public DnsQueryBuilder AddAuthority(OutgoingRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        _authorities.Add(record);
         return this;
     }
 
@@ -481,7 +500,7 @@ public sealed class DnsQueryBuilder
         WriteUInt16(0x0000);
         WriteUInt16((ushort)_questions.Count);
         WriteUInt16(0); // ANCOUNT
-        WriteUInt16(0); // NSCOUNT
+        WriteUInt16((ushort)_authorities.Count); // NSCOUNT
         WriteUInt16(0); // ARCOUNT
 
         foreach ((DnsName name, DnsRecordType type, bool unicast) in _questions)
@@ -492,6 +511,11 @@ public sealed class DnsQueryBuilder
             // QCLASS IN (1), with the mDNS unicast-response bit (0x8000) when
             // requested. See RFC 6762 s5.4.
             WriteUInt16((ushort)(unicast ? 0x8001 : 0x0001));
+        }
+
+        foreach (OutgoingRecord record in _authorities)
+        {
+            DnsRecordWriter.WriteRecord(_bytes, record);
         }
 
         return _bytes.ToArray();

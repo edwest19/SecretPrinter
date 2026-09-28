@@ -4,6 +4,13 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// Record writing moved into DnsRecordWriter, so that a query's Authority
+// Section (an mDNS probe, RFC 6762 s8.2) is written by the same code as a
+// response's records, and DnsRecordWriter.EncodeRdata added for comparing
+// record data byte for byte (RFC 6762 s8.2, s9), by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-09-28. The bytes
+// written for a response are unchanged. Reviewed by a human before merge.
+//
 // Purpose:
 //   Builds DNS response messages: the records a responder sends back when
 //   answering a Multicast DNS query.
@@ -116,90 +123,117 @@ public sealed class DnsResponseBuilder
         // Flags 0x8400: QR (this is a response) and AA (authoritative). mDNS
         // responses are always authoritative - a responder speaks only for
         // names it owns.
-        WriteUInt16(_id);
-        WriteUInt16(0x8400);
-        WriteUInt16((ushort)_questions.Count);
-        WriteUInt16((ushort)_answers.Count);
-        WriteUInt16(0); // NSCOUNT
-        WriteUInt16((ushort)_additionals.Count);
+        DnsRecordWriter.WriteUInt16(_bytes, _id);
+        DnsRecordWriter.WriteUInt16(_bytes, 0x8400);
+        DnsRecordWriter.WriteUInt16(_bytes, (ushort)_questions.Count);
+        DnsRecordWriter.WriteUInt16(_bytes, (ushort)_answers.Count);
+        DnsRecordWriter.WriteUInt16(_bytes, 0); // NSCOUNT
+        DnsRecordWriter.WriteUInt16(_bytes, (ushort)_additionals.Count);
 
         foreach ((DnsName name, DnsRecordType type) in _questions)
         {
-            WriteName(name);
-            WriteUInt16((ushort)type);
-            WriteUInt16(0x0001); // QCLASS IN
+            DnsRecordWriter.WriteName(_bytes, name);
+            DnsRecordWriter.WriteUInt16(_bytes, (ushort)type);
+            DnsRecordWriter.WriteUInt16(_bytes, 0x0001); // QCLASS IN
         }
 
         foreach (OutgoingRecord record in _answers)
         {
-            WriteRecord(record);
+            DnsRecordWriter.WriteRecord(_bytes, record);
         }
 
         foreach (OutgoingRecord record in _additionals)
         {
-            WriteRecord(record);
+            DnsRecordWriter.WriteRecord(_bytes, record);
         }
 
         return [.. _bytes];
     }
+}
 
-    private void WriteRecord(OutgoingRecord record)
+/// <summary>
+/// Writes resource records to the wire. The one record writer in this
+/// repository: responses use it for their answers and additionals, and queries
+/// for their Authority Section.
+/// </summary>
+public static class DnsRecordWriter
+{
+    /// <summary>
+    /// The record data (RDATA) a record would be written with, uncompressed. Two
+    /// records carry identical data exactly when these bytes are equal, which is
+    /// the comparison RFC 6762 s8.2 (probe tiebreaking) and s9 (conflicts) make.
+    /// </summary>
+    public static byte[] EncodeRdata(DnsRecordType type, DnsRecordPayload payload)
     {
-        WriteName(record.Name);
-        WriteUInt16((ushort)record.Type);
-        WriteUInt16((ushort)(record.CacheFlush ? 0x8001 : 0x0001));
-        WriteUInt32(record.Ttl);
+        ArgumentNullException.ThrowIfNull(payload);
+
+        var bytes = new List<byte>();
+        WritePayload(bytes, type, payload);
+        return [.. bytes];
+    }
+
+    internal static void WriteRecord(List<byte> bytes, OutgoingRecord record)
+    {
+        WriteName(bytes, record.Name);
+        WriteUInt16(bytes, (ushort)record.Type);
+        WriteUInt16(bytes, (ushort)(record.CacheFlush ? 0x8001 : 0x0001));
+        WriteUInt32(bytes, record.Ttl);
 
         // RDLENGTH is not known until the payload is written, so reserve two
         // bytes and patch them afterwards.
-        int lengthOffset = _bytes.Count;
-        WriteUInt16(0);
-        int start = _bytes.Count;
+        int lengthOffset = bytes.Count;
+        WriteUInt16(bytes, 0);
+        int start = bytes.Count;
 
-        switch (record.Payload)
-        {
-            case PtrPayload ptr:
-                WriteName(ptr.Target);
-                break;
+        WritePayload(bytes, record.Type, record.Payload);
 
-            case SrvPayload srv:
-                WriteUInt16(srv.Priority);
-                WriteUInt16(srv.Weight);
-                WriteUInt16(srv.Port);
-                WriteName(srv.Target);
-                break;
-
-            case TxtPayload txt:
-                WriteTxt(txt.Strings);
-                break;
-
-            case AddressPayload address:
-                WriteAddress(address.Address, record.Type);
-                break;
-
-            default:
-                throw new ArgumentException(
-                    $"No writer for payload type {record.Payload.GetType().Name}.", nameof(record));
-        }
-
-        int length = _bytes.Count - start;
+        int length = bytes.Count - start;
         if (length > ushort.MaxValue)
         {
             throw new InvalidOperationException($"Record data for {record.Name} is {length} bytes; maximum is 65535.");
         }
 
-        _bytes[lengthOffset] = (byte)(length >> 8);
-        _bytes[lengthOffset + 1] = (byte)(length & 0xFF);
+        bytes[lengthOffset] = (byte)(length >> 8);
+        bytes[lengthOffset + 1] = (byte)(length & 0xFF);
     }
 
-    private void WriteTxt(IReadOnlyList<string> strings)
+    private static void WritePayload(List<byte> bytes, DnsRecordType type, DnsRecordPayload payload)
+    {
+        switch (payload)
+        {
+            case PtrPayload ptr:
+                WriteName(bytes, ptr.Target);
+                break;
+
+            case SrvPayload srv:
+                WriteUInt16(bytes, srv.Priority);
+                WriteUInt16(bytes, srv.Weight);
+                WriteUInt16(bytes, srv.Port);
+                WriteName(bytes, srv.Target);
+                break;
+
+            case TxtPayload txt:
+                WriteTxt(bytes, txt.Strings);
+                break;
+
+            case AddressPayload address:
+                WriteAddress(bytes, address.Address, type);
+                break;
+
+            default:
+                throw new ArgumentException(
+                    $"No writer for payload type {payload.GetType().Name}.", nameof(payload));
+        }
+    }
+
+    private static void WriteTxt(List<byte> bytes, IReadOnlyList<string> strings)
     {
         // An empty TXT record is written as a single zero-length string rather
         // than as nothing at all: RFC 6763 s6.1 requires TXT records to contain
         // at least one string, and a truly empty RDATA is malformed.
         if (strings.Count == 0)
         {
-            _bytes.Add(0);
+            bytes.Add(0);
             return;
         }
 
@@ -214,12 +248,12 @@ public sealed class DnsResponseBuilder
                     nameof(strings));
             }
 
-            _bytes.Add((byte)encoded.Length);
-            _bytes.AddRange(encoded);
+            bytes.Add((byte)encoded.Length);
+            bytes.AddRange(encoded);
         }
     }
 
-    private void WriteAddress(IPAddress address, DnsRecordType type)
+    private static void WriteAddress(List<byte> bytes, IPAddress address, DnsRecordType type)
     {
         AddressFamily expected = type == DnsRecordType.Aaaa
             ? AddressFamily.InterNetworkV6
@@ -232,24 +266,24 @@ public sealed class DnsResponseBuilder
                 nameof(address));
         }
 
-        _bytes.AddRange(address.GetAddressBytes());
+        bytes.AddRange(address.GetAddressBytes());
     }
 
-    private void WriteUInt16(ushort value)
+    internal static void WriteUInt16(List<byte> bytes, ushort value)
     {
-        _bytes.Add((byte)(value >> 8));
-        _bytes.Add((byte)(value & 0xFF));
+        bytes.Add((byte)(value >> 8));
+        bytes.Add((byte)(value & 0xFF));
     }
 
-    private void WriteUInt32(uint value)
+    private static void WriteUInt32(List<byte> bytes, uint value)
     {
-        _bytes.Add((byte)(value >> 24));
-        _bytes.Add((byte)((value >> 16) & 0xFF));
-        _bytes.Add((byte)((value >> 8) & 0xFF));
-        _bytes.Add((byte)(value & 0xFF));
+        bytes.Add((byte)(value >> 24));
+        bytes.Add((byte)((value >> 16) & 0xFF));
+        bytes.Add((byte)((value >> 8) & 0xFF));
+        bytes.Add((byte)(value & 0xFF));
     }
 
-    private void WriteName(DnsName name)
+    internal static void WriteName(List<byte> bytes, DnsName name)
     {
         foreach (string label in name.Labels)
         {
@@ -261,10 +295,10 @@ public sealed class DnsResponseBuilder
                     nameof(name));
             }
 
-            _bytes.Add((byte)encoded.Length);
-            _bytes.AddRange(encoded);
+            bytes.Add((byte)encoded.Length);
+            bytes.AddRange(encoded);
         }
 
-        _bytes.Add(0); // root label
+        bytes.Add(0); // root label
     }
 }
