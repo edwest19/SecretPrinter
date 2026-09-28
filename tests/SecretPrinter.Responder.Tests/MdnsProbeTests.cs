@@ -5,6 +5,11 @@
 // Edwin West, 2026-09-28, for the SecretPrinter project. Reviewed by a human
 // before merge.
 //
+// Tests for what the responder does once it holds a conflict - answers and
+// announces nothing, still says goodbye, tells the service once - added by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-28. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the probe the responder sends before it claims its names, and how
 //   it treats what it hears while probing (README REQ-ADV-023 and REQ-ADV-024;
@@ -399,5 +404,136 @@ internal static class MdnsProbeTests
             "RFC 6762 s8.2.1: identical proposals are no conflict, which is what an echo of our own probe is");
         Assert.Equal(2 * MdnsResponder.ProbeCount, transport.Sent.Count, "probing carries on unchanged");
         Assert.True(result.IsClear, "our own probe is not another device");
+    }
+    // ---- After a conflict ---------------------------------------------------
+
+    // A conflict withdraws the service until it is restarted (README
+    // REQ-ADV-024). What the service does is the service's; what the responder
+    // does is below. It holds the line on its own - answering and announcing
+    // nothing - so a service slow to react, or a gate still open, cannot put
+    // the printer back on the network with a name another device holds.
+
+    private static (MdnsResponder Responder, FakeTransport Transport, List<NameConflict> Reports, Advertisement Advertisement) BuildOnOffer()
+    {
+        Advertisement advertisement = MdnsResponderTests.BuildAdvertisement();
+        var transport = new FakeTransport(ClientNic, ClientNicV6);
+        var reports = new List<NameConflict>();
+        var responder = new MdnsResponder(
+            transport,
+            [new AdvertisedInterface(ClientNic, advertisement, ClientNicV6)],
+            advertising: static () => true,
+            conflicted: reports.Add);
+        return (responder, transport, reports, advertisement);
+    }
+
+    private static MdnsDatagram SubtypeQuery(MdnsInterface arrivedOn) =>
+        new(new DnsQueryBuilder(0x1234)
+                .AddQuestion(DnsName.Parse("_universal._sub._ipp._tcp.local"), DnsRecordType.Ptr, requestUnicastResponse: false)
+                .Build(),
+            new IPEndPoint(IPAddress.Parse("192.168.1.41"), 5353),
+            arrivedOn.Index,
+            arrivedOn);
+
+    private static bool Answered(MdnsResponder responder, MdnsDatagram query) =>
+        responder.HandleAsync(query, CancellationToken.None).GetAwaiter().GetResult();
+
+    [TestCase("After a conflict the responder answers nothing, over either transport")]
+    public static void Conflict_stops_answering()
+    {
+        (MdnsResponder responder, FakeTransport transport, _, Advertisement advertisement) = BuildOnOffer();
+
+        Assert.True(Answered(responder, SubtypeQuery(ClientNic)), "on offer and without a conflict, a query is answered");
+        int before = transport.Sent.Count;
+
+        Hear(responder, ResponseFrom("192.168.1.50", ClientNic, AddressRecord(Host(advertisement), "192.168.1.50")));
+
+        Assert.False(Answered(responder, SubtypeQuery(ClientNic)),
+            "REQ-ADV-024: after a conflict nothing is offered, even with the gate open");
+        Assert.False(Answered(responder, SubtypeQuery(ClientNicV6)), "over IPv6 either");
+        Assert.Equal(before, transport.Sent.Count, "nothing more goes onto the client network");
+    }
+
+    [TestCase("After a conflict no announcement goes out, including the rest of one under way")]
+    public static void Conflict_stops_announcing()
+    {
+        (MdnsResponder responder, FakeTransport transport, _, Advertisement advertisement) = BuildOnOffer();
+        MdnsDatagram conflicting =
+            ResponseFrom("192.168.1.50", ClientNic, AddressRecord(Host(advertisement), "192.168.1.50"));
+
+        // The conflict is heard just after the first announcement leaves.
+        int sends = 0;
+        transport.OnSend = _ =>
+        {
+            if (++sends == 1)
+            {
+                Hear(responder, conflicting);
+            }
+        };
+
+        responder.AnnounceAsync(TimeSpan.Zero, CancellationToken.None).GetAwaiter().GetResult();
+        Assert.Equal(1, transport.Sent.Count, "the announcements after the conflict are not sent");
+
+        transport.OnSend = null;
+        responder.AnnounceAsync(TimeSpan.Zero, CancellationToken.None).GetAwaiter().GetResult();
+        Assert.Equal(1, transport.Sent.Count, "and a later announcement sends nothing at all");
+    }
+
+    [TestCase("After a conflict the goodbye still goes out")]
+    public static void Goodbye_still_sent_after_conflict()
+    {
+        (MdnsResponder responder, FakeTransport transport, _, Advertisement advertisement) = BuildOnOffer();
+
+        Hear(responder, ResponseFrom("192.168.1.50", ClientNic, AddressRecord(Host(advertisement), "192.168.1.50")));
+        responder.SendGoodbyeAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+        Assert.Equal(1, transport.Sent.Count,
+            "clients must still be told to drop what this responder published, or the printer lingers in their lists");
+        Assert.True(transport.Sent[0].Parsed.Answers.All(r => r.Ttl == 0), "a goodbye: every record with TTL 0");
+    }
+
+    [TestCase("The service is told of the first conflict, once")]
+    public static void First_conflict_is_reported_once()
+    {
+        (MdnsResponder responder, _, List<NameConflict> reports, Advertisement advertisement) = BuildOnOffer();
+        DnsName host = Host(advertisement);
+
+        Hear(responder, ResponseFrom("192.168.1.234", ClientNic, [.. advertisement.Records]));
+        Assert.Equal(0, reports.Count, "identical records are no conflict, so nothing is reported");
+
+        Hear(responder, ResponseFrom("192.168.1.50", ClientNicV6, AddressRecord(host, "192.168.1.50")));
+        Hear(responder, ResponseFrom("192.168.1.51", ClientNic, AddressRecord(host, "192.168.1.51")));
+
+        Assert.Equal(1, reports.Count, "reported once, so the service acts on it once");
+        Assert.Equal(IPAddress.Parse("192.168.1.50"), reports[0].From, "the first conflict is the one reported");
+        Assert.True(reports[0].ArrivedOn.Matches(ClientNicV6), "with the transport it arrived on");
+        Assert.Equal(reports[0], responder.Conflict, "and it is the conflict the responder holds");
+    }
+
+    [TestCase("A conflict found while probing is reported to the service the same way")]
+    public static void Conflict_found_while_probing_is_reported()
+    {
+        Advertisement advertisement = MdnsResponderTests.BuildAdvertisement();
+        var transport = new FakeTransport(ClientNic, ClientNicV6);
+        var reports = new List<NameConflict>();
+        var responder = new MdnsResponder(
+            transport,
+            [new AdvertisedInterface(ClientNic, advertisement, ClientNicV6)],
+            advertising: static () => false,
+            conflicted: reports.Add);
+        var clock = new RecordingClock(transport)
+        {
+            During = i =>
+            {
+                if (i == 1)
+                {
+                    Hear(responder, ResponseFrom("192.168.1.50", ClientNic, AddressRecord(Host(advertisement), "192.168.1.50")));
+                }
+            },
+        };
+
+        ProbeResult result = Probe(responder, clock);
+
+        Assert.Equal(1, reports.Count, "one report, whether the conflict is heard while probing or after announcing");
+        Assert.Equal(result.Conflict, reports[0], "the same conflict the probe returned");
     }
 }

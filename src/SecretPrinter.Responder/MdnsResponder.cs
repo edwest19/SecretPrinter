@@ -28,6 +28,12 @@
 // datagrams were read for their questions only. Reviewed by a human before
 // merge.
 //
+// Once a conflict is held, answering and announcing stop, and the service is
+// told through the new constructor parameter 'conflicted', by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-28, for REQ-ADV-024. Goodbyes are unaffected. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -186,15 +192,24 @@ public sealed partial class MdnsResponder
     /// advertisement (REQ-LIF-006) and answering would re-publish a printer it
     /// has established it cannot reach. Defaults to always advertising.
     /// </param>
+    /// <param name="conflicted">
+    /// Called once, with the first conflict heard for a name this responder
+    /// claims (README REQ-ADV-024), whether heard while probing or after
+    /// announcing. Called on the receive path, so it must return promptly and
+    /// must not throw. The responder does not wait for it: from the moment the
+    /// conflict is recorded it answers and announces nothing by itself.
+    /// </param>
     public MdnsResponder(
         IMdnsTransport transport,
         IReadOnlyList<AdvertisedInterface> advertised,
-        Func<bool>? advertising = null)
+        Func<bool>? advertising = null,
+        Action<NameConflict>? conflicted = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(advertised);
 
         _advertising = advertising ?? (static () => true);
+        _conflicted = conflicted;
 
         if (advertised.Count == 0)
         {
@@ -331,6 +346,13 @@ public sealed partial class MdnsResponder
         {
             foreach (AdvertisedInterface entry in _advertised)
             {
+                // Checked before every send, not once at the start: a conflict
+                // heard between two announcements stops the rest (REQ-ADV-024).
+                if (Conflict is not null)
+                {
+                    return;
+                }
+
                 var builder = new DnsResponseBuilder();
                 foreach (OutgoingRecord record in entry.Advertisement.Records)
                 {
@@ -433,7 +455,10 @@ public sealed partial class MdnsResponder
         // probing too, the two may want the same name (RFC 6762 s8.2).
         NoteSimultaneousProbe(query, entry.Advertisement);
 
-        if (!advertising)
+        // A conflict silences the responder whatever the gate says: another
+        // device holds one of its names, and answering would publish records
+        // that contradict that device's (REQ-ADV-024).
+        if (!advertising || Conflict is not null)
         {
             // Not counted as ignored-not-ours: the query was ours to answer, and
             // we chose not to. The withdrawal itself is logged once, by the

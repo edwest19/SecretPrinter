@@ -5,6 +5,11 @@
 // Edwin West, 2026-09-28, for the SecretPrinter project. Reviewed by a human
 // before merge.
 //
+// The first conflict is now also reported to the service, once, through the
+// constructor's 'conflicted' callback, by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, 2026-09-28. Reviewed by a human before
+// merge.
+//
 // Purpose:
 //   Before a responder may treat a name as its own, RFC 6762 s8.1 has it ask
 //   whether anyone else already uses it. This file is that question, and the
@@ -89,6 +94,7 @@ public sealed partial class MdnsResponder
     // Written by the receive loop (HandleAsync) and read by ProbeAsync and the
     // service, which run on other tasks: hence Volatile and Interlocked.
     private NameConflict? _conflict;
+    private readonly Action<NameConflict>? _conflicted;
     private bool _probing;
     private bool _lostTiebreak;
 
@@ -258,10 +264,15 @@ public sealed partial class MdnsResponder
                 continue;
             }
 
-            Interlocked.CompareExchange(
-                ref _conflict,
-                new NameConflict(theirs.Name, theirs.Type, datagram.Source.Address, arrivedOn),
-                null);
+            var found = new NameConflict(theirs.Name, theirs.Type, datagram.Source.Address, arrivedOn);
+
+            // Only the call that records the conflict reports it, so the
+            // service hears of it exactly once.
+            if (Interlocked.CompareExchange(ref _conflict, found, null) is null)
+            {
+                _conflicted?.Invoke(found);
+            }
+
             return;
         }
     }
