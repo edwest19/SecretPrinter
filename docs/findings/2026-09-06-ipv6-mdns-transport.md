@@ -21,6 +21,15 @@ are listed in [a separate finding](2026-09-24-the-ipv6-only-claim-was-in-more-pl
 Reviewed by a human before merge.*
 
 **Date:** 2026-09-06
+*Redacted 2026-09-29 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. The printer's host name is shown as `EPSON000000`, its
+low three bytes replaced, as elsewhere in this repository. The access point's
+network name is written as "the access point's Wi-Fi". The [2026-09-04
+audit](2026-09-04-pre-publication-audit.md) kept values like these out of the
+repository; this finding published them after that
+([2026-09-29](2026-09-29-the-audits-redaction-was-undone.md)). Nothing else is
+changed. Reviewed by a human before merge.*
+
 **Status:** Concluded. Result positive, reproducible.
 **Instrument:** `tools/SecretPrinter.Respond6`
 
@@ -88,7 +97,7 @@ Conditions:
 | Host | `FIOS-STB-01`, Windows 10 19045 |
 | Client-side interface | `Ethernet`, `192.168.1.98`, IPv6 index 15 |
 | Printer-side interface | `Wi-Fi`, `192.168.12.186` |
-| Client | iPhone, `192.168.1.152`, on NETGEAR51 (bridged, same broadcast domain) |
+| Client | iPhone, `192.168.1.152`, on the access point's Wi-Fi (bridged, same broadcast domain) |
 | Printer | Epson ET-3760, `192.168.12.180` (not contacted) |
 | Advertised host | `secretprinter.local` → `192.168.1.98` |
 | Advertised instance | `SecretPrinter (ET-3760)._ipp._tcp.local`, port 631 |
@@ -161,7 +170,7 @@ contributor to the original symptom.
 uncharacterised. A router that relays mDNS could interact with SecretPrinter in
 ways not yet analysed. Flagged; not blocking.
 
-**The phone repeatedly queried `epson3ea18a.local`**, the printer's real
+**The phone repeatedly queried `epson000000.local`**, the printer's real
 hostname, and the experiment correctly ignored it. That name appeared in no
 record SecretPrinter sent — the honesty constraints in README Section 5 held. It
 is a stale cache entry on the phone. If iOS shows a dead "EPSON ET-3760" beside

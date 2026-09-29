@@ -12,6 +12,16 @@ whole repository found five more
 now says so. Nothing else is changed. Reviewed by a human before
 merge.*
 
+*Redacted 2026-09-29 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. The printer's host name is shown as `EPSON000000`, its
+low three bytes replaced, as elsewhere in this repository. The access point's
+make and model are written as "a consumer Wi-Fi router" and "the access point".
+The [2026-09-04 audit](2026-09-04-pre-publication-audit.md) kept values like
+these out of the repository; this finding published them after that
+([2026-09-29](2026-09-29-the-audits-redaction-was-undone.md)). Separately, a
+status note is added under the iPhone's question for the printer's host name.
+Nothing else is changed. Reviewed by a human before merge.*
+
 **Status: measured on FIOS-STB-01 and the dev box, 2026-09-24. For ten minutes,
 a packet capture taken at FIOS-STB-01's network adapters, below the firewall,
 held none of the IPv4 mDNS sent by the iPhone, an iPad or the dev box. All
@@ -32,11 +42,11 @@ As Edwin describes it:
   Wi-Fi radio is off, and there are no extenders.
 - FIOS-STB-01 is in the basement, with `Ethernet` (`192.168.1.161`) plugged
   directly into the router.
-- Upstairs, a Netgear N450 is set up as an access point and connected to the
-  router by Cat5. Every wireless device on the client network joins through it,
-  the iPhone included.
+- Upstairs, a consumer Wi-Fi router is set up as an access point and connected
+  to the router by Cat5. Every wireless device on the client network joins
+  through it, the iPhone included.
 - The dev box is upstairs, with `Ethernet 2` (`192.168.1.234`) wired into the
-  N450. The two machines therefore cannot swap router ports.
+  access point. The two machines therefore cannot swap router ports.
 
 The devices this finding names:
 
@@ -135,14 +145,14 @@ its summary. FIOS-STB-01's are counts of the formatted lines of the form
 | Sender | Dev box received | FIOS-STB-01's adapters recorded |
 |---|---:|---:|
 | `192.168.1.1`, the router | 2124 | 72 |
-| `192.168.1.152`, the iPhone, behind the N450 | 36 | **0** |
+| `192.168.1.152`, the iPhone, behind the access point | 36 | **0** |
 | `192.168.1.161`, FIOS-STB-01 itself | 36 | 36 |
 | `192.168.1.3` | 36 | 36 |
 | `192.168.1.2` | 36 | **0** |
-| `192.168.1.154`, the iPad, behind the N450 | 8 | **0** |
+| `192.168.1.154`, the iPad, behind the access point | 8 | **0** |
 | `192.168.1.155` | 5 | 5 |
 | `192.168.1.207` | 1 | **0** |
-| `192.168.1.234`, the dev box, behind the N450 | 1 | **0** |
+| `192.168.1.234`, the dev box, behind the access point | 1 | **0** |
 
 FIOS-STB-01's column also held 9 packets from `192.168.12.186`, its own
 printer-side address; see "Also recorded".
@@ -196,8 +206,9 @@ dev box, whose `Listen` does not listen on IPv6.
 ## What this establishes
 
 - In this window, none of the IPv4 mDNS sent by the three devices known to be
-  behind the N450 (the iPhone, the iPad and the dev box) reached FIOS-STB-01's
-  adapters. The dev box, behind the same N450, received all of it.
+  behind the access point (the iPhone, the iPad and the dev box) reached
+  FIOS-STB-01's adapters. The dev box, behind the same access point, received
+  all of it.
 - In the same window, IPv6 mDNS from the iPhone and the iPad did reach
   FIOS-STB-01.
 - The service received IPv4 queries from the router and answered them over
@@ -208,8 +219,8 @@ dev box, whose `Listen` does not listen on IPv6.
 
 ## What it does not establish
 
-- **Where IPv4 multicast is lost:** in the N450, on the Cat5 link, or in how the
-  router forwards what arrives from it onto FIOS-STB-01's port. Neither
+- **Where IPv4 multicast is lost:** in the access point, on the Cat5 link, or in
+  how the router forwards what arrives from it onto FIOS-STB-01's port. Neither
   device's configuration was examined, and the machines cannot swap ports.
 - **Why.** A device that forwards IPv4 multicast only toward ports where it has
   seen group membership, and passes IPv6 multicast freely, would behave like
@@ -217,18 +228,18 @@ dev box, whose `Listen` does not listen on IPv6.
 - **Why only 72 of the router's packets reached FIOS-STB-01,** which is plugged
   into the router directly. The access-point picture does not explain this.
 - **Which side `.2`, `.3`, `.155` and `.207` are on.** If `.3` or `.155` is
-  behind the N450, their IPv4 got through, and the picture needs more than an
-  IPv4 filter.
+  behind the access point, their IPv4 got through, and the picture needs more
+  than an IPv4 filter.
 - **Whether it holds at other times.** The service's counts differ between runs,
   and one ten-minute window does not say how this varies.
 
 ## What this means for earlier findings
 
-The claim that iOS asks only over IPv6 began with captures taken on
-FIOS-STB-01 on 2026-09-06 ([finding](2026-09-06-ipv6-mdns-transport.md)).
-FIOS-STB-01 is the vantage point that, in this capture's window, did not
-receive IPv4 multicast from behind the N450, where the phone is. Seeing no IPv4 from the
-phone there fits this path, rather than a preference in iOS.
+The claim that iOS asks only over IPv6 began with captures taken on FIOS-STB-01
+on 2026-09-06 ([finding](2026-09-06-ipv6-mdns-transport.md)). FIOS-STB-01 is the
+vantage point that, in this capture's window, did not receive IPv4 multicast
+from behind the access point, where the phone is. Seeing no IPv4 from the phone
+there fits this path, rather than a preference in iOS.
 
 Two findings were corrected on 2026-09-23. That day's finding lists four places
 that still carried the claim, under "The same claim, not corrected here". That
@@ -251,11 +262,17 @@ note is added to the 2026-09-23 finding pointing here.
   `192.168.12.186` (the service asking the printer) and none from the printer's
   address. How `pktmon` renders what arrives on a Wi-Fi adapter was not
   checked, so nothing is drawn from this.
-- **The iPhone asked for `epson3ea18a.local`,** the printer's host name on the
+- **The iPhone asked for `epson000000.local`,** the printer's host name on the
   printer network, several times between 05:22Z and 05:27Z. The advertisement
   never contains that name. How the phone learned it is not established. It may
   bear on the
   [second printer entry](2026-09-21-a-second-printer-entry-on-the-iphone.md).
+
+  *(Status updated 2026-09-29 by Claude, Claude Opus 5.5: measured. In three
+  packet captures on the client network SecretPrinter never carried the
+  printer's host name, and both devices seen asking for it had been on the
+  printer's own network. See
+  [2026-09-29](2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md).)*
 - **FIOS-STB-01 announced its own name dozens of times** from 05:22:42.9Z, as
   seen from the dev box. Why is not known.
 - **`Listen`'s README says nothing about the firewall.** On a machine where no

@@ -8,6 +8,10 @@
 // The two OpenUnless tests added by Claude (Anthropic model, Claude Opus 5.5)
 // at the direction of Edwin West, 2026-09-28. Reviewed by a human before merge.
 //
+// The printer's host name in a fixture below redacted by Claude (Anthropic
+// model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-29. Reviewed
+// by a human before merge.
+//
 // Purpose:
 //   Holds the gate to the two properties the relay depends on: a waiter that is
 //   already satisfied does not block, and a waiter that is not is released the
@@ -59,7 +63,9 @@ internal static class AvailabilityGateTests
 
     private static ResolvedPrinter Answer(DateTimeOffset at) => new(
         Instance,
-        new DnsName(["EPSON3EA18A", "local"]),
+        // The printer's host name, its low three bytes redacted to 000000 as in
+        // docs/findings/2026-09-04-pre-publication-audit.md.
+        new DnsName(["EPSON000000", "local"]),
         IPAddress.Parse("192.168.12.180"),
         631,
         [],

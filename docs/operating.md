@@ -75,6 +75,11 @@ direction of Edwin West, 2026-09-27. Reviewed by a human before merge.*
 for REQ-ADV-023 and REQ-ADV-024, and its run on FIOS-STB-01 added 2026-09-29.
 Reviewed by a human before merge.*
 
+*The development printer's host name under Configuring redacted by Claude
+(Anthropic model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-29
+([finding](findings/2026-09-29-the-audits-redaction-was-undone.md)). Reviewed by
+a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -208,8 +213,9 @@ certificate's subject and the TLS version, and closes the connection.
 - Replace `<printer-ipv4>` with the printer's address on the printer-side
   network.
 - Replace `<printer-host-name>` with the printer's host name. The development
-  printer was measured with `EPSON3EA18A`. Whether other printers care what
-  name is given here has not been tested.
+  printer was measured with `EPSON000000` (its host name, with the low three
+  bytes redacted as elsewhere in this repository). Whether other printers care
+  what name is given here has not been tested.
 - `631` is the port the development printer uses for TLS, where it advertises
   `_ipps._tcp`. Another printer may use another port; check what it advertises.
 

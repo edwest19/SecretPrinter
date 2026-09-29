@@ -5,6 +5,11 @@
 *Written by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
 West, 2026-09-06. Reviewed by a human before merge.*
 
+*The printer's host name redacted by Claude (Anthropic model, Claude Opus 5.5)
+at the direction of Edwin West, 2026-09-29
+([finding](../../docs/findings/2026-09-29-the-audits-redaction-was-undone.md)).
+Reviewed by a human before merge.*
+
 ---
 
 ## Why this exists
@@ -117,7 +122,8 @@ Python and checking against `scapy`, an unrelated implementation:
   agreed with `scapy` on all 107 questions.
 - The response-planning logic fires on exactly 11 of the 28 captured packets —
   the subtype, SRV/TXT and host-name queries — and correctly ignores the other
-  17 (AirPlay, companion-link, `epson3ea18a.local`, and so on).
+  17 (AirPlay, companion-link, `epson000000.local` - the printer's host name,
+  its low three bytes redacted as elsewhere in this repository - and so on).
 
 ## Placement
 

@@ -8,6 +8,14 @@ was measured on FIOS-STB-01: the status line, the section "Measured after the
 fix", and the list of what is owed. Nothing measured before the fix was
 changed. Reviewed by a human before merge.*
 
+*Redacted 2026-09-29 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. The printer-side network's name is shown as
+`<printer-side network>`. The [2026-09-04
+audit](2026-09-04-pre-publication-audit.md) kept a value like this out of the
+repository; this finding published it after that
+([2026-09-29](2026-09-29-the-audits-redaction-was-undone.md)). Nothing else is
+changed. Reviewed by a human before merge.*
+
 **Status: fixed in `937de66` (`REQ-LIF-007`) and measured on FIOS-STB-01 the
 same day; see "Measured after the fix" below. What follows first is the
 defect as found. Nine times
@@ -150,9 +158,9 @@ Each of those matched what Claude predicted beforehand from the source of
 `System.ServiceProcess.ServiceController` 10.0.11, except the event ID, which
 Claude said it believed was 7023 but was not certain of.
 
-Edwin then reconnected the adapter (`netsh wlan connect name="TMOBILE-9992"
-interface="Wi-Fi 2"`; `192.168.12.136`, `Preferred`) and started the service,
-which came up at 21:06:29Z on `Wi-Fi 2` and was answering queries and
+Edwin then reconnected the adapter (`netsh wlan connect name="<printer-side
+network>" interface="Wi-Fi 2"`; `192.168.12.136`, `Preferred`) and started the
+service, which came up at 21:06:29Z on `Wi-Fi 2` and was answering queries and
 accepting print jobs by 21:06:31Z.
 
 What this does not cover: only the adapter-down refusal was run, on one

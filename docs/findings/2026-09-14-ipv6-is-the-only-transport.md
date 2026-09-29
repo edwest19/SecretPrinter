@@ -18,6 +18,14 @@ status, that passage and that sentence now say only what was measured. The file
 name keeps the original claim, because other documents link to it. Reviewed by
 a human before merge.*
 
+*Redacted 2026-09-29 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. The printer's host name is shown as `EPSON000000`, its
+low three bytes replaced, as elsewhere in this repository. The [2026-09-04
+audit](2026-09-04-pre-publication-audit.md) kept a value like this out of the
+repository; this finding published it after that
+([2026-09-29](2026-09-29-the-audits-redaction-was-undone.md)). Nothing else is
+changed. Reviewed by a human before merge.*
+
 **Status: measured on `FIOS-STB-01`, one run, 2026-09-14 16:57:14Z to 16:58:41Z.
 The IPv6 half of REQ-ADV-018 is validated in the field by this run. Printing
 still does not work, and the cause is narrowed but not found.**
@@ -35,7 +43,7 @@ By transport: IPv4 answered 0 of 0 seen; IPv6 answered 9 of 23 seen.
 
 Machine facts for the run, from the startup log: `Ethernet` 192.168.1.161,
 IPv4 and IPv6 index 15, joined `ff02::fb`; `Wi-Fi` 192.168.12.186, IPv4 index 9;
-printer resolved to 192.168.12.180:631, host `EPSON3EA18A.local`, TTL 120s.
+printer resolved to 192.168.12.180:631, host `EPSON000000.local`, TTL 120s.
 
 ## What that settles
 

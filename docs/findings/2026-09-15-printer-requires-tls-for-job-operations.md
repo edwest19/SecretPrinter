@@ -3,6 +3,14 @@
 *Written by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
 West, 2026-09-15. Reviewed by a human before merge.*
 
+*Redacted 2026-09-29 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. The printer's host name is shown as `EPSON000000`, its
+low three bytes replaced, as elsewhere in this repository. The [2026-09-04
+audit](2026-09-04-pre-publication-audit.md) kept a value like this out of the
+repository; this finding published it after that
+([2026-09-29](2026-09-29-the-audits-redaction-was-undone.md)). Nothing else is
+changed. Reviewed by a human before merge.*
+
 **Status: measured. Two runs on `FIOS-STB-01` and one packet capture,
 2026-09-15 03:11:35Z to 03:33:05Z. The cause of the printing failure is
 identified and is not a defect in this software. What to do about it is an open
@@ -123,7 +131,7 @@ appearing in a settings file from nowhere.
 
 **The printer advertises `_ipps._tcp`.** `SecretPrinter.Probe`, run on
 `192.168.12.186`, found `EPSON ET-3760 Series._ipps._tcp.local` with an SRV
-record naming host `EPSON3EA18A.local` and port **631** — the same port as
+record naming host `EPSON000000.local` and port **631** — the same port as
 `_ipp._tcp`. Its TXT record was not returned. The same probe also shows the
 printer advertising `_pdl-datastream._tcp` on port 9100 and `_printer._tcp` on
 port 515, both raw and both unencrypted: this printer demands TLS for IPP job
@@ -136,8 +144,8 @@ handshake succeeded:
 
 ```
 Tls12
-Subject     O=SEIKO EPSON CORP., CN=EPSON3EA18A
-Issuer      O=SEIKO EPSON CORP., CN=EPSON3EA18A
+Subject     O=SEIKO EPSON CORP., CN=EPSON000000
+Issuer      O=SEIKO EPSON CORP., CN=EPSON000000
 Thumbprint  201B4A53AF65255258D0FE5AC8115E2073A16675
 Validity    2009-12-31 19:00 to 2037-12-31 19:00 (local time as reported)
 ```
@@ -150,7 +158,7 @@ collided with REQ-PXY-003.
 
 Two properties of that certificate constrain what verification is possible.
 Subject equals issuer, so it is self-signed and no chain will ever validate.
-The common name is `EPSON3EA18A`, without the `.local` suffix, and the relay
+The common name is `EPSON000000`, without the `.local` suffix, and the relay
 connects by address rather than by name, so hostname verification does not apply
 either. Both standard checks are unavailable, which is why a policy had to be
 chosen deliberately.
@@ -178,7 +186,7 @@ A SHA-256 value cannot be derived from a SHA-1 value, so the certificate was
 measured again, on `FIOS-STB-01`, with this single line:
 
 ```powershell
-$t=[Net.Sockets.TcpClient]::new('192.168.12.180',631); $s=[Net.Security.SslStream]::new($t.GetStream(),$false,{$true}); $s.AuthenticateAsClient('EPSON3EA18A'); $d=$s.RemoteCertificate.GetRawCertData(); 'SHA256 ' + ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($d)) -replace '-',''); 'SHA1   ' + ([BitConverter]::ToString([Security.Cryptography.SHA1]::Create().ComputeHash($d)) -replace '-',''); $s.RemoteCertificate.Subject; $s.SslProtocol; $s.Dispose(); $t.Dispose()
+$t=[Net.Sockets.TcpClient]::new('192.168.12.180',631); $s=[Net.Security.SslStream]::new($t.GetStream(),$false,{$true}); $s.AuthenticateAsClient('EPSON000000'); $d=$s.RemoteCertificate.GetRawCertData(); 'SHA256 ' + ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($d)) -replace '-',''); 'SHA1   ' + ([BitConverter]::ToString([Security.Cryptography.SHA1]::Create().ComputeHash($d)) -replace '-',''); $s.RemoteCertificate.Subject; $s.SslProtocol; $s.Dispose(); $t.Dispose()
 ```
 
 It completes a TLS handshake and sends nothing after it. It hashes the raw
@@ -188,7 +196,7 @@ the subject and the negotiated protocol and closes the connection. The output:
 ```
 SHA256 3834787341192E3B7B74FFE51A9EE0E67E2DEBD6B4A060C6B203CB5252BE80EF
 SHA1   201B4A53AF65255258D0FE5AC8115E2073A16675
-O=SEIKO EPSON CORP., CN=EPSON3EA18A
+O=SEIKO EPSON CORP., CN=EPSON000000
 Tls12
 ```
 
@@ -230,7 +238,7 @@ runtime 4.0.30319.42000
 ```
 
 **Run 2**, a control with the printer's host name,
-`AuthenticateAsClient('EPSON3EA18A')`:
+`AuthenticateAsClient('EPSON000000')`:
 
 ```
 SHA256 3834787341192E3B7B74FFE51A9EE0E67E2DEBD6B4A060C6B203CB5252BE80EF

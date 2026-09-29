@@ -9,6 +9,10 @@
 // model, Claude Opus 5) at the direction of Edwin West, 2026-09-22, for
 // REQ-OBS-008. Reviewed by a human before merge.
 //
+// The printer's host name in a fixture below redacted by Claude (Anthropic
+// model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-29. Reviewed
+// by a human before merge.
+//
 // Purpose:
 //   Verifies the connection a print job travels on: that the first thing the
 //   printer receives is a TLS record and never a request line, that a handshake
@@ -266,7 +270,9 @@ internal static class TlsConnectionFactoryTests
         // from the same builder ConnectAsync uses, rather than a copy of the
         // logic rewritten here.
         using ECDsa key = ECDsa.Create();
-        using X509Certificate2 pinned = SelfSigned(key, "CN=EPSON3EA18A test double");
+        // The subject is the printer's host name, its low three bytes redacted
+        // to 000000 as in docs/findings/2026-09-04-pre-publication-audit.md.
+        using X509Certificate2 pinned = SelfSigned(key, "CN=EPSON000000 test double");
 
         var factory = new TlsConnectionFactory(
             new FakeConnectionFactory(), new CertificatePin(FingerprintOf(pinned)));

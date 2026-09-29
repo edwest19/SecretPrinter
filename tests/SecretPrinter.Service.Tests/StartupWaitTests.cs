@@ -5,6 +5,10 @@
 // Edwin West, for the SecretPrinter project, 2026-09-22, for REQ-LIF-008.
 // Reviewed by a human before merge.
 //
+// The printer's host name in a fixture below redacted by Claude (Anthropic
+// model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-29. Reviewed
+// by a human before merge.
+//
 // Purpose:
 //   Holds startup's two waits to what REQ-LIF-008 says: the printer-side
 //   interface is waited for until it is usable, the printer is asked again on
@@ -93,7 +97,9 @@ internal static class StartupWaitTests
     {
         var printer = new ResolvedPrinter(
             IppsInstance,
-            new DnsName(["EPSON3EA18A", "local"]),
+            // The printer's host name, its low three bytes redacted to 000000
+            // as in docs/findings/2026-09-04-pre-publication-audit.md.
+            new DnsName(["EPSON000000", "local"]),
             IPAddress.Parse("192.168.12.180"),
             631,
             [],

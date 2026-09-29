@@ -3,6 +3,14 @@
 *Written by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
 West, 2026-09-22. Reviewed by a human before merge.*
 
+*Redacted 2026-09-29 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. The printer-side network's name is shown as
+`<printer-side network>`. The [2026-09-04
+audit](2026-09-04-pre-publication-audit.md) kept a value like this out of the
+repository; this finding published it after that
+([2026-09-29](2026-09-29-the-audits-redaction-was-undone.md)). Nothing else is
+changed. Reviewed by a human before merge.*
+
 **Status: measured on FIOS-STB-01. With `523bacd` installed and the
 printer-side adapter disconnected, the service started, reported itself
 running to Windows, logged one warning and offered nothing. When the adapter
@@ -34,7 +42,7 @@ and the outputs quoted are his pastes. Times are UTC.
 | before 21:39 | `netsh wlan disconnect interface="Wi-Fi 2"`; `Get-NetAdapter` then reported `Status : Disconnected`. |
 | 21:39:47 | Service started. The log shows the configuration lines, including the new `printer adapter  : Wi-Fi 2 (resolved when it is usable; logged below)`, then one warning: `Waiting for the printer-side interface: Interface 'Wi-Fi 2' holds 192.168.12.136 but is not up. Nothing is offered to the client network until it is usable and the printer answers.` Nothing followed it: no socket, no query, no announcement. |
 | after 21:39:54 | `sc.exe query SecretPrinter`: `STATE : 4 RUNNING`, `WIN32_EXIT_CODE : 0`. The same start at 21:00:12, before this change, failed with exit code 1064. |
-| 21:41:34 | Edwin reconnected: `netsh wlan connect name="TMOBILE-9992" interface="Wi-Fi 2"`. |
+| 21:41:34 | Edwin reconnected: `netsh wlan connect name="<printer-side network>" interface="Wi-Fi 2"`. |
 | 21:41:39 | `The printer-side interface 'Wi-Fi 2' is usable. No longer waiting for it.` and `printer interface: Wi-Fi 2 -> 192.168.12.136 (index 49)`. |
 | 21:41:42 | `Announced. Answering queries.` and `Accepting print jobs on 192.168.1.161:631 (Ethernet)`. |
 | 21:43:56 onward | Connections from the iPhone. |

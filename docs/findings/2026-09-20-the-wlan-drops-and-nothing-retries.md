@@ -13,6 +13,14 @@ event log puts the drop at 19:53:55Z, before most of those connections. The
 section on 2026-09-21 is rewritten from the event log, and the status line and
 "Why nothing reconnects" are updated. Reviewed by a human before merge.*
 
+*Redacted 2026-09-29 by Claude (Anthropic model, Claude Opus 5.5), at the
+direction of Edwin West. The printer-side network's name is shown as
+`<printer-side network>`. The [2026-09-04
+audit](2026-09-04-pre-publication-audit.md) kept a value like this out of the
+repository; this finding published it after that
+([2026-09-29](2026-09-29-the-audits-redaction-was-undone.md)). Nothing else is
+changed. Reviewed by a human before merge.*
+
 **Status: measured on FIOS-STB-01 with two different wireless adapters. Why the
 link drops is NOT established. That nothing brings it back is measured on both
 adapters: after every drop the driver initiated, the event log records no
@@ -22,9 +30,9 @@ cannot reach while the link is down.**
 
 ## The machine
 
-FIOS-STB-01 reaches the printer network over Wi-Fi, profile `TMOBILE-9992`, and
-the client network over wired Ethernet (`Ethernet`, index 15). Two wireless
-adapters have been used on the printer side:
+FIOS-STB-01 reaches the printer network over Wi-Fi, profile `<printer-side
+network>`, and the client network over wired Ethernet (`Ethernet`, index 15).
+Two wireless adapters have been used on the printer side:
 
 | Adapter | Name in Windows | Index | Used |
 |---|---|---|---|
