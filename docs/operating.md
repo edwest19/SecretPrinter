@@ -70,6 +70,10 @@ of Edwin West, 2026-09-27. Reviewed by a human before merge.*
 `REQ-RES-009` bullet by Claude (Anthropic model, Claude Opus 5.5) at the
 direction of Edwin West, 2026-09-27. Reviewed by a human before merge.*
 
+*The section "When another device uses the printer's name" added by Claude
+(Anthropic model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-28,
+for REQ-ADV-023 and REQ-ADV-024. Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -614,6 +618,25 @@ look for those lines, and at the adapter's address now:
 Select-String -Path C:\ProgramData\SecretPrinter\secretprinter.log -Pattern 'not valid in its context|Could not reopen|Waiting for the printer-side interface' | Select-Object -Last 20 | ForEach-Object { $_.Line }
 Get-NetIPAddress -InterfaceAlias '<adapter name>' -AddressFamily IPv4 | Select-Object IPAddress, AddressState
 ```
+
+## When another device uses the printer's name
+
+Before it offers the printer, at startup and each time the printer comes back,
+the service first asks the client network whether any other device already uses
+the names it is about to advertise (`REQ-ADV-023`, RFC 6762 §8.1). If one
+answers, or if one answers for those names at any time later, the service
+withdraws the printer and stays withdrawn until it is restarted (`REQ-ADV-024`).
+It does not rename itself. The log says so in one line beginning
+`Name conflict:`, which gives the name, the record type, the address of the
+device that answered, and the interface it was heard on.
+
+To recover, find out which device has that address. If it should not be using
+the name, stop it; otherwise choose a different advertised name in the
+configuration. Then restart the service.
+
+Any device on the client network can cause this by answering for the printer's
+names. mDNS has no authentication, and this is accepted for a home network.
+Not yet run on hardware as of 2026-09-28.
 
 ## Uninstalling
 

@@ -10,17 +10,19 @@
 // Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 // 2026-09-28. Reviewed by a human before merge.
 //
+// The silent-while-probing test, and requirement markers on these tests, added
+// by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-28. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the probe the responder sends before it claims its names, and how
 //   it treats what it hears while probing (README REQ-ADV-023 and REQ-ADV-024;
 //   RFC 6762 s8.1, s8.2 and s9).
 //
-// No [Requirement] markers here, on purpose:
-//   REQ-ADV-023 also requires the probe to happen at startup and before every
-//   restore, which is the service's wiring, not the responder's. REQ-ADV-024
-//   also requires a conflict heard after announcing to withdraw the service.
-//   Neither is fully met by what these tests cover, and a marker is placed only
-//   when a requirement is fully met. The markers go on when the wiring does.
+// Requirement markers:
+//   Placed on 2026-09-28, once the service wiring (Offering.cs, with its own
+//   tests in SecretPrinter.Service.Tests) made REQ-ADV-023 and REQ-ADV-024
+//   fully met. Until then these tests carried none, on purpose.
 //
 // Time:
 //   Every wait the probe makes goes through an injected delay, recorded here,
@@ -37,6 +39,7 @@ using System.Net;
 using SecretPrinter.Advertising;
 using SecretPrinter.Dns;
 using SecretPrinter.Mdns;
+using SecretPrinter.Spec;
 using SecretPrinter.TestKit;
 
 namespace SecretPrinter.Responder.Tests;
@@ -118,6 +121,7 @@ internal static class MdnsProbeTests
     // ---- What goes out ------------------------------------------------------
 
     [TestCase("A probe is sent three times over each transport, by multicast")]
+    [Requirement("REQ-ADV-023")]
     public static void Three_probes_over_each_transport()
     {
         (MdnsResponder responder, FakeTransport transport, RecordingClock clock, _) = Build();
@@ -136,6 +140,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("Each probe asks for every unique name with type ANY and proposes its records")]
+    [Requirement("REQ-ADV-023")]
     public static void Probe_asks_for_each_unique_name_and_proposes_its_records()
     {
         (MdnsResponder responder, FakeTransport transport, RecordingClock clock, Advertisement advertisement) = Build();
@@ -169,6 +174,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("Probes start after up to 250 ms, go 250 ms apart, and the last is followed by a 250 ms wait")]
+    [Requirement("REQ-ADV-023")]
     public static void Probe_timing()
     {
         (MdnsResponder responder, _, RecordingClock clock, _) = Build();
@@ -192,9 +198,48 @@ internal static class MdnsProbeTests
         }
     }
 
+    [TestCase("While probing the responder answers nothing, even with the gate open")]
+    [Requirement("REQ-ADV-023")]
+    public static void Silent_while_probing()
+    {
+        Advertisement advertisement = MdnsResponderTests.BuildAdvertisement();
+        var transport = new FakeTransport(ClientNic, ClientNicV6);
+        var responder = new MdnsResponder(
+            transport,
+            [new AdvertisedInterface(ClientNic, advertisement, ClientNicV6)],
+            advertising: static () => true);
+        var clock = new RecordingClock(transport);
+        var answered = new List<bool>();
+
+        clock.During = i =>
+        {
+            if (i == 1)
+            {
+                answered.Add(responder.HandleAsync(
+                        new MdnsDatagram(
+                            new DnsQueryBuilder(0x1234)
+                                .AddQuestion(DnsName.Parse("_ipp._tcp.local"), DnsRecordType.Ptr, requestUnicastResponse: false)
+                                .Build(),
+                            new IPEndPoint(IPAddress.Parse("192.168.1.41"), 5353),
+                            ClientNic.Index,
+                            ClientNic),
+                        CancellationToken.None)
+                    .GetAwaiter().GetResult());
+            }
+        };
+
+        Probe(responder, clock);
+
+        Assert.Equal(1, answered.Count, "the query was put to the responder during the probe");
+        Assert.False(answered[0],
+            "REQ-ADV-023: the names are not this responder's until the probe is clear, whatever the gate says");
+        Assert.Equal(2 * MdnsResponder.ProbeCount, transport.Sent.Count, "only the probes went out");
+    }
+
     // ---- What counts as a conflict ------------------------------------------
 
     [TestCase("With nothing answering, the probe comes back clear")]
+    [Requirement("REQ-ADV-023")]
     public static void Unanswered_probe_is_clear()
     {
         (MdnsResponder responder, _, RecordingClock clock, _) = Build();
@@ -206,6 +251,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("Another device's different address for our host name is a conflict, and probing stops")]
+    [Requirement("REQ-ADV-024")]
     public static void Different_address_for_our_host_is_a_conflict()
     {
         (MdnsResponder responder, FakeTransport transport, RecordingClock clock, Advertisement advertisement) = Build();
@@ -233,6 +279,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("Another device's record of a type we do not publish, for our name, is a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Other_type_for_our_name_is_a_conflict()
     {
         (MdnsResponder responder, _, RecordingClock clock, Advertisement advertisement) = Build();
@@ -254,6 +301,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("Records identical to our own are not a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Identical_records_are_not_a_conflict()
     {
         (MdnsResponder responder, _, RecordingClock clock, Advertisement advertisement) = Build();
@@ -272,6 +320,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("A response about other names is not a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Unrelated_response_is_not_a_conflict()
     {
         (MdnsResponder responder, _, RecordingClock clock, _) = Build();
@@ -291,6 +340,7 @@ internal static class MdnsProbeTests
     // ---- Simultaneous probes (RFC 6762 s8.2) --------------------------------
 
     [TestCase("Losing a simultaneous probe defers one second and probes again from the start")]
+    [Requirement("REQ-ADV-023")]
     public static void Losing_tiebreak_defers_and_probes_again()
     {
         (MdnsResponder responder, FakeTransport transport, RecordingClock clock, Advertisement advertisement) = Build();
@@ -317,6 +367,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("The winner answering during the deferral ends the probe, with no probe sent again")]
+    [Requirement("REQ-ADV-024")]
     public static void Winner_answering_during_deferral_is_a_conflict()
     {
         (MdnsResponder responder, FakeTransport transport, RecordingClock clock, Advertisement advertisement) = Build();
@@ -345,6 +396,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("A responder already holding a conflict probes no more")]
+    [Requirement("REQ-ADV-024")]
     public static void Existing_conflict_ends_the_probe_before_it_starts()
     {
         (MdnsResponder responder, FakeTransport transport, RecordingClock clock, Advertisement advertisement) = Build();
@@ -361,6 +413,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("Winning a simultaneous probe changes nothing")]
+    [Requirement("REQ-ADV-023")]
     public static void Winning_tiebreak_is_ignored()
     {
         (MdnsResponder responder, FakeTransport transport, RecordingClock clock, Advertisement advertisement) = Build();
@@ -384,6 +437,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("Our own probe, heard back, is a tie and changes nothing")]
+    [Requirement("REQ-ADV-023")]
     public static void Own_probe_heard_back_is_a_tie()
     {
         (MdnsResponder responder, FakeTransport transport, RecordingClock clock, _) = Build();
@@ -438,6 +492,7 @@ internal static class MdnsProbeTests
         responder.HandleAsync(query, CancellationToken.None).GetAwaiter().GetResult();
 
     [TestCase("After a conflict the responder answers nothing, over either transport")]
+    [Requirement("REQ-ADV-024")]
     public static void Conflict_stops_answering()
     {
         (MdnsResponder responder, FakeTransport transport, _, Advertisement advertisement) = BuildOnOffer();
@@ -454,6 +509,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("After a conflict no announcement goes out, including the rest of one under way")]
+    [Requirement("REQ-ADV-024")]
     public static void Conflict_stops_announcing()
     {
         (MdnsResponder responder, FakeTransport transport, _, Advertisement advertisement) = BuildOnOffer();
@@ -479,6 +535,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("After a conflict the goodbye still goes out")]
+    [Requirement("REQ-ADV-024")]
     public static void Goodbye_still_sent_after_conflict()
     {
         (MdnsResponder responder, FakeTransport transport, _, Advertisement advertisement) = BuildOnOffer();
@@ -492,6 +549,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("The service is told of the first conflict, once")]
+    [Requirement("REQ-ADV-024")]
     public static void First_conflict_is_reported_once()
     {
         (MdnsResponder responder, _, List<NameConflict> reports, Advertisement advertisement) = BuildOnOffer();
@@ -510,6 +568,7 @@ internal static class MdnsProbeTests
     }
 
     [TestCase("A conflict found while probing is reported to the service the same way")]
+    [Requirement("REQ-ADV-024")]
     public static void Conflict_found_while_probing_is_reported()
     {
         Advertisement advertisement = MdnsResponderTests.BuildAdvertisement();

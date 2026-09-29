@@ -10,6 +10,11 @@
 // 5.5) at the direction of Edwin West, 2026-09-28. Reviewed by a human before
 // merge.
 //
+// REQ-ADV-023 and REQ-ADV-024 markers placed, and the paragraph saying they
+// were not yet placed rewritten, once the service wiring (Offering.cs) made
+// both requirements fully met, by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-09-28. Reviewed by a human before merge.
+//
 // Purpose:
 //   Before a responder may treat a name as its own, RFC 6762 s8.1 has it ask
 //   whether anyone else already uses it. This file is that question, and the
@@ -30,8 +35,8 @@
 //   cache-flush bit set). There is no list of names in this file.
 //
 //   What this file does not do: decide WHEN to probe, or what the service does
-//   about a conflict. Both are the service's (README REQ-ADV-023, REQ-ADV-024),
-//   and the requirement markers go on when that wiring exists.
+//   about a conflict. Both are the service's (README REQ-ADV-023, REQ-ADV-024;
+//   src/SecretPrinter.Service/Offering.cs).
 //
 // Probes ask for multicast answers, a deliberate departure:
 //   RFC 6762 s8.1 says probes SHOULD set the unicast-response bit, so that a
@@ -50,6 +55,7 @@ using System.Security.Cryptography;
 using SecretPrinter.Advertising;
 using SecretPrinter.Dns;
 using SecretPrinter.Mdns;
+using SecretPrinter.Spec;
 
 namespace SecretPrinter.Responder;
 
@@ -117,6 +123,8 @@ public sealed partial class MdnsResponder
     /// Every wait goes through this, so tests need not wait in real time.
     /// Defaults to <see cref="Task.Delay(TimeSpan, CancellationToken)"/>.
     /// </param>
+    [Requirement("REQ-ADV-023",
+        "Sends the probe: three queries for type ANY, 250 ms apart after a random start, on every advertised interface over IPv4 and its IPv6 companion, each carrying the claimed records; stops at the first conflict, and settles a simultaneous probe as RFC 6762 s8.2 describes.")]
     public async Task<ProbeResult> ProbeAsync(
         Func<TimeSpan, CancellationToken, Task>? delay, CancellationToken cancellationToken)
     {
@@ -231,6 +239,8 @@ public sealed partial class MdnsResponder
     /// (RFC 6762 s9); that is also how this responder's own multicast, heard
     /// back, is recognised.
     /// </summary>
+    [Requirement("REQ-ADV-024",
+        "Defines a conflict: a class IN record from another device, for a claimed name, that this responder would not itself publish - another type, or the same type with different data. Identical records are not one. The first is kept for the life of the responder and reported once.")]
     private void NoteConflicts(DnsMessage response, MdnsDatagram datagram, MdnsInterface arrivedOn, Advertisement advertisement)
     {
         if (Conflict is not null)

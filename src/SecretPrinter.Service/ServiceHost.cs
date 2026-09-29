@@ -66,6 +66,13 @@
 // docs/findings/2026-09-25-a-reconnect-did-not-restore-the-membership.md.
 // Reviewed by a human before merge.
 //
+// The advertised names probed for before every offer, at startup and before
+// each restore, and a name conflict withdrawing the printer until restart, by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-28, for REQ-ADV-023 and REQ-ADV-024. The gate now starts closed, the
+// receive loop starts before the startup probe, and OfferAsync moved to
+// Offering.OnReachabilityChangedAsync. Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -196,10 +203,10 @@ public sealed class ServiceHost
             () => StartupWait.Examine(_configuration.PrinterInterfaceName, SystemInterfaceInventory.Instance),
             _log);
 
-        // Open: by the time anything reads this gate, the printer has answered.
-        // Everything that offers the printer to the client network reads this
-        // one switch.
-        var offering = new AvailabilityGate(open: true);
+        // Closed until the advertised names are claimed: it opens only when the
+        // startup probe comes back clear (REQ-ADV-023). Everything that offers
+        // the printer to the client network reads this one switch.
+        var offering = new AvailabilityGate(open: false);
 
         // The advertisement is built from what the printer says now, not from
         // anything stored. Until the printer answers nothing is advertised:
@@ -313,17 +320,31 @@ public sealed class ServiceHost
             _log.Info($"Answering on {client} and, for queries that arrive over IPv6, {companion}.");
         }
 
-        var responder = new MdnsResponder(responderSocket, advertised, () => offering.IsOpen);
+        // The responder reports its first name conflict here, on its receive
+        // loop. The callback only completes this task; closing the gate, the
+        // log line and the goodbyes are WithdrawOnConflictAsync's (REQ-ADV-024).
+        var conflict = new TaskCompletionSource<NameConflict>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var responder = new MdnsResponder(
+            responderSocket, advertised, () => offering.IsOpen, conflicted: found => conflict.TrySetResult(found));
 
         using var stopping = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var running = new List<Task>();
 
         try
         {
-            await responder.AnnounceAsync(TimeSpan.FromSeconds(1), stopping.Token).ConfigureAwait(false);
-            _log.Info("Announced. Answering queries.");
-
+            // The receive loop first: the answers to the probe arrive through it.
+            // Nothing is answered meanwhile - the gate is closed, and the
+            // responder is silent while it probes.
             running.Add(responder.ServeAsync(stopping.Token));
+            running.Add(Offering.WithdrawOnConflictAsync(conflict.Task, responder, offering, _log, stopping.Token));
+
+            if (await Offering.ClaimAndOfferAsync(
+                    responder, offering, _log, delay: null, Offering.AnnouncementInterval, stopping.Token)
+                .ConfigureAwait(false))
+            {
+                _log.Info("Announced. Answering queries.");
+            }
 
             var reachability = new PrinterReachability(found.Connection);
 
@@ -339,7 +360,8 @@ public sealed class ServiceHost
                     _configuration.Tuning.PrinterResolveTimeout,
                     token),
                 _log,
-                onChanged: (reachable, token) => OfferAsync(responder, offering, reachable, token));
+                onChanged: (reachable, token) => Offering.OnReachabilityChangedAsync(
+                    responder, offering, _log, reachable, delay: null, Offering.AnnouncementInterval, token));
 
             running.Add(watch.WatchAsync(stopping.Token));
 
@@ -484,50 +506,6 @@ public sealed class ServiceHost
         }
 
         _log.Info($"No longer accepting print jobs on {client.Name}.");
-    }
-
-    /// <summary>
-    /// Starts or stops offering the printer, in the order that never leaves an
-    /// advertised service with nothing listening behind it.
-    /// </summary>
-    [Requirement("REQ-LIF-006",
-        "On loss: closes the gate first, then sends goodbye records, so nothing is accepted that cannot "
-        + "be served and clients drop the entry promptly. On recovery: opens the gate first, then "
-        + "announces, so the printer is listening before it is offered.")]
-    private async Task OfferAsync(
-        MdnsResponder responder,
-        AvailabilityGate offering,
-        bool reachable,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (reachable)
-            {
-                offering.Open();
-                await responder.AnnounceAsync(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
-                _log.Info("Advertisement restored: the printer is on offer again.");
-                return;
-            }
-
-            offering.Close();
-
-            using var goodbyeWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            goodbyeWindow.CancelAfter(TimeSpan.FromSeconds(5));
-
-            await responder.SendGoodbyeAsync(goodbyeWindow.Token).ConfigureAwait(false);
-            _log.Warn("Advertisement withdrawn and the listener closed: "
-                      + "the printer is no longer offered to the client network.");
-        }
-        catch (Exception ex) when (ex is OperationCanceledException or System.Net.Sockets.SocketException)
-        {
-            // The gate has already moved, which is the part that matters. A
-            // failed announcement or goodbye is logged and left: clients fall
-            // back on the record TTL.
-            _log.Warn($"The advertisement could not be {(reachable ? "restored" : "withdrawn")} "
-                      + $"on the network: {ex.Message}. The gate is {(reachable ? "open" : "closed")} "
-                      + "regardless, so what this service accepts is unaffected.");
-        }
     }
 
     /// <summary>

@@ -34,6 +34,11 @@
 // 2026-09-28, for REQ-ADV-024. Goodbyes are unaffected. Reviewed by a human
 // before merge.
 //
+// Silent while probing, and the REQ-ADV-023 and REQ-ADV-024 markers placed now
+// that the service wiring makes both requirements fully met, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-28. Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -340,6 +345,8 @@ public sealed partial class MdnsResponder
         "Announces the advertised IPP service on each configured interface at startup.")]
     [Requirement("REQ-ADV-002",
         "The announcement carries every record in the advertisement, which includes the AirPrint subtype PTR that iOS queries for.")]
+    [Requirement("REQ-ADV-024",
+        "Announces nothing once a conflict is held, checking before every send, so a conflict heard between two announcements stops the rest.")]
     public async Task AnnounceAsync(TimeSpan delayBetween, CancellationToken cancellationToken)
     {
         for (int attempt = 0; attempt < AnnouncementCount; attempt++)
@@ -398,6 +405,10 @@ public sealed partial class MdnsResponder
     [Requirement("REQ-LIF-006",
         "Answers nothing while the advertisement is withdrawn. A goodbye followed by an answer to the "
         + "next query would re-advertise the printer within milliseconds of retracting it.")]
+    [Requirement("REQ-ADV-024",
+        "Answers nothing once a conflict is held, whatever the gate says, and reads every response for records about the names this responder claims, even while nothing is on offer.")]
+    [Requirement("REQ-ADV-023",
+        "Answers nothing while probing: the names are not this responder's until the probe comes back clear.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
@@ -457,8 +468,10 @@ public sealed partial class MdnsResponder
 
         // A conflict silences the responder whatever the gate says: another
         // device holds one of its names, and answering would publish records
-        // that contradict that device's (REQ-ADV-024).
-        if (!advertising || Conflict is not null)
+        // that contradict that device's (REQ-ADV-024). So does probing: the
+        // names are not this responder's until the probe comes back clear
+        // (REQ-ADV-023), and the gate alone should not be what ensures that.
+        if (!advertising || Conflict is not null || Volatile.Read(ref _probing))
         {
             // Not counted as ignored-not-ours: the query was ours to answer, and
             // we chose not to. The withdrawal itself is logged once, by the

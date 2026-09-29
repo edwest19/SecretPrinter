@@ -5,6 +5,9 @@
 // West, for the SecretPrinter project, 2026-09-20. Reviewed by a human before
 // merge.
 //
+// The two OpenUnless tests added by Claude (Anthropic model, Claude Opus 5.5)
+// at the direction of Edwin West, 2026-09-28. Reviewed by a human before merge.
+//
 // Purpose:
 //   Holds the gate to the two properties the relay depends on: a waiter that is
 //   already satisfied does not block, and a waiter that is not is released the
@@ -146,6 +149,28 @@ internal static class AvailabilityGateTests
 
         gate.Close();
         await withdrawn.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+    }
+
+    [TestCase("OpenUnless leaves the gate closed while its condition holds")]
+    public static void OpenUnless_refuses_while_the_condition_holds()
+    {
+        var gate = new AvailabilityGate(open: false);
+        Task waiter = gate.WaitForOpenAsync(CancellationToken.None);
+
+        Assert.False(gate.OpenUnless(static () => true), "OpenUnless reports that it did not open");
+        Assert.False(gate.IsOpen, "the gate stays closed");
+        Assert.False(waiter.IsCompleted, "and nothing waiting for it to open is released");
+    }
+
+    [TestCase("OpenUnless opens the gate when its condition does not hold")]
+    public static void OpenUnless_opens_when_the_condition_does_not_hold()
+    {
+        var gate = new AvailabilityGate(open: false);
+        Task waiter = gate.WaitForOpenAsync(CancellationToken.None);
+
+        Assert.True(gate.OpenUnless(static () => false), "OpenUnless reports that it opened");
+        Assert.True(gate.IsOpen, "the gate is open");
+        waiter.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
     }
 
     [TestCase("The watch closes the gate when the printer goes quiet, and opens it when it returns")]
