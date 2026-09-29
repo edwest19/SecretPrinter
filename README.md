@@ -141,8 +141,8 @@ Two things must be true for AirPrint to work, and both fail here:
 | The client can **reach** the printer's IP | Fails: no route exists between the networks |
 
 Fixing only the first produces a printer that appears in the list and then fails
-on every job. This was observed directly: a tablet on the client network was
-captured querying for the printer's `.local` hostname and receiving no answer.
+on every job: the client is given the printer's own address, which it has no
+route to ([Section 2](#2-why-a-proxy-and-not-a-reflector)).
 
 ## 2. Why a proxy and not a reflector
 

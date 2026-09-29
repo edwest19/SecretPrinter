@@ -186,6 +186,12 @@ not evidence that a printer appeared in the list and then failed. The sentence
 is to be corrected in a separate commit; the wording is Edwin's call, and a
 status note will be added here when it is done.
 
+*(Status updated 2026-09-29 by Claude, Claude Opus 5.5: done. At Edwin's
+choice, Section 1 now reads: "Fixing only the first produces a printer that
+appears in the list and then fails on every job: the client is given the
+printer's own address, which it has no route to (Section 2)." It rests on the
+reasoning Section 2 gives and cites no observation.)*
+
 Whether the links to port 80 above belong among the README's stated limitations
 is also Edwin's call.
 
