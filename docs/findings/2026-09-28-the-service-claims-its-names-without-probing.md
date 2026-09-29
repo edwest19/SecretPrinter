@@ -8,6 +8,14 @@ RFC 6762, not on hardware. Nothing has been changed yet. Edwin decided on
 2026-09-28 to build probing first, before anything that depends on owning the
 names; the order is under "What was decided" below.**
 
+*(Status updated 2026-09-29 by Claude, Claude Opus 5.5: step 1 is done.
+Probing and conflict handling were built in `bc30991`, `ba54835` and `8f3ea90`
+(`REQ-ADV-023`, `REQ-ADV-024`) and run on FIOS-STB-01 on 2026-09-29
+([the finding](2026-09-29-probing-on-hardware.md)). The question under "Not
+established" of what to do when a probe finds a conflict was decided by Edwin
+on 2026-09-28: withdraw and say so, until restarted, rather than rename. Steps
+2 and 3 are still to do.)*
+
 ## What RFC 6762 asks for
 
 Read from the RFC Editor's text of RFC 6762, paraphrased here:

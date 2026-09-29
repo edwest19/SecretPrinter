@@ -72,7 +72,8 @@ direction of Edwin West, 2026-09-27. Reviewed by a human before merge.*
 
 *The section "When another device uses the printer's name" added by Claude
 (Anthropic model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-28,
-for REQ-ADV-023 and REQ-ADV-024. Reviewed by a human before merge.*
+for REQ-ADV-023 and REQ-ADV-024, and its run on FIOS-STB-01 added 2026-09-29.
+Reviewed by a human before merge.*
 
 Everything an operator has to do by hand, and why the software does not do it
 for them.
@@ -636,7 +637,12 @@ configuration. Then restart the service.
 
 Any device on the client network can cause this by answering for the printer's
 names. mDNS has no authentication, and this is accepted for a home network.
-Not yet run on hardware as of 2026-09-28.
+Run on FIOS-STB-01 on 2026-09-29, with a second responder on the client network
+claiming the service's host name: the service logged the conflict and withdrew
+within a second of hearing it; restarted, it found the conflict while probing
+and offered nothing; restarted again after the other responder stopped, it
+probed clear and relayed a print
+([the finding](findings/2026-09-29-probing-on-hardware.md)).
 
 ## Uninstalling
 

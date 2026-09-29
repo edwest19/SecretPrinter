@@ -7,6 +7,13 @@ West, 2026-09-29. Reviewed by a human before merge.*
 on hardware. Found on hardware, on an iPhone, during the probing run on
 FIOS-STB-01 on 2026-09-29.**
 
+*(Status updated 2026-09-29 by Claude, Claude Opus 5.5: confirmed on hardware.
+With `017e5a8` installed on FIOS-STB-01 the log recorded the published entry
+`note=SecretPrinter proxy. Capabilities read from the printer at 2026-09-29
+04:53:47Z`, the full source appearing only in the log's `capabilities observed`
+line, and an iPhone on the client network's Wi-Fi showed that note, with no
+address, under the printer's name at 04:59.)*
+
 ## What was seen
 
 On 2026-09-29, during the hardware run of probing (`REQ-ADV-023`,
@@ -77,6 +84,8 @@ time removed - are each caught.
 - **Whether the printer's host name reaches the client network another way.**
   On 2026-09-29 the iPhone asked the client network for the printer's own
   `.local` host name (seen by `SecretPrinter.Respond6` on the dev box).
-  SecretPrinter never advertises that name. The likeliest route is the IPP
-  replies the relay passes on unchanged (`REQ-PXY-002`), but that has not been
-  checked. It is a separate item.
+  SecretPrinter never advertises that name. Two sources are possible and
+  neither has been checked: the iPhone's own list of known printers, which
+  showed "EPSON ET-3760 Series" alongside the proxy, so the phone remembers the
+  printer itself; and the IPP replies the relay passes on unchanged
+  (`REQ-PXY-002`). It is a separate item.
