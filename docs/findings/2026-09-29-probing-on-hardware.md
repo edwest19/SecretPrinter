@@ -80,6 +80,12 @@ All times UTC. The dev box's clock reads four hours behind.
   list of known printers showed "EPSON ET-3760 Series" alongside the proxy, so
   the phone remembers the printer itself; the IPP replies the relay passes on
   unchanged are the other possible source.
+
+  *(Status updated 2026-09-29 by Claude, Claude Opus 5.5: measured. In three
+  packet captures on the client network SecretPrinter never carried the
+  printer's host name, neither in its mDNS answers nor in the relayed IPP, and
+  both devices seen asking for it had been on the printer's own network. See
+  [2026-09-29](2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md).)*
 - **FIOS-STB-01 asked for its own Windows host name** (`ANY`), also seen by
   `Respond6`. That is the machine's own name, not one SecretPrinter uses.
 - **The iPhone's address.** The first print's connections came from

@@ -89,3 +89,9 @@ time removed - are each caught.
   showed "EPSON ET-3760 Series" alongside the proxy, so the phone remembers the
   printer itself; and the IPP replies the relay passes on unchanged
   (`REQ-PXY-002`). It is a separate item.
+
+  *(Status updated 2026-09-29 by Claude, Claude Opus 5.5: measured. In three
+  packet captures on the client network SecretPrinter never carried the
+  printer's host name, neither in its mDNS answers nor in the relayed IPP, and
+  both devices seen asking for it had been on the printer's own network. See
+  [2026-09-29](2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md).)*
