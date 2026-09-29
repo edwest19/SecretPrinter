@@ -4,6 +4,13 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// The published note changed so that it no longer carries the capability
+// source, which named the printer's address and instance on the client
+// network against REQ-ADV-004, by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-09-29. Wording chosen by Edwin West. See
+// docs/findings/2026-09-29-the-note-published-the-printers-address.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Decides exactly what the proxy publishes, and produces the DNS records for
 //   it. This is where Section 4 of the specification becomes code.
@@ -254,8 +261,18 @@ public static class AdvertisementBuilder
     /// <summary>
     /// The published note. Says plainly that this is a proxy, so a person
     /// reading printer details is not misled into thinking it is the device
-    /// itself (REQ-ADV-016).
+    /// itself (REQ-ADV-016), and when the capabilities it offers were read.
     /// </summary>
+    /// <remarks>
+    /// Only the time is taken from the source, never its description. For a
+    /// live query the description names the printer's address and the instance
+    /// it publishes under on the printer network, and until 2026-09-29 this
+    /// note published it on the client network, where an iPhone showed it
+    /// under the printer's name (REQ-ADV-004; see
+    /// docs/findings/2026-09-29-the-note-published-the-printers-address.md).
+    /// The full description is still logged at startup.
+    /// </remarks>
     private static string FormatNote(CapabilitySource source) =>
-        $"note=SecretPrinter proxy. Capabilities from: {source.Description}";
+        "note=SecretPrinter proxy. Capabilities read from the printer at "
+        + source.ObservedAt.ToString("u", CultureInfo.InvariantCulture);
 }

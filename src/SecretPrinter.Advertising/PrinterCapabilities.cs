@@ -4,6 +4,11 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// A remark added to FromMdnsQuery that its description is for the log and
+// must never be published, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-09-29. Comment only. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   What the real printer says about itself, together with a record of where
 //   that information came from.
@@ -33,6 +38,11 @@ namespace SecretPrinter.Advertising;
 public sealed record CapabilitySource(string Description, DateTimeOffset ObservedAt)
 {
     /// <summary>Records capabilities read from a live mDNS query to a printer.</summary>
+    /// <remarks>
+    /// The description names the printer's address and instance. It is for the
+    /// log, never for publication on the client network (REQ-ADV-004): see
+    /// AdvertisementBuilder.FormatNote.
+    /// </remarks>
     public static CapabilitySource FromMdnsQuery(IPAddress printer, DnsNameLike instance, DateTimeOffset observedAt) =>
         new($"mDNS query to {printer} for {instance.Value}", observedAt);
 

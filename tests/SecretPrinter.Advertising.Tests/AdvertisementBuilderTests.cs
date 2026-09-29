@@ -4,6 +4,15 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// The REQ-ADV-004 test strengthened to build from an mDNS-query source, as the
+// service does, and to read TXT entries and record names; and the REQ-ADV-010
+// test changed to pin the note's wording, which no longer says where the
+// capabilities came from - both by Claude (Anthropic model, Claude Opus 5.5)
+// at the direction of Edwin West, 2026-09-29, after the note was found
+// publishing the printer's address
+// (docs/findings/2026-09-29-the-note-published-the-printers-address.md).
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the honesty rules in Section 4 of the specification.
 //
@@ -75,6 +84,28 @@ internal static class AdvertisementBuilderTests
 
     private static Advertisement Built() => AdvertisementBuilder.Build(Epson(), Proxy(), ProxyAddress);
 
+    // The capabilities as the service obtains them: from an mDNS query, whose
+    // source names the printer's own address and the instance it publishes
+    // under on the printer network. The fixture above uses a test source that
+    // names neither, which is why the REQ-ADV-004 test built from it could not
+    // see the note publishing them. The address is the one the note published
+    // on 2026-09-29.
+    private static readonly IPAddress PrinterAddress = IPAddress.Parse("192.168.12.180");
+
+    private const string PrinterInstance = "EPSON ET-3760 Series._ipp._tcp.local";
+
+    // The printer's host name in the fixture, as redacted (see above).
+    private const string PrinterHostLabel = "EPSON000000";
+
+    private static readonly DateTimeOffset ReadAt = new(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+
+    private static Advertisement BuiltFromQuery() =>
+        AdvertisementBuilder.Build(
+            new PrinterCapabilities(
+                EpsonTxtRecords, 631, CapabilitySource.FromMdnsQuery(PrinterAddress, new DnsNameLike(PrinterInstance), ReadAt)),
+            Proxy(),
+            ProxyAddress);
+
     private static string? Value(Advertisement advertisement, string key)
     {
         foreach (string entry in advertisement.TxtStrings)
@@ -100,16 +131,18 @@ internal static class AdvertisementBuilderTests
             "an advertisement must trace to an observation, not to a literal in source");
     }
 
-    [TestCase("The advertisement carries the source of its capabilities")]
+    [TestCase("The advertisement keeps the source of its capabilities for the log; the note says only when they were read")]
     [Requirement("REQ-ADV-010")]
     public static void Advertisement_reports_its_source()
     {
-        Advertisement advertisement = Built();
+        Advertisement advertisement = BuiltFromQuery();
 
-        Assert.True(advertisement.Source.Description.Length > 0,
-            "the source must survive into the result so it can be logged");
-        Assert.True(Value(advertisement, "note")!.Contains("Capabilities from", StringComparison.Ordinal),
-            "the published note should say where the capabilities came from");
+        Assert.True(advertisement.Source.Description.Contains(PrinterAddress.ToString(), StringComparison.Ordinal),
+            "the full source survives into the result, so the log can say exactly where the capabilities came from");
+        Assert.Equal("SecretPrinter proxy. Capabilities read from the printer at 2026-09-01 12:00:00Z",
+            Value(advertisement, "note"),
+            "the published note says it is a proxy and when the capabilities were read, and nothing about where "
+            + "the printer is (REQ-ADV-004; wording chosen by Edwin West, 2026-09-29)");
     }
 
     // ---- What must NOT be published -----------------------------------------
@@ -184,10 +217,30 @@ internal static class AdvertisementBuilderTests
     [Requirement("REQ-ADV-004")]
     public static void Printer_address_is_never_published()
     {
-        Advertisement advertisement = Built();
+        // Built as the service builds it, from a source that names the printer.
+        Advertisement advertisement = BuiltFromQuery();
+
+        foreach (string entry in advertisement.TxtStrings)
+        {
+            Assert.False(entry.Contains(PrinterAddress.ToString(), StringComparison.Ordinal),
+                $"a TXT entry carries the printer's address: {entry}");
+            Assert.False(entry.Contains(PrinterHostLabel, StringComparison.OrdinalIgnoreCase),
+                $"a TXT entry carries the printer's host name: {entry}");
+            Assert.False(entry.Contains(PrinterInstance, StringComparison.OrdinalIgnoreCase),
+                $"a TXT entry carries the instance name the printer publishes under: {entry}");
+        }
 
         foreach (OutgoingRecord record in advertisement.Records)
         {
+            string name = record.Name.ToString();
+            string? target = record.Payload is PtrPayload ptr ? ptr.Target.ToString() : null;
+            foreach (string published in target is null ? [name] : new[] { name, target })
+            {
+                Assert.False(published.Contains(PrinterHostLabel, StringComparison.OrdinalIgnoreCase)
+                             || published.Contains(PrinterInstance, StringComparison.OrdinalIgnoreCase),
+                    $"a record name or PTR target names the printer: {published}");
+            }
+
             if (record.Payload is AddressPayload address)
             {
                 Assert.Equal(ProxyAddress, address.Address,
