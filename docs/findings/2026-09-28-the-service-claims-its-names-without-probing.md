@@ -16,6 +16,13 @@ established" of what to do when a probe finds a conflict was decided by Edwin
 on 2026-09-28: withdraw and say so, until restarted, rather than rename. Steps
 2 and 3 are still to do.)*
 
+*(Status updated 2026-09-30 by Claude, Claude Opus 5.5: for step 2, Edwin
+decided which IPv6 addresses the relay listens on and the service publishes:
+the client interface's link-local address only, not every address valid on the
+interface as step 2 below says. The measurements and the reasons are in the
+[2026-09-30 finding](2026-09-30-which-ipv6-addresses-to-publish.md). Step 2 is
+not yet built.)*
+
 ## What RFC 6762 asks for
 
 Read from the RFC Editor's text of RFC 6762, paraphrased here:
