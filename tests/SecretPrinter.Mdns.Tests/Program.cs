@@ -4,6 +4,9 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// LinkLocalAddressTests registered by Claude (Anthropic model, Claude Opus 5.5)
+// at the direction of Edwin West, 2026-09-30. Reviewed by a human before merge.
+//
 // Entry point for the test suite. Exits 0 when every test passed, 1 otherwise,
 // so CI can gate on it exactly as it would gate on `dotnet test`.
 //
@@ -42,6 +45,6 @@ internal static class Program
         }
 
         Console.WriteLine("SecretPrinter.Mdns tests");
-        return TestHarness.Run(resultsPath, typeof(MdnsSocketTests));
+        return TestHarness.Run(resultsPath, typeof(MdnsSocketTests), typeof(LinkLocalAddressTests));
     }
 }

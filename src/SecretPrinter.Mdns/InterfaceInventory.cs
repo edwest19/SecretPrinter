@@ -18,6 +18,14 @@
 // is the state that produced the false failure message recorded in
 // docs/findings/2026-09-19-the-printer-side-multicast-membership-is-lost.md.
 //
+// IPv6 link-local addresses added by Claude (Anthropic model, Claude Opus 5.5)
+// at the direction of Edwin West, 2026-09-30. Reviewed by a human before merge.
+// Edwin decided that day that the service publishes, and the relay listens on,
+// a client interface's link-local addresses and no other IPv6 address. This
+// file reads link-local addresses only, so no other IPv6 address of the
+// machine is ever in hand to be published. See
+// docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md.
+//
 // Purpose:
 //   Describes the machine's network adapters, behind an interface, so the rules
 //   in MdnsInterfaceResolver can be tested against any adapter arrangement
@@ -41,7 +49,10 @@ using System.Net.Sockets;
 
 namespace SecretPrinter.Mdns;
 
-/// <summary>Condition of one local IPv4 address, as the platform reports it.</summary>
+/// <summary>
+/// Condition of one local address, IPv4 or IPv6 link-local, as the platform
+/// reports it.
+/// </summary>
 /// <remarks>
 /// A deliberate narrowing of <see cref="DuplicateAddressDetectionState"/>. The
 /// platform's own enum is not carried out of here, so that nothing downstream
@@ -68,6 +79,18 @@ public enum LocalAddressCondition
 
 /// <summary>One IPv4 address held by an adapter, with the condition the platform reports for it.</summary>
 public sealed record LocalIPv4Address(IPAddress Address, LocalAddressCondition Condition);
+
+/// <summary>
+/// One IPv6 link-local address held by an adapter, with the condition the
+/// platform reports for it.
+/// </summary>
+/// <param name="Address">
+/// An address in fe80::/10, with the scope the platform reported. A link-local
+/// address means something only together with its scope, so the scope is kept
+/// exactly as read and never filled in here.
+/// </param>
+/// <param name="Condition">The condition the platform reports for the address.</param>
+public sealed record LocalLinkLocalAddress(IPAddress Address, LocalAddressCondition Condition);
 
 /// <summary>One local network adapter, reduced to what interface resolution needs.</summary>
 /// <param name="Name">Friendly adapter name, e.g. "Ethernet 2".</param>
@@ -101,6 +124,18 @@ public sealed record LocalIPv4Address(IPAddress Address, LocalAddressCondition C
 /// as "all preferred". A test that does not care about conditions can leave it
 /// out and will get no opinion from it.
 /// </param>
+/// <param name="IPv6LinkLocalAddresses">
+/// The adapter's IPv6 link-local addresses (fe80::/10), each with its
+/// condition, and no other IPv6 address. Global, temporary and unique local
+/// addresses are not read at all: link-local addresses are the only IPv6
+/// addresses the service may publish, and an address that is never read cannot
+/// be published by mistake.
+///
+/// It defaults to null, meaning the addresses were not read, which is not the
+/// same as an adapter that has none. A caller must refuse null rather than
+/// treat it as empty; otherwise a missing read would look exactly like an
+/// adapter without IPv6.
+/// </param>
 public sealed record LocalAdapter(
     string Name,
     int? Index,
@@ -108,7 +143,8 @@ public sealed record LocalAdapter(
     bool SupportsMulticast,
     IReadOnlyList<IPAddress> IPv4Addresses,
     int? IPv6Index = null,
-    IReadOnlyList<LocalIPv4Address>? IPv4AddressConditions = null);
+    IReadOnlyList<LocalIPv4Address>? IPv4AddressConditions = null,
+    IReadOnlyList<LocalLinkLocalAddress>? IPv6LinkLocalAddresses = null);
 
 /// <summary>Supplies the set of local adapters.</summary>
 public interface IInterfaceInventory
@@ -159,8 +195,27 @@ public sealed class SystemInterfaceInventory : IInterfaceInventory
 
                 var addresses = new List<IPAddress>();
                 var conditions = new List<LocalIPv4Address>();
+                var linkLocal = new List<LocalLinkLocalAddress>();
                 foreach (UnicastIPAddressInformation unicast in properties.UnicastAddresses)
                 {
+                    if (unicast.Address.AddressFamily == AddressFamily.InterNetworkV6)
+                    {
+                        // Link-local only. Every other IPv6 address - global,
+                        // temporary, unique local - is passed over here and
+                        // held nowhere, because link-local addresses are the
+                        // only IPv6 addresses the service may publish or
+                        // listen on
+                        // (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md).
+                        // The address is kept as the platform reported it,
+                        // scope included.
+                        if (unicast.Address.IsIPv6LinkLocal)
+                        {
+                            linkLocal.Add(new LocalLinkLocalAddress(unicast.Address, ConditionOf(unicast)));
+                        }
+
+                        continue;
+                    }
+
                     if (unicast.Address.AddressFamily != AddressFamily.InterNetwork)
                     {
                         continue;
@@ -177,7 +232,8 @@ public sealed class SystemInterfaceInventory : IInterfaceInventory
                     adapter.SupportsMulticast,
                     addresses,
                     ipv6Index,
-                    conditions));
+                    conditions,
+                    linkLocal));
             }
 
             return adapters;

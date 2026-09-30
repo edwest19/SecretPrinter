@@ -24,6 +24,13 @@
 // docs/findings/2026-09-24-the-ipv6-only-claim-was-in-more-places.md.
 // Reviewed by a human before merge.
 //
+// ResolveLinkLocal added by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-09-30. Reviewed by a human before merge. It
+// chooses the IPv6 addresses the service will publish and listen on: a client
+// interface's preferred link-local addresses, and nothing else, as Edwin
+// decided that day (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md).
+// Nothing calls it yet.
+//
 // Purpose:
 //   Turns an IPv4 address from configuration into a fully identified network
 //   interface: its friendly name, its operating-system index, and which address
@@ -45,6 +52,7 @@
 // This file opens no sockets and sends nothing.
 // -----------------------------------------------------------------------------
 
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using SecretPrinter.Spec;
@@ -321,6 +329,140 @@ public static class MdnsInterfaceResolver
 
         throw new MdnsInterfaceException(
             $"{ipv4Interface.Address} is no longer an address on any interface of this machine.");
+    }
+
+    /// <summary>Resolves the link-local addresses using the machine's real adapters.</summary>
+    public static IReadOnlyList<IPAddress> ResolveLinkLocal(MdnsInterface ipv6Interface) =>
+        ResolveLinkLocal(ipv6Interface, SystemInterfaceInventory.Instance);
+
+    /// <summary>
+    /// The IPv6 link-local addresses of the adapter an IPv6 entry names, in the
+    /// preferred state, each scoped to that entry's IPv6 index. These are the
+    /// only IPv6 addresses the service may publish or listen on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Link-local only, as Edwin decided on 2026-09-30. Every interface has a
+    /// link-local address (RFC 4291 section 2.1), so every IPv6 device on the
+    /// link has one to connect from; it is recognised by its prefix, fe80::/10,
+    /// rather than by a platform flag; and it cannot be reached from beyond the
+    /// link. RFC 6762 section 6.2 asks for every address valid on the interface,
+    /// and this departs from it on purpose. The measurements and reasons are in
+    /// docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md.
+    /// </para>
+    /// <para>
+    /// Preferred only. A tentative address has not finished duplicate address
+    /// detection; RFC 4862 says new connections should avoid a deprecated one;
+    /// and an invalid or unknown one cannot be relied on. None of them may be
+    /// offered for a new connection.
+    /// </para>
+    /// <para>
+    /// An adapter with no preferred link-local address yields an empty list
+    /// rather than an exception. The caller is then to publish no AAAA record
+    /// and listen on no IPv6 address, which is what the service did before this
+    /// existed, and to say so in the log.
+    /// </para>
+    /// <para>
+    /// The result is in a fixed order, by address bytes, so that records and
+    /// log lines do not reorder between runs.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="MdnsInterfaceException">
+    /// The entry is not an IPv6 entry; the adapter is gone or now reports a
+    /// different IPv6 index; or a link-local address is scoped to something
+    /// other than the entry's IPv6 index, in which case the listener could not
+    /// be bound to this interface by it.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// The inventory did not read the adapter's link-local addresses, or listed
+    /// an address outside fe80::/10 among them. Both are faults in the
+    /// inventory, not in the machine, and are refused rather than worked
+    /// around: a missing read would look like an adapter without IPv6, and a
+    /// global address in this list is the one thing it exists to exclude.
+    /// </exception>
+    public static IReadOnlyList<IPAddress> ResolveLinkLocal(MdnsInterface ipv6Interface, IInterfaceInventory inventory)
+    {
+        ArgumentNullException.ThrowIfNull(ipv6Interface);
+        ArgumentNullException.ThrowIfNull(inventory);
+
+        if (!ipv6Interface.IsIPv6)
+        {
+            throw new MdnsInterfaceException(
+                $"{ipv6Interface} is not an IPv6 entry. Link-local addresses are checked against an "
+                + "IPv6 index, so they are resolved from the adapter's IPv6 entry.");
+        }
+
+        foreach (LocalAdapter adapter in inventory.Adapters)
+        {
+            if (!adapter.IPv4Addresses.Any(held => held.Equals(ipv6Interface.Address)))
+            {
+                continue;
+            }
+
+            if (adapter.IPv6Index != ipv6Interface.Index)
+            {
+                throw new MdnsInterfaceException(
+                    $"Interface '{adapter.Name}' ({ipv6Interface.Address}) now reports IPv6 index "
+                    + $"{adapter.IPv6Index?.ToString(CultureInfo.InvariantCulture) ?? "none"}, "
+                    + $"not {ipv6Interface.Index} as when it was resolved.");
+            }
+
+            if (adapter.IPv6LinkLocalAddresses is not { } held)
+            {
+                throw new InvalidOperationException(
+                    $"The interface inventory did not read the link-local addresses of '{adapter.Name}'. "
+                    + "That is not the same as an adapter that has none, and is not treated as one.");
+            }
+
+            var usable = new List<IPAddress>();
+            foreach (LocalLinkLocalAddress candidate in held)
+            {
+                if (!candidate.Address.IsIPv6LinkLocal)
+                {
+                    throw new InvalidOperationException(
+                        $"The interface inventory listed {candidate.Address} among the link-local addresses of "
+                        + $"'{adapter.Name}', and it is not in fe80::/10. Only link-local addresses may be "
+                        + "published; the list is refused rather than filtered, because an inventory that "
+                        + "confuses the two cannot be trusted with either.");
+                }
+
+                if (candidate.Address.ScopeId != ipv6Interface.Index)
+                {
+                    throw new MdnsInterfaceException(
+                        $"Link-local address {candidate.Address} on '{adapter.Name}' is scoped to "
+                        + $"{candidate.Address.ScopeId}, not to the interface's IPv6 index {ipv6Interface.Index}. "
+                        + "A listener bound to it would not be bound to this interface.");
+                }
+
+                if (candidate.Condition == LocalAddressCondition.Preferred)
+                {
+                    usable.Add(candidate.Address);
+                }
+            }
+
+            usable.Sort(CompareAddressBytes);
+            return usable;
+        }
+
+        throw new MdnsInterfaceException(
+            $"{ipv6Interface.Address} is no longer an address on any interface of this machine.");
+    }
+
+    /// <summary>Orders addresses by their bytes, unsigned, first byte first.</summary>
+    private static int CompareAddressBytes(IPAddress left, IPAddress right)
+    {
+        byte[] a = left.GetAddressBytes();
+        byte[] b = right.GetAddressBytes();
+
+        for (int i = 0; i < Math.Min(a.Length, b.Length); i++)
+        {
+            if (a[i] != b[i])
+            {
+                return a[i].CompareTo(b[i]);
+            }
+        }
+
+        return a.Length.CompareTo(b.Length);
     }
 
     /// <summary>Resolves several addresses using the machine's real adapters.</summary>
