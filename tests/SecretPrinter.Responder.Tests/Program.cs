@@ -7,6 +7,10 @@
 // MdnsProbeTests registered by Claude (Anthropic model, Claude Opus 5.5) at the
 // direction of Edwin West, 2026-09-28. Reviewed by a human before merge.
 //
+// LinkLocalAnsweringTests registered by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, 2026-09-30. Reviewed by a human before
+// merge.
+//
 // Pass --results <path> to record which requirements had a test that executed
 // and passed, for SecretPrinter.SpecCheck to read.
 // -----------------------------------------------------------------------------
@@ -41,6 +45,7 @@ internal static class Program
         }
 
         Console.WriteLine("SecretPrinter.Responder tests");
-        return TestHarness.Run(resultsPath, typeof(MdnsResponderTests), typeof(MdnsProbeTests));
+        return TestHarness.Run(
+            resultsPath, typeof(MdnsResponderTests), typeof(MdnsProbeTests), typeof(LinkLocalAnsweringTests));
     }
 }

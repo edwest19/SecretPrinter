@@ -39,6 +39,14 @@
 // (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 // 2026-09-28. Reviewed by a human before merge.
 //
+// Records told apart by their data as well as their name and type, and an
+// address answer given the host's other address type as additionals, by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-30. Before this, two AAAA records for the host - two link-local
+// addresses - counted as one, and every answer would have dropped the second.
+// Nothing published two records of one name and type until then, so nothing
+// was lost in practice. Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -85,7 +93,10 @@ namespace SecretPrinter.Responder;
 /// What to publish here. Shared with <paramref name="IPv6Interface"/> on
 /// purpose: the same records, delivered over whichever transport the query
 /// arrived on, which is what REQ-ADV-018 asks for. The A record carries the
-/// adapter's IPv4 address in both cases, and REQ-ADV-021 forbids an AAAA.
+/// adapter's IPv4 address in both cases. AAAA records, when the advertisement
+/// holds any, carry the adapter's link-local addresses; the service builds
+/// every advertisement without them until the relay listens on those
+/// addresses, as REQ-ADV-021 requires.
 /// </param>
 /// <param name="IPv6Interface">
 /// The adapter's IPv6 entry, when this interface also answers over IPv6, or
@@ -641,9 +652,13 @@ public sealed partial class MdnsResponder
     }
 
     /// <summary>
-    /// Records the querier will need next: SRV, TXT and A behind a PTR answer,
-    /// and A behind an SRV answer. Supplying them saves the client further round
-    /// trips, as RFC 6763 §12 recommends.
+    /// Records the querier will need next: SRV, TXT and the host's address
+    /// records behind a PTR answer; the address records behind an SRV answer;
+    /// and behind an address answer, the host's address records of the other
+    /// type. Supplying them saves the client further round trips, as RFC 6763
+    /// §12 recommends, and the last is what RFC 6762 §6.2 asks for, so that a
+    /// lost packet cannot leave a client holding one address type and not the
+    /// other.
     /// </summary>
     private static List<OutgoingRecord> AdditionalsFor(
         Advertisement advertisement, List<OutgoingRecord> answers)
@@ -670,6 +685,13 @@ public sealed partial class MdnsResponder
                 case SrvPayload:
                     additionals.AddRange(AddressRecordsFor(advertisement, answer));
                     break;
+
+                case AddressPayload:
+                    additionals.AddRange(advertisement.Records.Where(
+                        r => r.Name.Equals(answer.Name)
+                             && r.Type is DnsRecordType.A or DnsRecordType.Aaaa
+                             && r.Type != answer.Type));
+                    break;
             }
         }
 
@@ -689,5 +711,12 @@ public sealed partial class MdnsResponder
             ? record with { Ttl = Math.Min(record.Ttl, LegacyUnicastTtl), CacheFlush = false }
             : record;
 
-    private static string Key(OutgoingRecord record) => $"{record.Name}|{record.Type}";
+    /// <summary>
+    /// What makes two records the same record: name, type and data (RFC 6762
+    /// treats records that differ in data as different records). Name and type
+    /// alone would make two AAAA records for the host - two link-local
+    /// addresses - count as one, and the second would never be sent.
+    /// </summary>
+    private static string Key(OutgoingRecord record) =>
+        $"{record.Name}|{record.Type}|{Convert.ToHexString(DnsRecordWriter.EncodeRdata(record.Type, record.Payload))}";
 }
