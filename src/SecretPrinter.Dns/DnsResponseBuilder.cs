@@ -11,6 +11,13 @@
 // Claude Opus 5.5) at the direction of Edwin West, 2026-09-28. The bytes
 // written for a response are unchanged. Reviewed by a human before merge.
 //
+// AddQuestion given the class to repeat, which it writes as given, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-01. Before, every repeated question was written in class IN, so a
+// legacy querier that asked in class ANY was answered with a question it had
+// not asked (docs/findings/2026-10-01-the-responder-ignored-the-question-class.md).
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Builds DNS response messages: the records a responder sends back when
 //   answering a Multicast DNS query.
@@ -74,7 +81,7 @@ public sealed record OutgoingRecord(
 public sealed class DnsResponseBuilder
 {
     private readonly List<byte> _bytes = [];
-    private readonly List<(DnsName Name, DnsRecordType Type)> _questions = [];
+    private readonly List<(DnsName Name, DnsRecordType Type, ushort RawClass)> _questions = [];
     private readonly List<OutgoingRecord> _answers = [];
     private readonly List<OutgoingRecord> _additionals = [];
     private readonly ushort _id;
@@ -91,9 +98,16 @@ public sealed class DnsResponseBuilder
     /// legacy unicast responses must repeat it, which is the only reason this
     /// exists.
     /// </summary>
-    public DnsResponseBuilder AddQuestion(DnsName name, DnsRecordType type)
+    /// <param name="name">The name asked about.</param>
+    /// <param name="type">The type asked for.</param>
+    /// <param name="rawClass">
+    /// The question's class field exactly as it arrived, written back exactly
+    /// as given. RFC 6762 s6.7 requires a legacy unicast response to repeat the
+    /// question given in the query, so this builder does not choose a class.
+    /// </param>
+    public DnsResponseBuilder AddQuestion(DnsName name, DnsRecordType type, ushort rawClass)
     {
-        _questions.Add((name, type));
+        _questions.Add((name, type, rawClass));
         return this;
     }
 
@@ -130,11 +144,11 @@ public sealed class DnsResponseBuilder
         DnsRecordWriter.WriteUInt16(_bytes, 0); // NSCOUNT
         DnsRecordWriter.WriteUInt16(_bytes, (ushort)_additionals.Count);
 
-        foreach ((DnsName name, DnsRecordType type) in _questions)
+        foreach ((DnsName name, DnsRecordType type, ushort rawClass) in _questions)
         {
             DnsRecordWriter.WriteName(_bytes, name);
             DnsRecordWriter.WriteUInt16(_bytes, (ushort)type);
-            DnsRecordWriter.WriteUInt16(_bytes, 0x0001); // QCLASS IN
+            DnsRecordWriter.WriteUInt16(_bytes, rawClass);
         }
 
         foreach (OutgoingRecord record in _answers)

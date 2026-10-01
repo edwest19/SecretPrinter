@@ -37,6 +37,19 @@
 //   network for as long as this runs. The instance name says so. Goodbye records
 //   on exit remove it promptly, but a client that was asleep may hold a stale
 //   entry until its cache expires - two minutes at the TTL used here.
+//
+// The question's class:
+//   This tool does not read the class of a question when it matches records,
+//   so it answers a question for one of its names in any class with its class
+//   IN records. RFC 6762 s6 allows that only for a question in class IN or ANY.
+//   SecretPrinter.Responder had the same defect and was corrected on
+//   2026-10-01 (docs/findings/2026-10-01-the-responder-ignored-the-question-class.md).
+//   This experiment tool is left as it was measured with, and is not shipped.
+//   The one change made here: DnsResponseBuilder.AddQuestion now takes the
+//   class to repeat, and this tool passes the class the question was asked
+//   in, where before every repeated question was written in class IN. Note
+//   and change by Claude (Anthropic model, Claude Opus 5.5) at the direction
+//   of Edwin West, 2026-10-01. Reviewed by a human before merge.
 // -----------------------------------------------------------------------------
 
 using System.Globalization;
@@ -269,7 +282,7 @@ internal static class Program
 
                 if (legacyUnicast)
                 {
-                    builder.AddQuestion(name, type);
+                    builder.AddQuestion(name, type, rawClass);
                 }
 
                 foreach (OutgoingRecord record in answers)

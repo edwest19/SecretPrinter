@@ -47,6 +47,15 @@
 // Nothing published two records of one name and type until then, so nothing
 // was lost in practice. Reviewed by a human before merge.
 //
+// Each question's class read, by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-01, for REQ-ADV-025: a question is
+// answered only in class IN or ANY, and a legacy unicast answer repeats it in
+// the class it was asked in. Before, the class was discarded as the questions
+// were read, so a question in any class was answered with class IN records and
+// echoed as class IN. See
+// docs/findings/2026-10-01-the-responder-ignored-the-question-class.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -419,6 +428,8 @@ public sealed partial class MdnsResponder
         "Answers nothing once a conflict is held, whatever the gate says, and reads every response for records about the names this responder claims, even while nothing is on offer.")]
     [Requirement("REQ-ADV-023",
         "Answers nothing while probing: the names are not this responder's until the probe comes back clear.")]
+    [Requirement("REQ-ADV-025",
+        "Answers a question only when its class, read without the unicast-response bit, is IN or ANY, because every record it sends is in class IN; a legacy unicast answer repeats each question in the class it was asked in.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
@@ -509,8 +520,15 @@ public sealed partial class MdnsResponder
         var addedAnswers = new HashSet<string>(StringComparer.Ordinal);
         var addedAdditionals = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach ((DnsName name, DnsRecordType type, _) in query.Questions)
+        foreach ((DnsName name, DnsRecordType type, ushort rawClass) in query.Questions)
         {
+            // A question in a class other than IN or ANY asks about records this
+            // responder does not have, whatever their name and type (REQ-ADV-025).
+            if (!AsksAboutClassIn(rawClass))
+            {
+                continue;
+            }
+
             List<OutgoingRecord> answers = MatchingRecords(entry.Advertisement, name, type);
             if (answers.Count == 0)
             {
@@ -519,7 +537,8 @@ public sealed partial class MdnsResponder
 
             if (legacyUnicast)
             {
-                builder.AddQuestion(name, type);
+                // Repeated as asked, class included (RFC 6762 s6.7).
+                builder.AddQuestion(name, type, rawClass);
             }
 
             foreach (OutgoingRecord record in answers)
@@ -627,7 +646,8 @@ public sealed partial class MdnsResponder
     /// <summary>
     /// Records in the advertisement that answer a question, matched on exact
     /// name and type. This is the only place a query becomes an answer, and it
-    /// consults nothing but the advertisement.
+    /// consults nothing but the advertisement. The question's class is checked
+    /// before this is called (<see cref="AsksAboutClassIn"/>).
     /// </summary>
     private static List<OutgoingRecord> MatchingRecords(
         Advertisement advertisement, DnsName question, DnsRecordType type)
@@ -703,6 +723,23 @@ public sealed partial class MdnsResponder
             ? advertisement.Records.Where(
                 r => r.Name.Equals(srv.Target) && r.Type is DnsRecordType.A or DnsRecordType.Aaaa)
             : [];
+
+    /// <summary>The DNS class every record this responder sends is in: IN.</summary>
+    private const int ClassIn = 1;
+
+    /// <summary>The class a question uses to ask about every class.</summary>
+    private const int ClassAny = 255;
+
+    /// <summary>
+    /// True when a question asks about class IN, or about every class (ANY).
+    /// Every record this responder sends is in class IN, because
+    /// DnsRecordWriter writes no other, and RFC 6762 s6 lets a record answer a
+    /// question only when their classes agree or the question asks for ANY.
+    /// The top bit of the field asks for a unicast answer (RFC 6762 s5.4) and
+    /// is not part of the class, so it is masked off (REQ-ADV-025).
+    /// </summary>
+    private static bool AsksAboutClassIn(ushort rawClass) =>
+        (rawClass & 0x7FFF) is ClassIn or ClassAny;
 
     /// <summary>Caps TTLs for legacy unicast answers; leaves multicast answers as built.</summary>
     private static OutgoingRecord Adjust(OutgoingRecord record, bool legacyUnicast) =>

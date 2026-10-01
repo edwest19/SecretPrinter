@@ -15,6 +15,13 @@
 // both requirements fully met, by Claude (Anthropic model, Claude Opus 5.5) at
 // the direction of Edwin West, 2026-09-28. Reviewed by a human before merge.
 //
+// A question in a class other than IN or ANY no longer taken for a competing
+// probe, by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
+// West, 2026-10-01, for REQ-ADV-025. Before, the class was not read, so such a
+// question with a winning proposal made this responder defer and probe again.
+// See docs/findings/2026-10-01-the-responder-ignored-the-question-class.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Before a responder may treat a name as its own, RFC 6762 s8.1 has it ask
 //   whether anyone else already uses it. This file is that question, and the
@@ -292,8 +299,12 @@ public sealed partial class MdnsResponder
     /// responder is also probing for (RFC 6762 s8.2 and s8.2.1). Losing is
     /// remembered for ProbeAsync, which defers and starts again. Winning, and a
     /// tie - which is what this responder's own probe heard back looks like -
-    /// change nothing.
+    /// change nothing. A question in a class other than IN or ANY is not about
+    /// this responder's records, all of which are in class IN, so it is not a
+    /// competing probe whatever it proposes.
     /// </summary>
+    [Requirement("REQ-ADV-025",
+        "Takes a query for a competing probe only for a question in class IN or ANY, read without the unicast-response bit, because every record this responder claims is in class IN.")]
     private void NoteSimultaneousProbe(DnsMessage query, Advertisement advertisement)
     {
         if (!Volatile.Read(ref _probing) || query.Authorities.Count == 0)
@@ -303,8 +314,13 @@ public sealed partial class MdnsResponder
 
         List<OutgoingRecord> claimed = Claimed(advertisement);
 
-        foreach ((DnsName name, _, _) in query.Questions)
+        foreach ((DnsName name, _, ushort rawClass) in query.Questions)
         {
+            if (!AsksAboutClassIn(rawClass))
+            {
+                continue;
+            }
+
             List<OutgoingRecord> ours = [.. claimed.Where(record => record.Name.Equals(name))];
             List<DnsRecord> theirs = [.. query.Authorities.Where(record => record.Name.Equals(name))];
 
