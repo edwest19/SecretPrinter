@@ -5,6 +5,11 @@
 // West, 2026-09-21, for the SecretPrinter project. Reviewed by a human before
 // merge.
 //
+// The relay given its client network explicitly by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-09-30, when the list
+// became required and an empty one began refusing every connection. The test
+// checks what it checked before. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that a printer which never accepts a TCP connection produces a
 //   reported failure, not a job that ends with nothing logged
@@ -124,7 +129,7 @@ internal static class TcpConnectionFactoryTests
             new NeverAcceptsListener(),
             new TcpConnectionFactory(NeverAnswers),
             _ => Task.FromResult(PrinterEndpoint),
-            new RelayOptions { ConnectTimeout = ShortDeadline },
+            new RelayOptions { ConnectTimeout = ShortDeadline, AllowedClientNetworks = [IPNetwork.Parse("192.168.1.0/24")] },
             observer);
 
         Task<RelayOutcome> relaying = relay.RelayOneAsync(client, CancellationToken.None);

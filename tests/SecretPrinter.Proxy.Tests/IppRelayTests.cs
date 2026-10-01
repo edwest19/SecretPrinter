@@ -12,6 +12,14 @@
 // encryption added by Claude (Anthropic model, Claude Opus 5) at the direction
 // of Edwin West, 2026-09-22, for REQ-OBS-008. Reviewed by a human before merge.
 //
+// Three tests for a permission check that fails closed added, and every relay
+// that is meant to relay given the client network explicitly, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-30, for REQ-SEC-012. Until then these relays used an empty list,
+// which permitted every connection. The foreign-client test now waits with a
+// time limit: if the refusal broke, it would have hung the suite rather than
+// failed. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the print path: that bytes arrive unchanged, that both sides close
 //   together, that failures are prompt and reported, and - the two claims the
@@ -42,6 +50,13 @@ internal static class IppRelayTests
 
     private static readonly IPEndPoint ClientEndpoint =
         new(IPAddress.Parse("192.168.1.41"), 49152);
+
+    /// <summary>
+    /// The network <see cref="ClientEndpoint"/> is on. Every relay in these tests
+    /// that is meant to relay names it: the list is required, and an empty one
+    /// refuses everything.
+    /// </summary>
+    private static readonly IPNetwork ClientNetwork = IPNetwork.Parse("192.168.1.0/24");
 
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
 
@@ -77,7 +92,7 @@ internal static class IppRelayTests
             new NeverAcceptsListener(),
             factory,
             _ => Task.FromResult(PrinterEndpoint),
-            options ?? new RelayOptions(),
+            options ?? new RelayOptions { AllowedClientNetworks = [ClientNetwork] },
             observer);
 
         return new Harness(
@@ -149,7 +164,7 @@ internal static class IppRelayTests
     [Requirement("REQ-PXY-005")]
     public static void Large_job_is_streamed_in_bounded_pieces()
     {
-        var options = new RelayOptions { BufferSize = 4096 };
+        var options = new RelayOptions { BufferSize = 4096, AllowedClientNetworks = [ClientNetwork] };
         Harness harness = Build(options);
 
         // Much larger than the buffer, as a photo print would be.
@@ -475,7 +490,7 @@ internal static class IppRelayTests
             new NeverAcceptsListener(),
             factory,
             _ => throw new InvalidOperationException("printer did not answer"),
-            new RelayOptions(),
+            new RelayOptions { AllowedClientNetworks = [ClientNetwork] },
             observer);
 
         RelayOutcome outcome = relay.RelayOneAsync(client, CancellationToken.None).GetAwaiter().GetResult();
@@ -606,14 +621,70 @@ internal static class IppRelayTests
 
         Harness harness = Build(options, new IPEndPoint(IPAddress.Parse("203.0.113.5"), 40000));
 
-        RelayOutcome outcome = harness.Relay
-            .RelayOneAsync(harness.Client, CancellationToken.None).GetAwaiter().GetResult();
+        // Waited for with a time limit. A refused client returns at once; a
+        // client relayed by mistake would wait on the printer forever, and an
+        // unbounded wait would hang the suite instead of failing this test.
+        RelayOutcome outcome = Run(harness, static () => { });
 
         Assert.False(outcome.Succeeded, "a client from an unexpected network must not be relayed");
         Assert.Equal(0, harness.Factory.Attempts.Count,
             "the printer must not be contacted on behalf of a refused client");
         Assert.True(harness.Observer.Events.Any(e => e.StartsWith("refused", StringComparison.Ordinal)),
             "the refusal must be reported");
+    }
+
+    [TestCase("With no permitted network, every connection is refused, and the refusal says so")]
+    [Requirement("REQ-SEC-012")]
+    public static void No_permitted_network_refuses_everything()
+    {
+        // The client is on 192.168.1.0/24, a network any test here would
+        // permit. With nothing permitted it must still be refused: an empty
+        // list permits nothing. Before this test, it permitted everything.
+        var options = new RelayOptions { AllowedClientNetworks = [] };
+        Harness harness = Build(options, ClientEndpoint);
+
+        RelayOutcome outcome = Run(harness, () =>
+        {
+            harness.ClientSide.CloseWrite();
+            harness.PrinterSide.CloseWrite();
+        });
+
+        Assert.False(outcome.Succeeded, "a relay that permits no network relays nothing");
+        Assert.Equal(0, harness.Factory.Attempts.Count,
+            "the printer must not be contacted on behalf of a refused client");
+        Assert.True(outcome.Failure is not null
+                    && outcome.Failure.Contains("No client network is permitted", StringComparison.Ordinal),
+            $"the refusal says why, so the log shows a configuration fault rather than a foreign client; it said: {outcome.Failure}");
+        Assert.True(harness.Observer.Events.Any(e => e.StartsWith("refused", StringComparison.Ordinal)),
+            "the refusal is reported");
+    }
+
+    [TestCase("Every caller must say which networks it permits")]
+    [Requirement("REQ-SEC-012")]
+    public static void Permitted_networks_are_required()
+    {
+        // 'required' makes leaving the list out a compile error, so no caller
+        // gets a list by default. Read from the compiled metadata, because
+        // the compiler is what enforces it.
+        System.Reflection.PropertyInfo property =
+            typeof(RelayOptions).GetProperty(nameof(RelayOptions.AllowedClientNetworks))!;
+
+        Assert.True(property.IsDefined(typeof(System.Runtime.CompilerServices.RequiredMemberAttribute), inherit: false),
+            "AllowedClientNetworks is a required member, so every caller must set it");
+    }
+
+    [TestCase("A relay given no network list at all is refused when it is built")]
+    [Requirement("REQ-SEC-012")]
+    public static void Null_network_list_is_refused()
+    {
+        Assert.Throws<ArgumentException>(
+            () => _ = new IppRelay(
+                new NeverAcceptsListener(),
+                new FakeConnectionFactory(),
+                _ => Task.FromResult(PrinterEndpoint),
+                new RelayOptions { AllowedClientNetworks = null! },
+                new RecordingObserver()),
+            "a missing list is a caller's mistake, refused before any connection is accepted");
     }
 
     [TestCase("A connection from a permitted network is relayed")]
@@ -706,7 +777,7 @@ internal static class IppRelayTests
             () => _ = new IppRelay(
                 new NeverAcceptsListener(), new FakeConnectionFactory(),
                 _ => Task.FromResult(PrinterEndpoint),
-                new RelayOptions { BufferSize = 64 * 1024 * 1024 },
+                new RelayOptions { BufferSize = 64 * 1024 * 1024, AllowedClientNetworks = [ClientNetwork] },
                 new RecordingObserver()),
             "a 64 MiB buffer would defeat the point of streaming");
     }
@@ -730,7 +801,8 @@ internal static class IppRelayTests
 
         var observer = new RecordingObserver();
         var relay = new IppRelay(
-            listener, factory, _ => Task.FromResult(PrinterEndpoint), new RelayOptions(), observer);
+            listener, factory, _ => Task.FromResult(PrinterEndpoint),
+            new RelayOptions { AllowedClientNetworks = [ClientNetwork] }, observer);
 
         using var stopping = new CancellationTokenSource();
         Task running = relay.RunAsync(stopping.Token);
@@ -773,7 +845,7 @@ internal static class IppRelayTests
 
         var relay = new IppRelay(
             listener, factory, _ => Task.FromResult(PrinterEndpoint),
-            new RelayOptions(), new RecordingObserver());
+            new RelayOptions { AllowedClientNetworks = [ClientNetwork] }, new RecordingObserver());
 
         using var stopping = new CancellationTokenSource();
         Task running = relay.RunAsync(stopping.Token);

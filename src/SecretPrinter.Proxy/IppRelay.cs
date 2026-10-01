@@ -16,6 +16,13 @@
 // Claude (Anthropic model, Claude Opus 5) at the direction of Edwin West,
 // 2026-09-22, for REQ-OBS-008. Reviewed by a human before merge.
 //
+// The permission check made to fail closed by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-09-30, for REQ-SEC-012:
+// RelayOptions.AllowedClientNetworks is required, a missing list is refused
+// at construction, and an empty one refuses every connection. Before this,
+// an empty list permitted every connection; the service always set one, so
+// no shipped behaviour changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   Moves print job bytes between a client and the printer, and does nothing
 //   else with them.
@@ -142,11 +149,16 @@ public sealed class RelayOptions
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
     /// <summary>
-    /// Networks a client connection may originate from. Empty means no
-    /// restriction, which the service must never configure; the service builds
-    /// this from the client interfaces it was configured for.
+    /// Networks a client connection may originate from (REQ-SEC-012). The
+    /// service builds this from the client interfaces it was configured for.
     /// </summary>
-    public IReadOnlyList<IPNetwork> AllowedClientNetworks { get; init; } = [];
+    /// <remarks>
+    /// Required, so every caller must say which networks it permits; there is
+    /// no default for a caller to fall into. An empty list permits nothing: a
+    /// relay that permits no network relays nothing, rather than relaying for
+    /// everybody. A missing list (null) is refused when the relay is built.
+    /// </remarks>
+    public required IReadOnlyList<IPNetwork> AllowedClientNetworks { get; init; }
 }
 
 /// <summary>Streams IPP bytes between a client and the printer.</summary>
@@ -189,6 +201,14 @@ public sealed class IppRelay
         ArgumentNullException.ThrowIfNull(resolvePrinter);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(observer);
+
+        if (options.AllowedClientNetworks is null)
+        {
+            throw new ArgumentException(
+                "RelayOptions.AllowedClientNetworks is null. Say which client networks are permitted; "
+                + "an empty list permits none.",
+                nameof(options));
+        }
 
         if (options.BufferSize is < 1024 or > 1024 * 1024)
         {
@@ -259,7 +279,7 @@ public sealed class IppRelay
     [Requirement("REQ-PXY-007",
         "A printer that cannot be reached or resolved produces a prompt, reported failure rather than a hang.")]
     [Requirement("REQ-SEC-012",
-        "A client whose address is outside the permitted networks is refused and reported before any connection to the printer is opened.")]
+        "A client whose address is outside the permitted networks is refused and reported before any connection to the printer is opened. With no permitted network, every client is refused.")]
     [Requirement("REQ-PXY-009",
         "Reports endpoints, byte counts and elapsed time to the observer whether the connection completed or failed, "
         + "and has no means of reporting content.")]
@@ -551,10 +571,13 @@ public sealed class IppRelay
 
     private bool IsPermitted(EndPoint? remote, out string refusal)
     {
+        // Fails closed. An empty list permits nothing, and the refusal says so,
+        // so the log shows a configuration fault rather than a foreign client.
         if (_options.AllowedClientNetworks.Count == 0)
         {
-            refusal = string.Empty;
-            return true;
+            refusal = "No client network is permitted, so no connection is relayed. The service permits the "
+                + "network of each client interface; an empty list refuses every connection.";
+            return false;
         }
 
         if (remote is not IPEndPoint endpoint)
