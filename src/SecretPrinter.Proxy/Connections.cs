@@ -14,6 +14,12 @@
 // 5) at the direction of Edwin West, 2026-09-22, for REQ-OBS-008. Reviewed by
 // a human before merge.
 //
+// TcpConnectionListener made to refuse the IPv4 and IPv6 wildcard addresses and
+// IPv4-mapped addresses by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-09-30, for REQ-PXY-001. Its comment said it
+// never bound the wildcard; until then nothing in it enforced that. Reviewed
+// by a human before merge.
+//
 // Purpose:
 //   The narrowest possible view of TCP, so the relay can be tested with
 //   in-memory streams.
@@ -34,6 +40,7 @@
 
 using System.Net;
 using System.Net.Sockets;
+using SecretPrinter.Spec;
 
 namespace SecretPrinter.Proxy;
 
@@ -123,9 +130,33 @@ public sealed class TcpConnectionListener : IConnectionListener
     /// interface would accept print jobs on the printer network too, which
     /// REQ-PXY-001 forbids.
     /// </summary>
+    /// <remarks>
+    /// Refused before any socket exists: 0.0.0.0 and ::, which bind every
+    /// interface; and an IPv4-mapped address, which would have an IPv6 socket
+    /// accept IPv4 connections, the IPv4 listener's job. A link-local address
+    /// is bound with the scope it carries, which ties it to one interface.
+    /// </remarks>
+    [Requirement("REQ-PXY-001",
+        "Refuses the IPv4 and IPv6 wildcard addresses, and IPv4-mapped addresses, before any socket is created, so a listener can only ever be bound to one specific address.")]
     public TcpConnectionListener(IPAddress address, ushort port)
     {
         ArgumentNullException.ThrowIfNull(address);
+
+        if (address.Equals(IPAddress.Any) || address.Equals(IPAddress.IPv6Any))
+        {
+            throw new ArgumentException(
+                $"{address} is a wildcard address; it would accept connections on every interface, the printer "
+                + "network included. Bind one client interface address.",
+                nameof(address));
+        }
+
+        if (address.IsIPv4MappedToIPv6)
+        {
+            throw new ArgumentException(
+                $"{address} is an IPv4-mapped address; it would have an IPv6 socket accept IPv4 connections. "
+                + "Bind the IPv4 address itself.",
+                nameof(address));
+        }
 
         _listener = new TcpListener(address, port);
         _listener.Start();

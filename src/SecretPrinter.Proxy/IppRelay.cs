@@ -23,6 +23,13 @@
 // an empty list permitted every connection; the service always set one, so
 // no shipped behaviour changed. Reviewed by a human before merge.
 //
+// RelayOptions.AllowedLinkLocalScopes added by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-09-30, for REQ-SEC-012: an
+// IPv6 link-local client is permitted only when its scope is listed as well
+// as its network, because IPNetwork.Contains ignores scopes. No scope is
+// listed by default, so no link-local client is permitted unless a caller
+// says which interface it may arrive on. Reviewed by a human before merge.
+//
 // Purpose:
 //   Moves print job bytes between a client and the printer, and does nothing
 //   else with them.
@@ -159,6 +166,22 @@ public sealed class RelayOptions
     /// everybody. A missing list (null) is refused when the relay is built.
     /// </remarks>
     public required IReadOnlyList<IPNetwork> AllowedClientNetworks { get; init; }
+
+    /// <summary>
+    /// The scopes an IPv6 link-local client may arrive with: the IPv6 index of
+    /// each client interface the relay serves (REQ-SEC-012).
+    /// </summary>
+    /// <remarks>
+    /// A link-local address (fe80::/10) names a host on a link only together
+    /// with its scope, and IPNetwork.Contains ignores scopes: fe80::/10 would
+    /// contain a link-local address from any interface. So a link-local client
+    /// must be on a permitted network and arrive with a scope listed here.
+    /// Empty, the default, permits no link-local client at all. Each scope
+    /// must be greater than zero, because zero means no scope; a missing list
+    /// (null) is refused when the relay is built. See
+    /// docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md.
+    /// </remarks>
+    public IReadOnlyList<long> AllowedLinkLocalScopes { get; init; } = [];
 }
 
 /// <summary>Streams IPP bytes between a client and the printer.</summary>
@@ -208,6 +231,25 @@ public sealed class IppRelay
                 "RelayOptions.AllowedClientNetworks is null. Say which client networks are permitted; "
                 + "an empty list permits none.",
                 nameof(options));
+        }
+
+        if (options.AllowedLinkLocalScopes is null)
+        {
+            throw new ArgumentException(
+                "RelayOptions.AllowedLinkLocalScopes is null. List the scopes link-local clients may arrive "
+                + "with; an empty list permits none.",
+                nameof(options));
+        }
+
+        foreach (long scope in options.AllowedLinkLocalScopes)
+        {
+            if (scope <= 0)
+            {
+                throw new ArgumentException(
+                    $"Link-local scope {scope} cannot be permitted. A scope is an interface index, greater "
+                    + "than zero; zero means no scope at all.",
+                    nameof(options));
+            }
         }
 
         if (options.BufferSize is < 1024 or > 1024 * 1024)
@@ -279,7 +321,7 @@ public sealed class IppRelay
     [Requirement("REQ-PXY-007",
         "A printer that cannot be reached or resolved produces a prompt, reported failure rather than a hang.")]
     [Requirement("REQ-SEC-012",
-        "A client whose address is outside the permitted networks is refused and reported before any connection to the printer is opened. With no permitted network, every client is refused.")]
+        "A client whose address is outside the permitted networks is refused and reported before any connection to the printer is opened. With no permitted network, every client is refused. An IPv6 link-local client is refused unless its scope is also permitted, because the network check cannot see scopes.")]
     [Requirement("REQ-PXY-009",
         "Reports endpoints, byte counts and elapsed time to the observer whether the connection completed or failed, "
         + "and has no means of reporting content.")]
@@ -583,6 +625,19 @@ public sealed class IppRelay
         if (remote is not IPEndPoint endpoint)
         {
             refusal = "Connection has no IP endpoint, so it cannot be checked against the permitted networks.";
+            return false;
+        }
+
+        // A link-local address names a host only together with its scope, and
+        // the network check below cannot see scopes (IPNetwork.Contains
+        // ignores them). So the scope is checked first, and on its own terms.
+        if (endpoint.Address.IsIPv6LinkLocal
+            && !_options.AllowedLinkLocalScopes.Contains(endpoint.Address.ScopeId))
+        {
+            refusal = _options.AllowedLinkLocalScopes.Count == 0
+                ? $"{endpoint.Address} is a link-local address, and no link-local scope is permitted."
+                : $"{endpoint.Address} is a link-local address on scope {endpoint.Address.ScopeId}, and link-local "
+                  + $"clients are permitted only on scope {string.Join(", ", _options.AllowedLinkLocalScopes)}.";
             return false;
         }
 

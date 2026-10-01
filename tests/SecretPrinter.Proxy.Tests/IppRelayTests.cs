@@ -20,6 +20,10 @@
 // time limit: if the refusal broke, it would have hung the suite rather than
 // failed. Reviewed by a human before merge.
 //
+// Eight tests for IPv6 link-local clients - permitted only on a listed scope -
+// added by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
+// West, 2026-09-30, for REQ-SEC-012. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the print path: that bytes arrive unchanged, that both sides close
 //   together, that failures are prompt and reported, and - the two claims the
@@ -705,6 +709,140 @@ internal static class IppRelayTests
         });
 
         Assert.True(outcome.Succeeded, "a client on the configured network must be served");
+    }
+
+    // ---- IPv6 link-local clients --------------------------------------------
+    //
+    // A link-local address names a host on a link only together with its
+    // scope, and IPNetwork.Contains ignores scopes (measured on .NET 10; see
+    // docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md). So a
+    // link-local client is permitted only when its scope is listed as well as
+    // its network. Every address here is made up: 13 stands for the client
+    // interface's IPv6 index, 14 for another interface's.
+
+    private static readonly IPNetwork LinkLocalNetwork = IPNetwork.Parse("fe80::/10");
+
+    private static RelayOptions LinkLocalOptions(params long[] scopes) => new()
+    {
+        AllowedClientNetworks = [ClientNetwork, LinkLocalNetwork],
+        AllowedLinkLocalScopes = scopes,
+    };
+
+    /// <summary>Relays one connection from the given client, closing both sides.</summary>
+    private static (RelayOutcome Outcome, Harness Harness) RelayFrom(RelayOptions options, string client)
+    {
+        Harness harness = Build(options, new IPEndPoint(IPAddress.Parse(client), 40000));
+
+        // Waited for with a time limit: a refused client returns at once, and a
+        // client relayed by mistake is let finish by closing both sides.
+        RelayOutcome outcome = Run(harness, () =>
+        {
+            harness.ClientSide.CloseWrite();
+            harness.PrinterSide.CloseWrite();
+        });
+
+        return (outcome, harness);
+    }
+
+    private static void AssertRefused((RelayOutcome Outcome, Harness Harness) result, string because)
+    {
+        Assert.False(result.Outcome.Succeeded, because);
+        Assert.Equal(0, result.Harness.Factory.Attempts.Count,
+            "the printer must not be contacted on behalf of a refused client");
+        Assert.True(result.Harness.Observer.Events.Any(e => e.StartsWith("refused", StringComparison.Ordinal)),
+            "the refusal is reported");
+    }
+
+    [TestCase("A link-local client on a permitted scope is relayed")]
+    [Requirement("REQ-SEC-012")]
+    public static void Link_local_client_on_permitted_scope_is_relayed()
+    {
+        (RelayOutcome outcome, _) = RelayFrom(LinkLocalOptions(13), "fe80::41%13");
+
+        Assert.True(outcome.Succeeded, "a link-local client on the client interface's scope is served");
+    }
+
+    [TestCase("A link-local client on another scope is refused, though fe80::/10 is permitted")]
+    [Requirement("REQ-SEC-012")]
+    public static void Link_local_client_on_another_scope_is_refused()
+    {
+        var result = RelayFrom(LinkLocalOptions(13), "fe80::41%14");
+
+        AssertRefused(result, "fe80::/10 on another interface is another link, not the client network");
+        Assert.True(result.Outcome.Failure?.Contains("scope", StringComparison.Ordinal) == true,
+            $"the refusal names the scope as the reason; it said: {result.Outcome.Failure}");
+    }
+
+    [TestCase("A link-local client is refused when no scope is permitted")]
+    [Requirement("REQ-SEC-012")]
+    public static void Link_local_client_with_no_scope_permitted_is_refused()
+    {
+        var result = RelayFrom(LinkLocalOptions(), "fe80::41%13");
+
+        AssertRefused(result, "with no scope listed, no link-local client is permitted, whatever the networks say");
+        Assert.True(result.Outcome.Failure?.Contains("scope", StringComparison.Ordinal) == true,
+            $"the refusal names the scope as the reason; it said: {result.Outcome.Failure}");
+    }
+
+    [TestCase("A link-local client without a scope is refused")]
+    [Requirement("REQ-SEC-012")]
+    public static void Unscoped_link_local_client_is_refused()
+    {
+        var result = RelayFrom(LinkLocalOptions(13), "fe80::41");
+
+        AssertRefused(result, "a link-local address without its scope names no link");
+    }
+
+    [TestCase("A link-local client is refused when fe80::/10 is not a permitted network, whatever its scope")]
+    [Requirement("REQ-SEC-012")]
+    public static void Link_local_client_outside_permitted_networks_is_refused()
+    {
+        var options = new RelayOptions
+        {
+            AllowedClientNetworks = [ClientNetwork],
+            AllowedLinkLocalScopes = [13],
+        };
+
+        AssertRefused(RelayFrom(options, "fe80::41%13"),
+            "a listed scope adds a condition; it does not permit a network that is not listed");
+    }
+
+    [TestCase("A global IPv6 client is refused")]
+    [Requirement("REQ-SEC-012")]
+    public static void Global_ipv6_client_is_refused()
+    {
+        // The service listens on link-local addresses only, so a global
+        // source should never reach it; if one does, it is refused here too.
+        AssertRefused(RelayFrom(LinkLocalOptions(13), "2001:db8::41"),
+            "only the client interface's IPv4 network and its link-local scope are permitted");
+    }
+
+    [TestCase("A scope of zero or less is refused when the relay is built")]
+    [Requirement("REQ-SEC-012")]
+    public static void Non_positive_scope_is_refused()
+    {
+        // Scope zero means no scope at all, and an interface index is never
+        // negative. Either would be a caller's mistake.
+        Assert.Throws<ArgumentException>(
+            () => _ = new IppRelay(new NeverAcceptsListener(), new FakeConnectionFactory(),
+                _ => Task.FromResult(PrinterEndpoint), LinkLocalOptions(0), new RecordingObserver()),
+            "scope zero names no interface");
+        Assert.Throws<ArgumentException>(
+            () => _ = new IppRelay(new NeverAcceptsListener(), new FakeConnectionFactory(),
+                _ => Task.FromResult(PrinterEndpoint), LinkLocalOptions(-1), new RecordingObserver()),
+            "no interface has a negative index");
+    }
+
+    [TestCase("A relay given no scope list at all is refused when it is built")]
+    [Requirement("REQ-SEC-012")]
+    public static void Null_scope_list_is_refused()
+    {
+        Assert.Throws<ArgumentException>(
+            () => _ = new IppRelay(new NeverAcceptsListener(), new FakeConnectionFactory(),
+                _ => Task.FromResult(PrinterEndpoint),
+                new RelayOptions { AllowedClientNetworks = [ClientNetwork], AllowedLinkLocalScopes = null! },
+                new RecordingObserver()),
+            "a missing list is a caller's mistake, refused before any connection is accepted");
     }
 
     // ---- Not a general-purpose proxy ----------------------------------------
