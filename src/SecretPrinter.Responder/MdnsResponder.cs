@@ -94,9 +94,8 @@ namespace SecretPrinter.Responder;
 /// purpose: the same records, delivered over whichever transport the query
 /// arrived on, which is what REQ-ADV-018 asks for. The A record carries the
 /// adapter's IPv4 address in both cases. AAAA records, when the advertisement
-/// holds any, carry the adapter's link-local addresses; the service builds
-/// every advertisement without them until the relay listens on those
-/// addresses, as REQ-ADV-021 requires.
+/// holds any, carry the adapter's link-local addresses, which the relay listens
+/// on (REQ-ADV-021); the responder sends them as it sends every other record.
 /// </param>
 /// <param name="IPv6Interface">
 /// The adapter's IPv6 entry, when this interface also answers over IPv6, or

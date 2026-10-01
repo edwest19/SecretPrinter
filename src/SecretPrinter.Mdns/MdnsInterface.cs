@@ -29,7 +29,7 @@
 // chooses the IPv6 addresses the service will publish and listen on: a client
 // interface's preferred link-local addresses, and nothing else, as Edwin
 // decided that day (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md).
-// Nothing calls it yet.
+// ServiceHost calls it once for each client interface, at startup.
 //
 // Purpose:
 //   Turns an IPv4 address from configuration into a fully identified network
@@ -69,9 +69,11 @@ namespace SecretPrinter.Mdns;
 /// entry whose <paramref name="Transport"/> is IPv6, and that is deliberate
 /// rather than an oversight. The transport family decides how a datagram travels;
 /// it does not decide what the datagram says. An iPhone that asks over IPv6 is
-/// answered with this IPv4 address, because that is the address the relay
-/// listens on - measured on 2026-09-06 and recorded in
-/// docs/findings/2026-09-06-ipv6-mdns-transport.md.
+/// answered with this IPv4 address in the A record - measured on 2026-09-06 and
+/// recorded in docs/findings/2026-09-06-ipv6-mdns-transport.md - and with the
+/// interface's link-local addresses in AAAA records. Those come from
+/// MdnsInterfaceResolver.ResolveLinkLocal, not from this entry; the relay
+/// listens on both.
 /// </param>
 /// <param name="Index">
 /// Operating-system interface index for <paramref name="Transport"/>, as
@@ -380,6 +382,8 @@ public static class MdnsInterfaceResolver
     /// around: a missing read would look like an adapter without IPv6, and a
     /// global address in this list is the one thing it exists to exclude.
     /// </exception>
+    [Requirement("REQ-ADV-021",
+        "Chooses the only IPv6 addresses the service publishes: the client interface's link-local addresses in the preferred state, each scoped to its IPv6 index. Any other address offered as link-local is refused.")]
     public static IReadOnlyList<IPAddress> ResolveLinkLocal(MdnsInterface ipv6Interface, IInterfaceInventory inventory)
     {
         ArgumentNullException.ThrowIfNull(ipv6Interface);

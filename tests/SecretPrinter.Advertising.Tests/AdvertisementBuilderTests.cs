@@ -391,13 +391,12 @@ internal static class AdvertisementBuilderTests
 
     // ---- IPv6 link-local addresses ------------------------------------------
     //
-    // These carry no [Requirement] marker. REQ-ADV-021 is being rewritten to
-    // say which IPv6 addresses are published, and the service does not yet
-    // publish any: until the relay listens on IPv6, it passes an empty list.
-    // Edwin decided on 2026-09-30 that the addresses are the client
-    // interface's link-local ones only
-    // (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md). Every
-    // IPv6 address in these tests is made up.
+    // Edwin decided on 2026-09-30 that the only IPv6 addresses published are
+    // the client interface's link-local ones
+    // (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md). The tests
+    // that check Build publishes those and refuses any other carry REQ-ADV-021
+    // markers, added the same day in the change that made the service publish
+    // them. Every IPv6 address in these tests is made up.
 
     private static readonly IPAddress LinkLocal1 = IPAddress.Parse("fe80::10%15");
     private static readonly IPAddress LinkLocal2 = IPAddress.Parse("fe80::20%15");
@@ -406,6 +405,7 @@ internal static class AdvertisementBuilderTests
         AdvertisementBuilder.Build(Epson(), Proxy(), ProxyAddress, linkLocal);
 
     [TestCase("Each link-local address becomes an AAAA record for the proxy's host name, beside the A record")]
+    [Requirement("REQ-ADV-021")]
     public static void Link_local_addresses_become_aaaa_records()
     {
         Advertisement advertisement = BuiltWith(LinkLocal1, LinkLocal2);
@@ -450,6 +450,7 @@ internal static class AdvertisementBuilderTests
     }
 
     [TestCase("A global IPv6 address is refused, not published, even with the right scope")]
+    [Requirement("REQ-ADV-021")]
     public static void Global_address_is_refused()
     {
         // Given the same scope as the link-local address beside it, so that
@@ -498,6 +499,7 @@ internal static class AdvertisementBuilderTests
     }
 
     [TestCase("Link-local addresses from two interfaces in one advertisement are refused")]
+    [Requirement("REQ-ADV-021")]
     public static void Link_local_addresses_from_two_scopes_are_refused()
     {
         // One advertisement is for one client interface, and RFC 6762 section

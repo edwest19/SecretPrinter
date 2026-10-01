@@ -16,11 +16,13 @@
 //   type would pass every test below; with two, it cannot.
 //
 // Why these carry no [Requirement] marker:
-//   The service does not yet hand the responder any AAAA record: it builds
-//   every advertisement with an empty link-local list until the relay listens
-//   on IPv6, as REQ-ADV-021 requires. A marker here would let the coverage
-//   matrix claim a behaviour the service does not have. The markers go on the
-//   code when the service publishes the records and listens on the addresses.
+//   REQ-ADV-021 decides which IPv6 addresses are published and that the relay
+//   listens on them. That is decided and marked in MdnsInterfaceResolver,
+//   AdvertisementBuilder, ListenPlan and ServiceHost. These tests check
+//   something else: that the responder sends whatever address records the
+//   advertisement holds, all of them, paired as RFC 6762 asks. (Updated
+//   2026-09-30, by Claude, Claude Opus 5.5, when the service began publishing
+//   AAAA records; until then the reason given here was that it did not.)
 //
 // Addresses:
 //   fe80::10 and fe80::20 are made up, scoped to 13, the IPv6 index of the test

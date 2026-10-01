@@ -79,6 +79,15 @@
 // is published until the relay listens on the addresses. Reviewed by a human
 // before merge.
 //
+// Each client interface's preferred link-local addresses published as AAAA
+// records, and listened on, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-09-30, for REQ-ADV-021: the addresses are read
+// once at startup; the listeners are read out of the published records by
+// ListenPlan and opened all together or not at all; if one cannot be opened,
+// the service logs why and stops, to be restarted. Edwin chose that over
+// following address changes (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md).
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -98,6 +107,7 @@
 
 using System.Diagnostics;
 using System.Net;
+using System.Net.Sockets;
 using SecretPrinter.Advertising;
 using SecretPrinter.Configuration;
 using SecretPrinter.Dns;
@@ -138,6 +148,8 @@ public sealed class ServiceHost
         "Retracts the advertisement, leaves multicast groups and disposes every socket on the way out, whatever ended the run.")]
     [Requirement("REQ-LIF-004",
         "Any failure opening a socket propagates out of startup rather than leaving the service half-running. A printer-side interface that is not usable, or a printer that does not answer, is waited for instead (REQ-LIF-008), with nothing offered meanwhile.")]
+    [Requirement("REQ-ADV-021",
+        "Publishes an AAAA record for each preferred link-local address of each client interface, read once at startup, and no other IPv6 address; the relays listen on what is published (RunRelayAsync).")]
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         _log.Info("SecretPrinter starting.");
@@ -301,16 +313,6 @@ public sealed class ServiceHost
         var advertised = new List<AdvertisedInterface>();
         foreach (MdnsInterface client in _configuration.ClientInterfaces)
         {
-            // No AAAA record yet. The relay listens on IPv4 only, and REQ-ADV-021
-            // forbids advertising an address it does not listen on: the printer
-            // would be discovered and could not be reached. The client
-            // interface's link-local addresses go here in the same change that
-            // starts listening on them
-            // (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md).
-            Advertisement advertisement =
-                AdvertisementBuilder.Build(capabilities, identity, client.Address, linkLocalAddresses: []);
-            AdvertisementLog.Write(_log, client, advertisement);
-
             // The IPv6 companion is matched by address, because that is the one
             // thing the two entries for an adapter share: MdnsInterfaceResolver
             // builds the companion with the adapter's IPv4 address and its IPv6
@@ -328,6 +330,26 @@ public sealed class ServiceHost
                     $"No IPv6 companion was opened for {client}, although this host asked to join "
                     + $"{MdnsSocket.MulticastGroupV6} on it. Answering IPv6 queries would be "
                     + "impossible and iOS would not discover the printer.");
+
+            // The interface's preferred link-local addresses: the only IPv6
+            // addresses the service publishes, and the relay listens on exactly
+            // what is published (REQ-ADV-021; ListenPlan). Read once, here, as
+            // the IPv4 address is; a restart picks up new ones.
+            IReadOnlyList<IPAddress> linkLocal = MdnsInterfaceResolver.ResolveLinkLocal(companion);
+            if (linkLocal.Count == 0)
+            {
+                _log.Warn($"{client.Name} holds no preferred IPv6 link-local address, so no AAAA record is "
+                          + "published for it and print jobs are accepted over IPv4 only.");
+            }
+            else
+            {
+                _log.Info($"Publishing {string.Join(", ", linkLocal)} for {client.Name} in AAAA records: its "
+                          + "link-local address(es), and no other IPv6 address (REQ-ADV-021).");
+            }
+
+            Advertisement advertisement =
+                AdvertisementBuilder.Build(capabilities, identity, client.Address, linkLocal);
+            AdvertisementLog.Write(_log, client, advertisement);
 
             advertised.Add(new AdvertisedInterface(client, advertisement, companion));
             _log.Info($"Answering on {client} and, for queries that arrive over IPv6, {companion}.");
@@ -378,9 +400,9 @@ public sealed class ServiceHost
 
             running.Add(watch.WatchAsync(stopping.Token));
 
-            foreach (MdnsInterface client in _configuration.ClientInterfaces)
+            foreach (AdvertisedInterface entry in advertised)
             {
-                running.Add(RunRelayAsync(client, printerSide, ippsInstance, printerPin, offering, watch, stopping.Token));
+                running.Add(RunRelayAsync(entry, printerSide, ippsInstance, printerPin, offering, watch, stopping.Token));
             }
 
             await Task.WhenAll(running).ConfigureAwait(false);
@@ -417,9 +439,9 @@ public sealed class ServiceHost
 
     /// <summary>Accepts and relays print jobs on one client interface.</summary>
     [Requirement("REQ-PXY-001",
-        "Binds the listener to one client interface address, never the wildcard, so jobs cannot be accepted on the printer network.")]
+        "Binds the listeners to the client interface's own published addresses, never the wildcard, so jobs cannot be accepted on the printer network.")]
     [Requirement("REQ-SEC-012",
-        "Permits connections only from the network of the interface the listener is bound to.")]
+        "Permits connections only from the network of the interface each listener is bound to: its IPv4 network, or, on a link-local listener, fe80::/10 on that interface's scope (ListenPlan.From).")]
     [Requirement("REQ-PXY-010",
         "The relay is given a factory that opens TLS connections only, so there is no path by which a job "
         + "reaches the printer over a plain socket.")]
@@ -428,7 +450,7 @@ public sealed class ServiceHost
         + "disposed, so a client with a stale entry is refused at once instead of waiting out a resolve "
         + "timeout for a printer this service has established it cannot reach.")]
     private async Task RunRelayAsync(
-        MdnsInterface client,
+        AdvertisedInterface advertised,
         PrinterSide printerSide,
         DnsName ippsInstance,
         CertificatePin printerPin,
@@ -436,9 +458,14 @@ public sealed class ServiceHost
         PrinterWatch watch,
         CancellationToken cancellationToken)
     {
-        // The permitted network is derived from the interface itself rather than
-        // configured separately, so the two cannot drift apart.
-        var permitted = new IPNetwork(client.Address, PrefixLengthFor(client.Address));
+        MdnsInterface client = advertised.Interface;
+
+        // The permitted IPv4 network is derived from the interface itself rather
+        // than configured separately, so the two cannot drift apart. What to
+        // listen on is read out of what is published, for the same reason
+        // (REQ-ADV-021).
+        var ipv4Network = new IPNetwork(client.Address, PrefixLengthFor(client.Address));
+        IReadOnlyList<ListenEntry> plan = ListenPlan.From(advertised, ipv4Network);
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -455,18 +482,27 @@ public sealed class ServiceHost
             Task withdrawn = offering.WaitForCloseAsync(serving.Token);
 
             await AcceptUntilWithdrawnAsync(
-                    client, permitted, printerSide, ippsInstance, printerPin, watch, withdrawn, serving)
+                    client, plan, printerSide, ippsInstance, printerPin, watch, withdrawn, serving)
                 .ConfigureAwait(false);
         }
     }
 
     /// <summary>
-    /// Listens on one client interface until the printer stops being offered,
-    /// or until the service stops.
+    /// Listens on every published address of one client interface until the
+    /// printer stops being offered, or until the service stops.
     /// </summary>
+    /// <remarks>
+    /// The listeners open all together or not at all (ListenPlan.OpenAllAsync).
+    /// If one cannot be opened - a published address has gone since startup -
+    /// the failure is logged and raised, and the service says goodbye and stops,
+    /// rather than serve while an address it publishes has nothing behind it.
+    /// Addresses are read once, at startup, so a restart picks up new ones.
+    /// </remarks>
+    [Requirement("REQ-ADV-021",
+        "Opens a listener on every address published for the interface, or none: if one cannot be opened, the failure is logged and the service stops rather than leave a published address with nothing listening.")]
     private async Task AcceptUntilWithdrawnAsync(
         MdnsInterface client,
-        IPNetwork permitted,
+        IReadOnlyList<ListenEntry> plan,
         PrinterSide printerSide,
         DnsName ippsInstance,
         CertificatePin printerPin,
@@ -474,48 +510,90 @@ public sealed class ServiceHost
         Task withdrawn,
         CancellationTokenSource serving)
     {
-        await using var listener = new TcpConnectionListener(client.Address, _configuration.ListenPort);
-
-        _log.Info($"Accepting print jobs on {listener.LocalEndPoint} "
-                  + $"({client.Name}); permitted clients: {permitted}.");
-
-        var relay = new IppRelay(
-            listener,
-
-            // The TCP factory wrapped in the TLS one: the relay asks for a
-            // connection and is handed one that has completed a handshake and
-            // passed the pin check, or none at all. IppRelay itself knows
-            // nothing about TLS and did not change when this was added.
-            new TlsConnectionFactory(new TcpConnectionFactory(), printerPin),
-            // The resolver is read for each connection, not captured once:
-            // it is replaced whenever the printer-side socket is reopened.
-            token => LocateConnectionAsync(
-                printerSide.Resolver,
-                ippsInstance,
-                _configuration.Tuning.PrinterResolveTimeout,
-                _log,
-                watch.RecordJobAnswer,
-                token),
-            new RelayOptions
-            {
-                BufferSize = _configuration.Tuning.RelayBufferBytes,
-                ConnectTimeout = _configuration.Tuning.PrinterConnectTimeout,
-                AllowedClientNetworks = [permitted],
-            },
-            new RelayLogger(_log));
-
-        Task accepting = relay.RunAsync(serving.Token);
-
-        await Task.WhenAny(accepting, withdrawn).ConfigureAwait(false);
-        await serving.CancelAsync().ConfigureAwait(false);
+        IReadOnlyList<IConnectionListener> listeners;
+        try
+        {
+            listeners = await ListenPlan
+                .OpenAllAsync(plan, entry => new TcpConnectionListener(entry.Address, _configuration.ListenPort))
+                .ConfigureAwait(false);
+        }
+        catch (SocketException ex)
+        {
+            _log.Error($"Could not listen on every address published for {client.Name} "
+                       + $"({string.Join(", ", plan.Select(entry => entry.Address))}): {ex.Message} "
+                       + "The addresses are read once, at startup; if one has changed, restart the service to "
+                       + "publish and listen on the current ones. Stopping, so that no address is published "
+                       + "with nothing listening behind it.");
+            throw;
+        }
 
         try
         {
-            await accepting.ConfigureAwait(false);
+            var accepting = new List<Task>();
+
+            for (int i = 0; i < listeners.Count; i++)
+            {
+                ListenEntry entry = plan[i];
+                IConnectionListener listener = listeners[i];
+
+                _log.Info($"Accepting print jobs on {listener.LocalEndPoint} ({client.Name}); permitted clients: "
+                          + string.Join(", ", entry.PermittedNetworks)
+                          + (entry.PermittedLinkLocalScopes.Count > 0
+                              ? $" on scope {string.Join(", ", entry.PermittedLinkLocalScopes)}."
+                              : "."));
+
+                var relay = new IppRelay(
+                    listener,
+
+                    // The TCP factory wrapped in the TLS one: the relay asks for a
+                    // connection and is handed one that has completed a handshake and
+                    // passed the pin check, or none at all. IppRelay itself knows
+                    // nothing about TLS and did not change when this was added.
+                    new TlsConnectionFactory(new TcpConnectionFactory(), printerPin),
+                    // The resolver is read for each connection, not captured once:
+                    // it is replaced whenever the printer-side socket is reopened.
+                    token => LocateConnectionAsync(
+                        printerSide.Resolver,
+                        ippsInstance,
+                        _configuration.Tuning.PrinterResolveTimeout,
+                        _log,
+                        watch.RecordJobAnswer,
+                        token),
+                    new RelayOptions
+                    {
+                        BufferSize = _configuration.Tuning.RelayBufferBytes,
+                        ConnectTimeout = _configuration.Tuning.PrinterConnectTimeout,
+                        AllowedClientNetworks = entry.PermittedNetworks,
+                        AllowedLinkLocalScopes = entry.PermittedLinkLocalScopes,
+                    },
+                    new RelayLogger(_log));
+
+                accepting.Add(relay.RunAsync(serving.Token));
+            }
+
+            // The first of: the gate closing, or any relay ending on its own.
+            // Either way every relay on this interface stops together.
+            await Task.WhenAny(Task.WhenAny(accepting), withdrawn).ConfigureAwait(false);
+            await serving.CancelAsync().ConfigureAwait(false);
+
+            foreach (Task task in accepting)
+            {
+                try
+                {
+                    await task.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected: the gate closed, or the service is stopping.
+                }
+            }
         }
-        catch (OperationCanceledException)
+        finally
         {
-            // Expected: the gate closed, or the service is stopping.
+            foreach (IConnectionListener listener in listeners)
+            {
+                await listener.DisposeAsync().ConfigureAwait(false);
+            }
         }
 
         _log.Info($"No longer accepting print jobs on {client.Name}.");

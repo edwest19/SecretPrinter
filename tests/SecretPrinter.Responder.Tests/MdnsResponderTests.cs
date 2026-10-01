@@ -90,8 +90,8 @@ internal static class MdnsResponderTests
     /// <summary>The advertisement the responder tests share, optionally with link-local addresses.</summary>
     /// <param name="linkLocal">
     /// Link-local addresses to publish as AAAA records. None, unless a test is
-    /// about AAAA records: the service publishes none until the relay listens
-    /// on IPv6.
+    /// about AAAA records, so the tests written before AAAA records existed
+    /// still check exactly what they checked then.
     /// </param>
     internal static Advertisement BuildAdvertisement(params IPAddress[] linkLocal) =>
         AdvertisementBuilder.Build(

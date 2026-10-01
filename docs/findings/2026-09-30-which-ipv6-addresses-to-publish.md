@@ -9,6 +9,16 @@ five temporary. Edwin decided the same day that the service publishes, and the
 relay listens on, the client interface's link-local address only. No code has
 changed. `REQ-ADV-021` is rewritten in the change that meets it.**
 
+*(Status updated 2026-09-30 by Claude, Claude Opus 5.5: built, in the changes
+that followed this finding the same day. The service publishes an `AAAA` record
+for each preferred link-local address of each client interface, the relay
+listens on exactly the published addresses, and `REQ-ADV-021` is rewritten to
+say so. On what happens when an address changes, Edwin chose that addresses
+are read once at startup and that the service stops, to be restarted, if a
+published address is gone when the listeners next open; following changes, as
+RFC 6762 §8.4 asks, is left for later. Not yet verified on hardware: which
+address an iPhone connects to is README open question 11.)*
+
 No address appears in this finding. The commands below print each address's
 kind and properties, never the address. The global addresses are household
 values and stay out of the repository.

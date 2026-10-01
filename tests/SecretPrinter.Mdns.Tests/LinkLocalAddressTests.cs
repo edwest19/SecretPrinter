@@ -12,11 +12,14 @@
 //   other IPv6 address. The measurements and the reasons are in
 //   docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md.
 //
-// Why these carry no [Requirement] marker:
-//   REQ-ADV-021 is being rewritten to say what is published, and nothing
-//   publishes an AAAA record yet. A marker here would let the coverage matrix
-//   claim a behaviour the service does not have. The markers go on the code
-//   that publishes and listens, when it does.
+// Markers:
+//   REQ-ADV-021 markers added by Claude (Anthropic model, Claude Opus 5.5) at
+//   the direction of Edwin West, 2026-09-30, in the change that made the
+//   service publish and listen on the addresses these tests choose. Until
+//   then they carried none, because nothing published an AAAA record. The
+//   test that reads the real machine carries none: it skips on a machine with
+//   no IPv6 link-local address, and a marked test that skips would leave the
+//   requirement looking untested there. Reviewed by a human before merge.
 //
 // Addresses:
 //   Every IPv6 address below is made up: fe80::10 and the like, and
@@ -25,6 +28,7 @@
 // -----------------------------------------------------------------------------
 
 using System.Net;
+using SecretPrinter.Spec;
 using SecretPrinter.TestKit;
 
 namespace SecretPrinter.Mdns.Tests;
@@ -55,6 +59,7 @@ internal static class LinkLocalAddressTests
         MdnsInterfaceResolver.ResolveIPv6(MdnsInterfaceResolver.Resolve(ClientIPv4, inventory), inventory);
 
     [TestCase("The client interface's preferred link-local addresses are resolved, each with its scope")]
+    [Requirement("REQ-ADV-021")]
     public static void Preferred_link_local_addresses_are_resolved()
     {
         FakeInventory inventory = Adapter(
@@ -73,6 +78,7 @@ internal static class LinkLocalAddressTests
     }
 
     [TestCase("A link-local address that is not preferred is not resolved")]
+    [Requirement("REQ-ADV-021")]
     public static void Only_preferred_link_local_addresses_are_resolved()
     {
         // Tentative: duplicate address detection has not finished, so the
@@ -132,6 +138,7 @@ internal static class LinkLocalAddressTests
     }
 
     [TestCase("An address that is not link-local, listed as link-local, is refused rather than skipped")]
+    [Requirement("REQ-ADV-021")]
     public static void Non_link_local_address_in_the_list_is_refused()
     {
         // The inventory is the only place that reads the machine's addresses,

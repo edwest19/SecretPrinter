@@ -34,6 +34,10 @@
 // PrinterSideTests registered by Claude (Anthropic model, Claude Opus 5.5) at
 // the direction of Edwin West, 2026-09-25, for REQ-RES-009. Reviewed by a human
 // before merge.
+//
+// ListenPlanTests registered by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-09-30, for REQ-ADV-021. Reviewed by a human
+// before merge.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.TestKit;
@@ -76,6 +80,7 @@ internal static class Program
             typeof(PrinterSideTests),
             typeof(AvailabilityGateTests),
             typeof(StartupWaitTests),
-            typeof(OfferingTests));
+            typeof(OfferingTests),
+            typeof(ListenPlanTests));
     }
 }

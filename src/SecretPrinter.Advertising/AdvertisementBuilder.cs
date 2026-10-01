@@ -16,9 +16,17 @@
 // 2026-09-30. Reviewed by a human before merge. Build takes the addresses as a
 // required argument and refuses anything that is not a scoped link-local
 // address of one interface, as Edwin decided that day
-// (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md). Until the
-// relay listens on IPv6, the service passes an empty list and publishes no
-// AAAA record.
+// (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md). ServiceHost
+// passes each client interface's preferred link-local addresses, and the
+// relay listens on exactly the addresses published (ListenPlan).
+//
+// Corrected by Claude (Anthropic model, Claude Opus 5.5), 2026-09-30: the
+// change above had added a second set of parameter descriptions for Build,
+// placed between its attributes and the method, repeating three that were
+// already documented. The duplicates are removed and the description of
+// linkLocalAddresses moved to the one documentation block. A REQ-ADV-021
+// marker was added when the service began publishing the addresses. Reviewed
+// by a human before merge.
 //
 // Purpose:
 //   Decides exactly what the proxy publishes, and produces the DNS records for
@@ -137,6 +145,15 @@ public static class AdvertisementBuilder
     /// The proxy's own IPv4 address on the interface this advertisement is for.
     /// This is what goes in the A record.
     /// </param>
+    /// <param name="linkLocalAddresses">
+    /// The client interface's IPv6 link-local addresses, as
+    /// MdnsInterfaceResolver.ResolveLinkLocal returns them, published as one
+    /// AAAA record each, in the order given. Every address must be in
+    /// fe80::/10, carry a scope, share one scope with the others, and appear
+    /// once; anything else is refused rather than dropped. Empty publishes no
+    /// AAAA record. Required, so that no caller leaves the addresses out
+    /// without saying so.
+    /// </param>
     [Requirement("REQ-ADV-003",
         "The SRV record names a host owned by the proxy, and the A record binds that host to the proxy's own address on the advertising interface.")]
     [Requirement("REQ-ADV-004",
@@ -155,20 +172,8 @@ public static class AdvertisementBuilder
         "Takes capabilities as an argument carrying their source; no printer TXT value is written literally in this file.")]
     [Requirement("REQ-SEC-002",
         "Publishes exactly three names - the IPP service type, the AirPrint subtype and the service enumeration - plus the proxy's own instance and host. There is no path by which any other service type could be added to an advertisement.")]
-    /// <param name="printer">The printer's capabilities, with where they came from.</param>
-    /// <param name="proxy">The proxy's own identity.</param>
-    /// <param name="advertisedAddress">
-    /// The proxy's IPv4 address on the client interface, published as the A record.
-    /// </param>
-    /// <param name="linkLocalAddresses">
-    /// The client interface's IPv6 link-local addresses, as
-    /// MdnsInterfaceResolver.ResolveLinkLocal returns them, published as one
-    /// AAAA record each, in the order given. Every address must be in
-    /// fe80::/10, carry a scope, share one scope with the others, and appear
-    /// once; anything else is refused rather than dropped. Empty publishes no
-    /// AAAA record. Required, so that no caller leaves the addresses out
-    /// without saying so.
-    /// </param>
+    [Requirement("REQ-ADV-021",
+        "Publishes an AAAA record for each link-local address it is given, and refuses anything else offered as one: an address outside fe80::/10, one without a scope, addresses from two scopes, or the same address twice.")]
     public static Advertisement Build(
         PrinterCapabilities printer,
         ProxyIdentity proxy,
