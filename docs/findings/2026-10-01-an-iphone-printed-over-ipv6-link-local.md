@@ -9,6 +9,11 @@ listened on it, and an iPhone printed two pages through it, over IPv6, on
 2026-10-01. README open question 11 is answered for this iPhone. Three things
 seen in the same capture are not explained yet and are listed at the end.**
 
+*(Corrected 2026-10-01 by Claude, Claude Opus 5.5: the second of those first
+said that whether IPv4 connections end with the same resets was not
+established. The 2026-09-29 finding had already recorded it on IPv4
+connections; Claude had not read it before writing that line.)*
+
 No IPv6 address, MAC address or device name appears in this finding. They are
 household values. The capture holds them, and the printed pages too, so it is
 kept outside the repository.
@@ -109,8 +114,10 @@ version was not recorded.
    Windows DNS Client, which shares port 5353, receives unicast datagrams sent
    to it.
 2. **FIOS-STB-01 sent 42 of the 43 resets on port 631**, after the iPhone had
-   closed its side. Why, and whether IPv4 connections end the same way, is not
-   established. No job was affected.
+   closed its side. This is not new with IPv6: the relay answered a client's
+   FIN with a reset on IPv4 connections on 2026-09-29
+   ([finding](2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md)).
+   Why is not established. No job was affected.
 3. **The capture has gaps.** tshark marks 10 segments as missing, although
    pktmon reported none dropped, and the iPhone's acknowledgements show the
    data arrived. Reading a pktmon capture, an acknowledgement is better
