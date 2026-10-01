@@ -22,6 +22,14 @@
 // See docs/findings/2026-10-01-the-responder-ignored-the-question-class.md.
 // Reviewed by a human before merge.
 //
+// An NSEC record for a claimed name judged by the types it lists, so that this
+// responder's own NSEC, heard back, is not taken for a conflict, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-01, for REQ-ADV-022 and REQ-ADV-024. Before, any NSEC for a claimed
+// name was a conflict, because this responder published no NSEC. It still
+// sends none; the change comes first so that it can. Reviewed by a human before
+// merge.
+//
 // Purpose:
 //   Before a responder may treat a name as its own, RFC 6762 s8.1 has it ask
 //   whether anyone else already uses it. This file is that question, and the
@@ -240,12 +248,31 @@ public sealed partial class MdnsResponder
         [.. advertisement.Records.Where(record => record.CacheFlush)];
 
     /// <summary>
+    /// The types this responder publishes at one claimed name, in ascending
+    /// order: what an NSEC record for that name says exists there
+    /// (RFC 6762 s6.1).
+    /// </summary>
+    /// <param name="claimedAtName">The claimed records whose name it is.</param>
+    private static List<DnsRecordType> TypesAt(IEnumerable<OutgoingRecord> claimedAtName) =>
+        [.. claimedAtName.Select(record => record.Type).Distinct().Order()];
+
+    /// <summary>
     /// Records the first conflict in a response: a record for a claimed name
     /// that this responder would not itself publish, whether another type or
     /// the same type with different data. Identical records are not a conflict
     /// (RFC 6762 s9); that is also how this responder's own multicast, heard
     /// back, is recognised.
     /// </summary>
+    /// <remarks>
+    /// An NSEC record is judged by what it says: the types that exist at its
+    /// name. One that lists exactly the types this responder publishes there
+    /// agrees with it, whoever sent it, and that is how this responder's own
+    /// NSEC, heard back, is recognised. Its next domain name is not compared,
+    /// because RFC 6762 s6.1 says a receiver SHOULD ignore that field when it is
+    /// not the record's own name and process the rest as usual. An NSEC the
+    /// reader kept as raw bytes, outside the restricted form, cannot be shown to
+    /// agree, so it is a conflict.
+    /// </remarks>
     [Requirement("REQ-ADV-024",
         "Defines a conflict: a class IN record from another device, for a claimed name, that this responder would not itself publish - another type, or the same type with different data. Identical records are not one. The first is kept for the life of the responder and reported once.")]
     private void NoteConflicts(DnsMessage response, MdnsDatagram datagram, MdnsInterface arrivedOn, Advertisement advertisement)
@@ -273,12 +300,23 @@ public sealed partial class MdnsResponder
                 continue;
             }
 
-            byte[]? theirData = RdataOf(theirs);
-            if (theirData is not null && ours.Any(
-                    record => record.Type == theirs.Type
-                              && DnsRecordWriter.EncodeRdata(record.Type, record.Payload).AsSpan().SequenceEqual(theirData)))
+            if (theirs.Type == DnsRecordType.Nsec)
             {
-                continue;
+                // Judged by the types it lists; see the remarks above.
+                if (theirs.NsecTypes is { } listed && listed.SequenceEqual(TypesAt(ours)))
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                byte[]? theirData = RdataOf(theirs);
+                if (theirData is not null && ours.Any(
+                        record => record.Type == theirs.Type
+                                  && DnsRecordWriter.EncodeRdata(record.Type, record.Payload).AsSpan().SequenceEqual(theirData)))
+                {
+                    continue;
+                }
             }
 
             var found = new NameConflict(theirs.Name, theirs.Type, datagram.Source.Address, arrivedOn);
