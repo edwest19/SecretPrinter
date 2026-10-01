@@ -9,6 +9,12 @@
 // (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 // 2026-09-28. Reviewed by a human before merge.
 //
+// NSEC records in the restricted form of RFC 6762 s6.1 decoded into their next
+// domain name and types; any other NSEC kept as raw bytes rather than failing
+// the message, as s6.1 requires. By Claude (Anthropic model, Claude Opus 5.5)
+// at the direction of Edwin West, 2026-10-01, for REQ-ADV-022. Reviewed by a
+// human before merge.
+//
 // Purpose:
 //   A deliberately small, dependency-free DNS wire-format reader and writer,
 //   sufficient for the subset of DNS used by Multicast DNS (RFC 6762) and
@@ -21,7 +27,8 @@
 //   - Nothing in this file opens a socket or sends a packet. It converts bytes
 //     to objects and back, and does nothing else.
 //   - It implements only the record types this project needs: A, AAAA, PTR,
-//     SRV and TXT. Any other record type is preserved as raw bytes and
+//     SRV, TXT, and NSEC in the restricted form of RFC 6762 s6.1. Any other
+//     record type, and an NSEC in any other form, is preserved as raw bytes and
 //     reported as such, never silently dropped.
 //   - Name compression (RFC 1035 s4.1.4) is supported for reading, with an
 //     explicit jump limit to prevent malicious pointer loops.
@@ -187,6 +194,21 @@ public sealed class DnsRecord
     public IReadOnlyList<string>? TxtStrings { get; init; }
 
     public System.Net.IPAddress? Address { get; init; }
+
+    /// <summary>
+    /// An NSEC record's next domain name, when the record is in the restricted
+    /// form of RFC 6762 s6.1: one type bitmap, block 0, of 1 to 32 bytes.
+    /// Otherwise null, and the data is in <see cref="RawData"/>.
+    /// </summary>
+    public DnsName? NsecNextDomainName { get; init; }
+
+    /// <summary>
+    /// The data types an NSEC record in the restricted form lists, in ascending
+    /// order. Bits for type 0 and for types 128 to 255, which are not data types,
+    /// are ignored, as RFC 4034 s4.1.2 requires of pseudo-type bits. Set exactly
+    /// when <see cref="NsecNextDomainName"/> is.
+    /// </summary>
+    public IReadOnlyList<DnsRecordType>? NsecTypes { get; init; }
 
     /// <summary>RDATA for record types this tool does not decode.</summary>
     public byte[]? RawData { get; init; }
@@ -437,6 +459,10 @@ public sealed class DnsReader
                 break;
             }
 
+            case DnsRecordType.Nsec:
+                record = ReadNsec(name, rawClass, ttl, rdataStart, rdataEnd);
+                break;
+
             case DnsRecordType.A when rdLength == 4:
             case DnsRecordType.Aaaa when rdLength == 16:
                 record = new DnsRecord
@@ -459,6 +485,74 @@ public sealed class DnsReader
         // record we decode imperfectly cannot desynchronise the whole message.
         _position = rdataEnd;
         return record;
+    }
+
+    /// <summary>
+    /// Reads an NSEC record. One in the restricted form of RFC 6762 s6.1 (one
+    /// type bitmap, block 0, of 1 to 32 bytes) is decoded into its next domain
+    /// name and types. Any other form, including a next domain name that cannot
+    /// be read, is kept as raw bytes, like a type this reader does not decode.
+    /// </summary>
+    /// <remarks>
+    /// Kept rather than refused because RFC 6762 s6.1 says a message must not
+    /// be ignored because it holds an NSEC record that cannot be parsed. A
+    /// malformed name in a PTR or SRV record still fails the whole message, as
+    /// before.
+    /// </remarks>
+    private DnsRecord ReadNsec(DnsName name, ushort rawClass, uint ttl, int rdataStart, int rdataEnd)
+    {
+        try
+        {
+            DnsName next = ReadName();
+
+            // The name may not run past the record's data, and what follows it
+            // must be exactly one block: number 0, a length of 1 to 32, then
+            // that many bytes. The first test only makes sure the block number
+            // and length bytes are there to read.
+            int remaining = rdataEnd - _position;
+            if (remaining >= 2
+                && _buffer[_position] == 0
+                && _buffer[_position + 1] is >= 1 and <= 32
+                && remaining == 2 + _buffer[_position + 1])
+            {
+                int length = _buffer[_position + 1];
+                var types = new List<DnsRecordType>();
+
+                for (int index = 0; index < length; index++)
+                {
+                    byte bits = _buffer[_position + 2 + index];
+                    for (int bit = 0; bit < 8; bit++)
+                    {
+                        int value = (index * 8) + bit;
+
+                        // Network bit order: the most significant bit of byte
+                        // 0 is type 0 (RFC 4034 s4.1.2). Type 0 and types 128
+                        // to 255 are not data types, so their bits are ignored.
+                        if ((bits & (0x80 >> bit)) != 0 && value is >= 1 and <= 127)
+                        {
+                            types.Add((DnsRecordType)value);
+                        }
+                    }
+                }
+
+                return new DnsRecord
+                {
+                    Name = name, Type = DnsRecordType.Nsec, RawClass = rawClass, Ttl = ttl,
+                    NsecNextDomainName = next, NsecTypes = types,
+                };
+            }
+        }
+        catch (InvalidDataException)
+        {
+            // A next domain name that cannot be read: kept as raw bytes below.
+        }
+
+        _position = rdataStart;
+        return new DnsRecord
+        {
+            Name = name, Type = DnsRecordType.Nsec, RawClass = rawClass, Ttl = ttl,
+            RawData = ReadBytes(rdataEnd - rdataStart),
+        };
     }
 }
 

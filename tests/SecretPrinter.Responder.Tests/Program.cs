@@ -15,6 +15,10 @@
 // the direction of Edwin West, 2026-10-01, for REQ-ADV-025. Reviewed by a human
 // before merge.
 //
+// NsecRecordTests registered by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-01, for REQ-ADV-022. Reviewed by a human
+// before merge.
+//
 // Pass --results <path> to record which requirements had a test that executed
 // and passed, for SecretPrinter.SpecCheck to read.
 // -----------------------------------------------------------------------------
@@ -54,6 +58,7 @@ internal static class Program
             typeof(MdnsResponderTests),
             typeof(MdnsProbeTests),
             typeof(LinkLocalAnsweringTests),
-            typeof(QuestionClassTests));
+            typeof(QuestionClassTests),
+            typeof(NsecRecordTests));
     }
 }

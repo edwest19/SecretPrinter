@@ -18,6 +18,11 @@
 // not asked (docs/findings/2026-10-01-the-responder-ignored-the-question-class.md).
 // Reviewed by a human before merge.
 //
+// NsecPayload added, written only in the restricted form RFC 6762 s6.1 defines
+// for Multicast DNS, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-01, for REQ-ADV-022. Nothing sends one yet.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Builds DNS response messages: the records a responder sends back when
 //   answering a Multicast DNS query.
@@ -33,8 +38,9 @@
 //     enough to fit comfortably without it, and uncompressed output is far
 //     easier to audit byte by byte. If message size ever becomes a constraint,
 //     that is the point to revisit this - not before.
-//   - Only the record types this project advertises are supported: PTR, SRV,
-//     TXT and A/AAAA. Anything else must be added deliberately.
+//   - Only the record types this project sends are supported: PTR, SRV, TXT,
+//     A/AAAA, and NSEC in the restricted form of RFC 6762 s6.1. Anything else
+//     must be added deliberately.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -57,6 +63,27 @@ public sealed record TxtPayload(IReadOnlyList<string> Strings) : DnsRecordPayloa
 
 /// <summary>An A or AAAA record's address.</summary>
 public sealed record AddressPayload(IPAddress Address) : DnsRecordPayload;
+
+/// <summary>
+/// An NSEC record in the restricted form RFC 6762 s6.1 defines for Multicast
+/// DNS. It lists the types that exist at its name, and so asserts that no other
+/// type does. In Multicast DNS it carries none of its DNSSEC meaning.
+/// </summary>
+/// <remarks>
+/// The writer enforces the restricted form. The next domain name must be the
+/// record's own name, and it is written uncompressed, as RFC 4034 s4.1.1
+/// requires. At least one type must be listed, so the bitmap is 1 to 32 bytes.
+/// Each type must lie between 1 and 127. That keeps it inside the one bitmap
+/// block, number 0, the restricted form allows; types above 255 would need
+/// another. It also keeps it among IANA's data types: 0 is reserved, and 128 to
+/// 255 are question and meta types, which no record at a name has, and
+/// RFC 4034 s4.1.2 requires bits for pseudo-types to be clear. NSEC itself must
+/// not be listed (RFC 6762 s6.1). Anything else is refused, so a record outside
+/// the restricted form cannot be sent.
+/// </remarks>
+/// <param name="NextDomainName">The record's own name (RFC 6762 s6.1).</param>
+/// <param name="Types">The types that exist at the name, in any order.</param>
+public sealed record NsecPayload(DnsName NextDomainName, IReadOnlyList<DnsRecordType> Types) : DnsRecordPayload;
 
 /// <summary>A resource record ready to be written to the wire.</summary>
 /// <param name="Name">The name this record is about.</param>
@@ -188,6 +215,16 @@ public static class DnsRecordWriter
 
     internal static void WriteRecord(List<byte> bytes, OutgoingRecord record)
     {
+        // Checked here rather than in WritePayload, because only the record
+        // knows its own name.
+        if (record.Payload is NsecPayload nsec && !nsec.NextDomainName.Equals(record.Name))
+        {
+            throw new ArgumentException(
+                $"The NSEC record for {record.Name} names {nsec.NextDomainName} as its next domain name. "
+                + "RFC 6762 s6.1's restricted form names the record's own name.",
+                nameof(record));
+        }
+
         WriteName(bytes, record.Name);
         WriteUInt16(bytes, (ushort)record.Type);
         WriteUInt16(bytes, (ushort)(record.CacheFlush ? 0x8001 : 0x0001));
@@ -213,6 +250,13 @@ public static class DnsRecordWriter
 
     private static void WritePayload(List<byte> bytes, DnsRecordType type, DnsRecordPayload payload)
     {
+        if ((type == DnsRecordType.Nsec) != (payload is NsecPayload))
+        {
+            throw new ArgumentException(
+                $"A {type} record cannot carry a {payload.GetType().Name}: NSEC data goes in NSEC records only.",
+                nameof(payload));
+        }
+
         switch (payload)
         {
             case PtrPayload ptr:
@@ -232,6 +276,10 @@ public static class DnsRecordWriter
 
             case AddressPayload address:
                 WriteAddress(bytes, address.Address, type);
+                break;
+
+            case NsecPayload nsec:
+                WriteNsec(bytes, nsec);
                 break;
 
             default:
@@ -265,6 +313,59 @@ public static class DnsRecordWriter
             bytes.Add((byte)encoded.Length);
             bytes.AddRange(encoded);
         }
+    }
+
+    /// <summary>
+    /// Writes NSEC data in the restricted form of RFC 6762 s6.1: the next domain
+    /// name, uncompressed like every name this writer emits, then one type
+    /// bitmap, block 0, as short as the highest listed type allows.
+    /// </summary>
+    private static void WriteNsec(List<byte> bytes, NsecPayload nsec)
+    {
+        ArgumentNullException.ThrowIfNull(nsec.NextDomainName);
+        ArgumentNullException.ThrowIfNull(nsec.Types);
+
+        if (nsec.Types.Count == 0)
+        {
+            throw new ArgumentException(
+                "An NSEC record in the restricted form lists at least one type: its bitmap is 1 to 32 bytes "
+                + "(RFC 6762 s6.1).",
+                nameof(nsec));
+        }
+
+        var bitmap = new byte[32];
+        int length = 0;
+
+        foreach (DnsRecordType type in nsec.Types)
+        {
+            if (type == DnsRecordType.Nsec)
+            {
+                throw new ArgumentException(
+                    "A Multicast DNS NSEC record must not list NSEC itself (RFC 6762 s6.1).", nameof(nsec));
+            }
+
+            int value = (int)type;
+            if (value is < 1 or > 127)
+            {
+                throw new ArgumentException(
+                    $"Type {value} cannot be listed. The restricted form lists data types 1 to 127: type 0 is "
+                    + "reserved, 128 to 255 are question and meta types that no record at a name has, and types "
+                    + "above 255 need a bitmap block other than 0 (RFC 6762 s6.1, RFC 4034 s4.1.2).",
+                    nameof(nsec));
+            }
+
+            // Network bit order, the first bit being bit 0: bit 1 of byte 0 is
+            // type 1, A (RFC 4034 s4.1.2). Trailing zero bytes are not written,
+            // as that section requires, because the length stops at the byte
+            // holding the highest type.
+            bitmap[value / 8] |= (byte)(0x80 >> (value % 8));
+            length = Math.Max(length, (value / 8) + 1);
+        }
+
+        WriteName(bytes, nsec.NextDomainName);
+        bytes.Add(0);             // window block number: 0
+        bytes.Add((byte)length);  // bitmap length in bytes: 1 to 16, within the 1 to 32 allowed
+        bytes.AddRange(bitmap.AsSpan(0, length).ToArray());
     }
 
     private static void WriteAddress(List<byte> bytes, IPAddress address, DnsRecordType type)
