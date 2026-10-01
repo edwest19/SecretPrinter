@@ -33,6 +33,16 @@ changed. Reviewed by a human before merge.*
 **Status:** Concluded. Result positive, reproducible.
 **Instrument:** `tools/SecretPrinter.Respond6`
 
+*(Corrected 2026-10-01 by Claude, Claude Opus 5.5: under "Result" this finding
+said the `NSEC` "was accepted as a definite negative and did not stall the
+address lookup", and under "What this implies for the specification" it said
+"Silence is measurably worse than a definite negative." Neither was measured.
+The observations below record the response before the SYNs as three records
+including the `A` record, not which three. `SecretPrinter.Respond6` sends an
+`NSEC` with its answers to `PTR`, `SRV`, `AAAA` and `HTTPS` questions, and not
+with an answer to an `A` question alone. No run without an `NSEC` was made to
+compare. Both passages now say what was established.)*
+
 ---
 
 ## Question
@@ -133,8 +143,9 @@ first IPv4 SYN.
 **Confirmed: yes.**
 
 iOS accepted an `A` record delivered over IPv6 mDNS transport and opened an IPP
-connection over IPv4. No `AAAA` was required. The `NSEC` assertion that no `AAAA`
-exists was accepted as a definite negative and did not stall the address lookup.
+connection over IPv4. No `AAAA` was required. Whether the response it acted on
+carried an `NSEC` is not recorded here, and whether an `NSEC` played any part was
+not measured.
 
 ## What this implies for the specification
 
@@ -147,8 +158,9 @@ need to say; assigning IDs is a separate, deliberate step.
 2. The change is scoped to transport. The `A` record may keep carrying the IPv4
    address of the proxy interface; the printer stays IPv4-only. Advertising,
    Resolution and Proxy need no IPv6 awareness.
-3. `NSEC` for absent `AAAA` should be part of responder behaviour. Silence is
-   measurably worse than a definite negative.
+3. `NSEC` for absent `AAAA` should be part of responder behaviour, because
+   RFC 6762 section 6.1 requires it of a responder that has claimed the name by
+   probing. This experiment did not compare an `NSEC` with silence.
 4. Binding `0.0.0.0` rather than configured interfaces, as the service currently
    does, diverges from README Section 3.1. On a multi-homed host it makes
    source-address selection an OS decision rather than a SecretPrinter decision.
