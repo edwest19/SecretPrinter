@@ -19,6 +19,11 @@ published address is gone when the listeners next open; following changes, as
 RFC 6762 §8.4 asks, is left for later. Not yet verified on hardware: which
 address an iPhone connects to is README open question 11.)*
 
+*(Status updated 2026-10-01 by Claude, Claude Opus 5.5: verified on
+FIOS-STB-01 running `2c93864`. An iPhone connected to the link-local address
+and printed two pages over it; see the
+[2026-10-01 finding](2026-10-01-an-iphone-printed-over-ipv6-link-local.md).)*
+
 No address appears in this finding. The commands below print each address's
 kind and properties, never the address. The global addresses are household
 values and stay out of the repository.
