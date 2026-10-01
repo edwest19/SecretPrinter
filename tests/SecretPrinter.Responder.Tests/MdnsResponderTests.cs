@@ -17,6 +17,11 @@
 // Claude Opus 5.5) at the direction of Edwin West, 2026-09-28. Reviewed by a
 // human before merge.
 //
+// The call to AdvertisementBuilder.Build given an empty link-local list by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-30, when Build began taking one. No test changed what it checks.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies which queries get answered, which are ignored, what the answers
 //   contain, and how they are addressed.
@@ -81,7 +86,8 @@ internal static class MdnsResponderTests
         AdvertisementBuilder.Build(
             new PrinterCapabilities(EpsonTxt, 631, CapabilitySource.ForTest("responder tests")),
             new ProxyIdentity("SecretPrinter", "secretprinter", Guid.Parse("b6f4e2a1-9c37-4d58-8e0b-7a1f3d6c5e94"), 631),
-            ClientNic.Address);
+            ClientNic.Address,
+            linkLocalAddresses: []);
 
     private static (MdnsResponder Responder, FakeTransport Transport) Build()
     {

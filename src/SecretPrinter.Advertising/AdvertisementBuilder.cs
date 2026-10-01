@@ -11,6 +11,15 @@
 // docs/findings/2026-09-29-the-note-published-the-printers-address.md.
 // Reviewed by a human before merge.
 //
+// AAAA records from the client interface's link-local addresses added by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-30. Reviewed by a human before merge. Build takes the addresses as a
+// required argument and refuses anything that is not a scoped link-local
+// address of one interface, as Edwin decided that day
+// (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md). Until the
+// relay listens on IPv6, the service passes an empty list and publishes no
+// AAAA record.
+//
 // Purpose:
 //   Decides exactly what the proxy publishes, and produces the DNS records for
 //   it. This is where Section 4 of the specification becomes code.
@@ -146,12 +155,30 @@ public static class AdvertisementBuilder
         "Takes capabilities as an argument carrying their source; no printer TXT value is written literally in this file.")]
     [Requirement("REQ-SEC-002",
         "Publishes exactly three names - the IPP service type, the AirPrint subtype and the service enumeration - plus the proxy's own instance and host. There is no path by which any other service type could be added to an advertisement.")]
+    /// <param name="printer">The printer's capabilities, with where they came from.</param>
+    /// <param name="proxy">The proxy's own identity.</param>
+    /// <param name="advertisedAddress">
+    /// The proxy's IPv4 address on the client interface, published as the A record.
+    /// </param>
+    /// <param name="linkLocalAddresses">
+    /// The client interface's IPv6 link-local addresses, as
+    /// MdnsInterfaceResolver.ResolveLinkLocal returns them, published as one
+    /// AAAA record each, in the order given. Every address must be in
+    /// fe80::/10, carry a scope, share one scope with the others, and appear
+    /// once; anything else is refused rather than dropped. Empty publishes no
+    /// AAAA record. Required, so that no caller leaves the addresses out
+    /// without saying so.
+    /// </param>
     public static Advertisement Build(
-        PrinterCapabilities printer, ProxyIdentity proxy, IPAddress advertisedAddress)
+        PrinterCapabilities printer,
+        ProxyIdentity proxy,
+        IPAddress advertisedAddress,
+        IReadOnlyList<IPAddress> linkLocalAddresses)
     {
         ArgumentNullException.ThrowIfNull(printer);
         ArgumentNullException.ThrowIfNull(proxy);
         ArgumentNullException.ThrowIfNull(advertisedAddress);
+        ArgumentNullException.ThrowIfNull(linkLocalAddresses);
 
         if (advertisedAddress.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
         {
@@ -159,6 +186,8 @@ public static class AdvertisementBuilder
                 $"{advertisedAddress} is not IPv4. The A record requires an IPv4 address.",
                 nameof(advertisedAddress));
         }
+
+        CheckLinkLocal(linkLocalAddresses);
 
         // A proxy sharing the printer's UUID would make two devices claim one
         // identity. Clients cache by UUID, and the result is undefined.
@@ -197,7 +226,73 @@ public static class AdvertisementBuilder
             new(host, DnsRecordType.A, HostRecordTtl, CacheFlush: true, new AddressPayload(advertisedAddress)),
         ];
 
+        // The host's IPv6 addresses: the client interface's link-local ones and
+        // nothing else, with the same lifetime and cache-flush bit as the A
+        // record, because they describe the same host.
+        foreach (IPAddress linkLocal in linkLocalAddresses)
+        {
+            records.Add(new(host, DnsRecordType.Aaaa, HostRecordTtl, CacheFlush: true, new AddressPayload(linkLocal)));
+        }
+
         return new Advertisement(records, txt, dropped, printer.Source);
+    }
+
+    /// <summary>
+    /// Refuses a link-local list that could publish an address the relay cannot
+    /// be reached at, or one from another interface.
+    /// </summary>
+    /// <remarks>
+    /// Refused rather than filtered: a list with a wrong entry in it comes from
+    /// a caller that has gone wrong, and quietly publishing the rest would hide
+    /// that. The scope does not go on the wire, but a link-local address without
+    /// one names no interface, and one advertisement is for one interface (RFC
+    /// 6762 section 6.2 forbids publishing an address not valid on the interface
+    /// the answer is sent on).
+    /// </remarks>
+    private static void CheckLinkLocal(IReadOnlyList<IPAddress> linkLocalAddresses)
+    {
+        var seen = new HashSet<IPAddress>();
+        long? scope = null;
+
+        foreach (IPAddress? address in linkLocalAddresses)
+        {
+            // IsIPv6LinkLocal is false for every IPv4 address, so this one test
+            // also refuses an IPv4 address in the list.
+            if (address is null || !address.IsIPv6LinkLocal)
+            {
+                throw new ArgumentException(
+                    $"{address?.ToString() ?? "null"} is not an IPv6 link-local address. Only a client "
+                    + "interface's link-local addresses (fe80::/10) may be published over IPv6; see "
+                    + "docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md.",
+                    nameof(linkLocalAddresses));
+            }
+
+            if (address.ScopeId == 0)
+            {
+                throw new ArgumentException(
+                    $"{address} carries no scope. A link-local address without its scope names no "
+                    + "interface, and the relay could not listen on it.",
+                    nameof(linkLocalAddresses));
+            }
+
+            if (scope is { } first && address.ScopeId != first)
+            {
+                throw new ArgumentException(
+                    $"{address} is scoped to {address.ScopeId}, and an earlier address to {first}. One "
+                    + "advertisement is for one client interface, and an address from another interface is "
+                    + "not valid on this one.",
+                    nameof(linkLocalAddresses));
+            }
+
+            scope = address.ScopeId;
+
+            if (!seen.Add(address))
+            {
+                throw new ArgumentException(
+                    $"{address} is listed more than once; each address is published once.",
+                    nameof(linkLocalAddresses));
+            }
+        }
     }
 
     /// <summary>

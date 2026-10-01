@@ -13,6 +13,12 @@
 // (docs/findings/2026-09-29-the-note-published-the-printers-address.md).
 // Reviewed by a human before merge.
 //
+// Tests for AAAA records from link-local addresses added, and the existing
+// calls to Build given an empty link-local list, by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-09-30, when Build
+// began taking one. No existing test changed what it checks. Reviewed by a
+// human before merge.
+//
 // Purpose:
 //   Verifies the honesty rules in Section 4 of the specification.
 //
@@ -82,7 +88,7 @@ internal static class AdvertisementBuilderTests
     private static ProxyIdentity Proxy() =>
         new("SecretPrinter (ET-3760)", "secretprinter", ProxyUuid, 631);
 
-    private static Advertisement Built() => AdvertisementBuilder.Build(Epson(), Proxy(), ProxyAddress);
+    private static Advertisement Built() => AdvertisementBuilder.Build(Epson(), Proxy(), ProxyAddress, linkLocalAddresses: []);
 
     // The capabilities as the service obtains them: from an mDNS query, whose
     // source names the printer's own address and the instance it publishes
@@ -104,7 +110,8 @@ internal static class AdvertisementBuilderTests
             new PrinterCapabilities(
                 EpsonTxtRecords, 631, CapabilitySource.FromMdnsQuery(PrinterAddress, new DnsNameLike(PrinterInstance), ReadAt)),
             Proxy(),
-            ProxyAddress);
+            ProxyAddress,
+            linkLocalAddresses: []);
 
     private static string? Value(Advertisement advertisement, string key)
     {
@@ -171,7 +178,7 @@ internal static class AdvertisementBuilderTests
             "SecretPrinter", "secretprinter", Guid.Parse("cfe92100-67c4-11d4-a45f-f8d027000000"), 631);
 
         Assert.Throws<ArgumentException>(
-            () => AdvertisementBuilder.Build(Epson(), colliding, ProxyAddress),
+            () => AdvertisementBuilder.Build(Epson(), colliding, ProxyAddress, linkLocalAddresses: []),
             "two devices claiming one identity breaks clients that cache by UUID");
     }
 
@@ -264,7 +271,7 @@ internal static class AdvertisementBuilderTests
             631,
             CapabilitySource.ForTest("ET-3760 plus hypothetical future keys"));
 
-        Advertisement advertisement = AdvertisementBuilder.Build(withNovelKey, Proxy(), ProxyAddress);
+        Advertisement advertisement = AdvertisementBuilder.Build(withNovelKey, Proxy(), ProxyAddress, linkLocalAddresses: []);
 
         Assert.Null(Value(advertisement, "Fax2"),
             "default-deny means a key nobody has considered is not republished");
@@ -380,6 +387,144 @@ internal static class AdvertisementBuilderTests
 
         Assert.Equal("_ipp._tcp.local", ((PtrPayload)enumeration.Payload).Target.ToString(),
             "service enumeration must offer printing and nothing else");
+    }
+
+    // ---- IPv6 link-local addresses ------------------------------------------
+    //
+    // These carry no [Requirement] marker. REQ-ADV-021 is being rewritten to
+    // say which IPv6 addresses are published, and the service does not yet
+    // publish any: until the relay listens on IPv6, it passes an empty list.
+    // Edwin decided on 2026-09-30 that the addresses are the client
+    // interface's link-local ones only
+    // (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md). Every
+    // IPv6 address in these tests is made up.
+
+    private static readonly IPAddress LinkLocal1 = IPAddress.Parse("fe80::10%15");
+    private static readonly IPAddress LinkLocal2 = IPAddress.Parse("fe80::20%15");
+
+    private static Advertisement BuiltWith(params IPAddress[] linkLocal) =>
+        AdvertisementBuilder.Build(Epson(), Proxy(), ProxyAddress, linkLocal);
+
+    [TestCase("Each link-local address becomes an AAAA record for the proxy's host name, beside the A record")]
+    public static void Link_local_addresses_become_aaaa_records()
+    {
+        Advertisement advertisement = BuiltWith(LinkLocal1, LinkLocal2);
+
+        OutgoingRecord a = advertisement.Records.Single(r => r.Type == DnsRecordType.A);
+        List<OutgoingRecord> aaaa = [.. advertisement.Records.Where(r => r.Type == DnsRecordType.Aaaa)];
+
+        Assert.Equal(2, aaaa.Count, "one AAAA record for each link-local address");
+        Assert.Equal(LinkLocal1, ((AddressPayload)aaaa[0].Payload).Address,
+            "the addresses are published in the order given, scope included");
+        Assert.Equal(LinkLocal2, ((AddressPayload)aaaa[1].Payload).Address, "the second follows");
+
+        foreach (OutgoingRecord record in aaaa)
+        {
+            Assert.Equal(a.Name, record.Name, "the AAAA records are for the same host name as the A record");
+            Assert.Equal(a.Ttl, record.Ttl, "an address record for the host lives as long as the A record");
+            Assert.True(record.CacheFlush,
+                "the proxy is authoritative for its own host, so receivers replace rather than accumulate");
+        }
+
+        Assert.Equal(ProxyAddress, ((AddressPayload)a.Payload).Address,
+            "the A record is unchanged and still carries the proxy's IPv4 address");
+    }
+
+    [TestCase("With no link-local address, the advertisement carries no AAAA record")]
+    public static void No_link_local_address_means_no_aaaa_record()
+    {
+        Advertisement advertisement = BuiltWith();
+
+        Assert.False(advertisement.Records.Any(r => r.Type == DnsRecordType.Aaaa),
+            "an empty list publishes no IPv6 address, which is what the service does until it listens on IPv6");
+        Assert.Equal(6, advertisement.Records.Count,
+            "three PTR records, SRV, TXT and A, exactly as before link-local addresses existed");
+    }
+
+    [TestCase("A link-local list that is null is refused")]
+    public static void Null_link_local_list_is_refused()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => AdvertisementBuilder.Build(Epson(), Proxy(), ProxyAddress, null!),
+            "the caller must say which link-local addresses it has, even when there are none");
+    }
+
+    [TestCase("A global IPv6 address is refused, not published, even with the right scope")]
+    public static void Global_address_is_refused()
+    {
+        // Given the same scope as the link-local address beside it, so that
+        // only the link-local check can refuse it. Without a scope, the scope
+        // check would refuse it too, and this test could not tell which did.
+        var ex = Assert.Throws<ArgumentException>(
+            () => BuiltWith(LinkLocal1, IPAddress.Parse("2001:db8::1%15")),
+            "only link-local addresses may be published over IPv6");
+
+        Assert.True(ex.Message.Contains("2001:db8::1", StringComparison.Ordinal)
+                    && ex.Message.Contains("is not an IPv6 link-local address", StringComparison.Ordinal),
+            "the message names the address and says it is not link-local");
+    }
+
+    [TestCase("A null entry in the link-local list is refused, by name")]
+    public static void Null_entry_in_link_local_list_is_refused()
+    {
+        var ex = Assert.Throws<ArgumentException>(
+            () => BuiltWith(LinkLocal1, null!),
+            "a null entry is a caller's mistake, and is reported as one rather than failing further in");
+
+        Assert.True(ex.Message.Contains("null", StringComparison.Ordinal),
+            "the message says the entry was null");
+    }
+
+    [TestCase("An IPv4 address in the link-local list is refused")]
+    public static void IPv4_address_in_link_local_list_is_refused()
+    {
+        Assert.Throws<ArgumentException>(
+            () => BuiltWith(ProxyAddress),
+            "an IPv4 address cannot be an AAAA record, and it is already published as the A record");
+    }
+
+    [TestCase("A link-local address without a scope is refused")]
+    public static void Unscoped_link_local_address_is_refused()
+    {
+        // The scope does not go on the wire, but the relay will listen on the
+        // addresses in this advertisement, and a link-local address without
+        // its scope cannot be bound to an interface.
+        var ex = Assert.Throws<ArgumentException>(
+            () => BuiltWith(IPAddress.Parse("fe80::10")),
+            "an unscoped link-local address names no interface");
+
+        Assert.True(ex.Message.Contains("scope", StringComparison.Ordinal),
+            "the message says the scope is missing");
+    }
+
+    [TestCase("Link-local addresses from two interfaces in one advertisement are refused")]
+    public static void Link_local_addresses_from_two_scopes_are_refused()
+    {
+        // One advertisement is for one client interface, and RFC 6762 section
+        // 6.2 forbids publishing an address that is not valid on the interface
+        // the answer goes out on.
+        Assert.Throws<ArgumentException>(
+            () => BuiltWith(LinkLocal1, IPAddress.Parse("fe80::20%16")),
+            "addresses from another interface must not be published on this one");
+    }
+
+    [TestCase("The same link-local address listed twice is refused")]
+    public static void Repeated_link_local_address_is_refused()
+    {
+        Assert.Throws<ArgumentException>(
+            () => BuiltWith(LinkLocal1, LinkLocal1),
+            "two identical AAAA records would be a duplicate in every answer");
+    }
+
+    [TestCase("The goodbye retracts the AAAA records too")]
+    public static void Goodbye_retracts_aaaa_records()
+    {
+        IReadOnlyList<OutgoingRecord> goodbye =
+            AdvertisementBuilder.ToGoodbye(BuiltWith(LinkLocal1, LinkLocal2).Records);
+
+        List<OutgoingRecord> aaaa = [.. goodbye.Where(r => r.Type == DnsRecordType.Aaaa)];
+        Assert.Equal(2, aaaa.Count, "every AAAA record announced is retracted");
+        Assert.True(aaaa.All(r => r.Ttl == 0), "with TTL zero");
     }
 
     // ---- Goodbye ------------------------------------------------------------

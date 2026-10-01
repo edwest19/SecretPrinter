@@ -8,6 +8,11 @@
 // Opus 5) at the direction of Edwin West, 2026-09-06. Reviewed by a human
 // before merge.
 //
+// The call to AdvertisementBuilder.Build given an empty link-local list by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-30, when Build began taking one. No test changed what it checks.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Checks the claims in Section 8 of the specification that say what the
 //   service does NOT do.
@@ -296,7 +301,7 @@ internal static class SecurityClaimsTests
             System.Net.Sockets.AddressFamily.InterNetwork);
 
         Advertising.Advertisement advertisement =
-            Advertising.AdvertisementBuilder.Build(capabilities, identity, client.Address);
+            Advertising.AdvertisementBuilder.Build(capabilities, identity, client.Address, linkLocalAddresses: []);
 
         var log = new CollectingServiceLog();
         AdvertisementLog.Write(log, client, advertisement);

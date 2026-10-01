@@ -73,6 +73,12 @@
 // receive loop starts before the startup probe, and OfferAsync moved to
 // Offering.OnReachabilityChangedAsync. Reviewed by a human before merge.
 //
+// The call to AdvertisementBuilder.Build given an explicit empty link-local list
+// by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-09-30, when Build began taking one. No behaviour changed: no AAAA record
+// is published until the relay listens on the addresses. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -295,7 +301,14 @@ public sealed class ServiceHost
         var advertised = new List<AdvertisedInterface>();
         foreach (MdnsInterface client in _configuration.ClientInterfaces)
         {
-            Advertisement advertisement = AdvertisementBuilder.Build(capabilities, identity, client.Address);
+            // No AAAA record yet. The relay listens on IPv4 only, and REQ-ADV-021
+            // forbids advertising an address it does not listen on: the printer
+            // would be discovered and could not be reached. The client
+            // interface's link-local addresses go here in the same change that
+            // starts listening on them
+            // (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md).
+            Advertisement advertisement =
+                AdvertisementBuilder.Build(capabilities, identity, client.Address, linkLocalAddresses: []);
             AdvertisementLog.Write(_log, client, advertisement);
 
             // The IPv6 companion is matched by address, because that is the one
