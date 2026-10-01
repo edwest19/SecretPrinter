@@ -24,6 +24,16 @@
 //   2026-09-30, by Claude, Claude Opus 5.5, when the service began publishing
 //   AAAA records; until then the reason given here was that it did not.)
 //
+// The test that said "No record appears twice in one response, though several
+// questions lead to it" renamed by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-01, to say what it checks: two PTR
+// questions leading to the same records. It never covered a record that
+// answers a later question being sent as an additional of an earlier one,
+// which happened; that case is now MdnsResponderTests.
+// An_answer_is_never_also_an_additional. See
+// docs/findings/2026-10-01-a-record-was-sent-as-an-answer-and-an-additional.md.
+// Reviewed by a human before merge.
+//
 // Addresses:
 //   fe80::10 and fe80::20 are made up, scoped to 13, the IPv6 index of the test
 //   adapter. fe80::99 stands for another device. No real address appears here.
@@ -154,7 +164,7 @@ internal static class LinkLocalAnsweringTests
         Assert.Equal(2, Addresses(reply.Additionals, DnsRecordType.Aaaa).Count, "and both AAAA records");
     }
 
-    [TestCase("No record appears twice in one response, though several questions lead to it")]
+    [TestCase("Two PTR questions that lead to the same records send each of them once")]
     public static void No_record_is_sent_twice()
     {
         // Two PTR questions in one query both lead to the same SRV, TXT, A and

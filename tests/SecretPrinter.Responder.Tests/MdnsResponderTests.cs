@@ -27,6 +27,15 @@
 // direction of Edwin West, 2026-09-30. Called with none, it builds exactly what
 // it built before. Reviewed by a human before merge.
 //
+// An_answer_is_never_also_an_additional added by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-10-01. It failed before the
+// change it came with: a record answering a later question was also sent as an
+// additional of an earlier one. A_record_answering_two_questions_is_sent_once
+// added with it, because breaking the de-duplication of answers on purpose
+// failed no test; it passed before the change and after. See
+// docs/findings/2026-10-01-a-record-was-sent-as-an-answer-and-an-additional.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies which queries get answered, which are ignored, what the answers
 //   contain, and how they are addressed.
@@ -182,6 +191,65 @@ internal static class MdnsResponderTests
         Assert.True(types.Contains(DnsRecordType.Srv), "SRV saves the client a round trip");
         Assert.True(types.Contains(DnsRecordType.Txt), "TXT carries the capabilities");
         Assert.True(types.Contains(DnsRecordType.A), "A resolves the host the SRV names");
+    }
+
+    [TestCase("A record that answers one question is not also sent as an additional, whichever question comes first")]
+    public static void An_answer_is_never_also_an_additional()
+    {
+        DnsName serviceType = DnsName.Parse("_ipp._tcp.local");
+        DnsName instance = BuildAdvertisement().Records.Single(r => r.Type == DnsRecordType.Srv).Name;
+
+        // Asked first, the PTR question brings in the SRV record as an
+        // additional; the SRV question then answers with it. Asked the other
+        // way round, the SRV record is an answer before the PTR question
+        // brings it in. Either way it is an answer, and only an answer.
+        (DnsName Name, DnsRecordType Type)[][] orders =
+        [
+            [(serviceType, DnsRecordType.Ptr), (instance, DnsRecordType.Srv)],
+            [(instance, DnsRecordType.Srv), (serviceType, DnsRecordType.Ptr)],
+        ];
+
+        foreach ((DnsName Name, DnsRecordType Type)[] questions in orders)
+        {
+            (MdnsResponder responder, FakeTransport transport) = Build();
+            var query = new DnsQueryBuilder(0);
+            foreach ((DnsName name, DnsRecordType type) in questions)
+            {
+                query.AddQuestion(name, type, requestUnicastResponse: false);
+            }
+
+            Handle(responder, new MdnsDatagram(
+                query.Build(), new IPEndPoint(IPAddress.Parse("192.168.1.41"), 5353), ClientNic.Index, ClientNic));
+
+            DnsMessage reply = transport.Sent.Single().Parsed;
+            string order = $"{questions[0].Type} asked before {questions[1].Type}";
+            Assert.Equal(1, reply.Answers.Count(r => r.Type == DnsRecordType.Srv),
+                $"{order}: the SRV record answers its question");
+            Assert.False(reply.Additionals.Any(r => r.Type == DnsRecordType.Srv),
+                $"{order}: so it is not sent again as an additional");
+            Assert.True(reply.Additionals.Any(r => r.Type == DnsRecordType.Txt),
+                $"{order}: the TXT record the PTR answer leads to is still an additional");
+        }
+    }
+
+    [TestCase("A record that answers two questions in one query is sent once")]
+    public static void A_record_answering_two_questions_is_sent_once()
+    {
+        (MdnsResponder responder, FakeTransport transport) = Build();
+        DnsName host = BuildAdvertisement().Records.Single(r => r.Type == DnsRecordType.A).Name;
+
+        // An A question and an ANY question for the host are both answered by
+        // its A record.
+        byte[] query = new DnsQueryBuilder(0)
+            .AddQuestion(host, DnsRecordType.A, requestUnicastResponse: false)
+            .AddQuestion(host, DnsRecordType.Any, requestUnicastResponse: false)
+            .Build();
+
+        Handle(responder, new MdnsDatagram(
+            query, new IPEndPoint(IPAddress.Parse("192.168.1.41"), 5353), ClientNic.Index, ClientNic));
+
+        DnsMessage reply = transport.Sent.Single().Parsed;
+        Assert.Equal(1, reply.Answers.Count(r => r.Type == DnsRecordType.A), "the A record is sent once");
     }
 
     [TestCase("The answer advertises the proxy's address, never the printer's")]

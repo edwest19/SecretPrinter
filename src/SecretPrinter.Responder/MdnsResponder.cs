@@ -56,6 +56,15 @@
 // docs/findings/2026-10-01-the-responder-ignored-the-question-class.md.
 // Reviewed by a human before merge.
 //
+// Every question answered before any additional is chosen, so a record that
+// answers one question is never also sent as an additional, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-01. Before, the questions were taken one at a time, and a record
+// that answered a later question had already gone into the Additional
+// section for an earlier one. See
+// docs/findings/2026-10-01-a-record-was-sent-as-an-answer-and-an-additional.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -517,8 +526,13 @@ public sealed partial class MdnsResponder
 
         bool legacyUnicast = datagram.IsLegacyUnicastQuerier;
         var builder = new DnsResponseBuilder(legacyUnicast ? query.Id : (ushort)0);
-        var addedAnswers = new HashSet<string>(StringComparer.Ordinal);
-        var addedAdditionals = new HashSet<string>(StringComparer.Ordinal);
+
+        // Every question is answered first, and only then are the additionals
+        // chosen. Taken a question at a time, a record that answers a later
+        // question would already have gone into the Additional section for an
+        // earlier one, and would be sent twice.
+        var answered = new List<OutgoingRecord>();
+        var answeredKeys = new HashSet<string>(StringComparer.Ordinal);
 
         foreach ((DnsName name, DnsRecordType type, ushort rawClass) in query.Questions)
         {
@@ -543,18 +557,20 @@ public sealed partial class MdnsResponder
 
             foreach (OutgoingRecord record in answers)
             {
-                if (addedAnswers.Add(Key(record)))
+                if (answeredKeys.Add(Key(record)))
                 {
+                    answered.Add(record);
                     builder.AddAnswer(Adjust(record, legacyUnicast));
                 }
             }
+        }
 
-            foreach (OutgoingRecord extra in AdditionalsFor(entry.Advertisement, answers))
+        var addedAdditionals = new HashSet<string>(StringComparer.Ordinal);
+        foreach (OutgoingRecord extra in AdditionalsFor(entry.Advertisement, answered))
+        {
+            if (!answeredKeys.Contains(Key(extra)) && addedAdditionals.Add(Key(extra)))
             {
-                if (!addedAnswers.Contains(Key(extra)) && addedAdditionals.Add(Key(extra)))
-                {
-                    builder.AddAdditional(Adjust(extra, legacyUnicast));
-                }
+                builder.AddAdditional(Adjust(extra, legacyUnicast));
             }
         }
 
