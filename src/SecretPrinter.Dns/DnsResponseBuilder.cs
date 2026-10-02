@@ -20,8 +20,10 @@
 //
 // NsecPayload added, written only in the restricted form RFC 6762 s6.1 defines
 // for Multicast DNS, by Claude (Anthropic model, Claude Opus 5.5) at the
-// direction of Edwin West, 2026-10-01, for REQ-ADV-022. Nothing sends one yet.
-// Reviewed by a human before merge.
+// direction of Edwin West, 2026-10-01, for REQ-ADV-022. Nothing sent one when
+// this was written; MdnsResponder has since, from a later change the same day.
+// (That sentence updated 2026-10-01 by Claude, Claude Opus 5.5; it said
+// "Nothing sends one yet".) Reviewed by a human before merge.
 //
 // Purpose:
 //   Builds DNS response messages: the records a responder sends back when

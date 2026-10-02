@@ -65,6 +65,19 @@
 // docs/findings/2026-10-01-a-record-was-sent-as-an-answer-and-an-additional.md.
 // Reviewed by a human before merge.
 //
+// NSEC records sent, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-01, for REQ-ADV-022: as the answer to a
+// question for a type that one of the claimed names does not have (RFC 6762
+// s6.1), as an additional beside an address record when the host has no
+// address of the other family (s6.2), and in the goodbye. One is built for each
+// claimed name when the responder is constructed. Before this, such a question
+// was not answered, and no NSEC was sent. The REQ-SEC-001 note on HandleAsync
+// and the REQ-LIF-003 note on SendGoodbyeAsync changed to say so. The method
+// that builds the records, NsecRecordsFor, is public so that the service logs
+// the same records at startup (REQ-OBS-003). No REQ-ADV-022 marker is placed:
+// at the time of this change the behaviour had not been captured on hardware.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -72,6 +85,13 @@
 //
 //   It announces on startup, answers queries for names it owns, ignores
 //   everything else, and retracts its advertisement on shutdown.
+//
+//   For the names it claims as its own alone, its host name and its service
+//   instance name, it also says what they do not have. Asked for a type such a
+//   name lacks, it answers with an NSEC record listing the types the name does
+//   have (RFC 6762 s6.1). The NSEC records are not in the Advertisement. They
+//   are built from it, once, when the responder is constructed
+//   (NsecRecordsFor), and they say nothing the Advertisement does not.
 //
 // The rule that keeps this narrow:
 //   The responder holds no names of its own. Every name it will answer for is
@@ -184,6 +204,23 @@ public sealed partial class MdnsResponder
     /// least two, a second apart; three gives margin against loss on wireless.
     /// </summary>
     public const int AnnouncementCount = 3;
+
+    /// <summary>
+    /// TTL, in seconds, of the NSEC record for a host name: a claimed name that
+    /// has an address record. RFC 6762 s6.1 says an NSEC SHOULD carry the TTL
+    /// the missing record would have had, and s10 recommends 120 seconds for a
+    /// record whose name is a host name.
+    /// </summary>
+    public const uint HostNameNsecTtl = 120;
+
+    /// <summary>
+    /// TTL, in seconds, of the NSEC record for any other claimed name, which
+    /// here is the service instance name. RFC 6762 s10 recommends 120 seconds
+    /// for a record whose name or data holds a host name and 75 minutes for
+    /// other records. What the data of a record that does not exist would hold
+    /// cannot be known, so the value for other records is used.
+    /// </summary>
+    public const uint OtherNameNsecTtl = 4500;
 
     private readonly IMdnsTransport _transport;
     private readonly IReadOnlyList<AdvertisedInterface> _advertised;
@@ -310,8 +347,12 @@ public sealed partial class MdnsResponder
         _answering = BuildAnswering(advertised);
     }
 
-    /// <summary>What to answer with, and which interface to answer through.</summary>
-    private sealed record AnsweringInterface(Advertisement Advertisement, MdnsInterface Via);
+    /// <summary>
+    /// What to answer with, which interface to answer through, and the NSEC
+    /// records that say which types the advertisement's claimed names have.
+    /// </summary>
+    private sealed record AnsweringInterface(
+        Advertisement Advertisement, MdnsInterface Via, IReadOnlyList<OutgoingRecord> Nsecs);
 
     /// <summary>
     /// Builds the family-keyed answering table: the IPv4 entry answers through
@@ -323,6 +364,12 @@ public sealed partial class MdnsResponder
     /// duplicate key names neither the key nor the entries that collided. A
     /// collision here means two interfaces were configured with the same family
     /// and index, which is worth saying out loud.
+    ///
+    /// The NSEC records are built here, once for each advertisement, and shared
+    /// by its IPv4 entry and its IPv6 companion, as the advertisement is. An
+    /// advertisement no NSEC can be built for is therefore refused when the
+    /// responder is constructed, at startup, and not when the first query for a
+    /// missing type arrives.
     /// </remarks>
     private static Dictionary<(AddressFamily, int), AnsweringInterface> BuildAnswering(
         IReadOnlyList<AdvertisedInterface> advertised)
@@ -331,11 +378,13 @@ public sealed partial class MdnsResponder
 
         foreach (AdvertisedInterface entry in advertised)
         {
-            Add(answering, entry.Interface, entry.Advertisement);
+            IReadOnlyList<OutgoingRecord> nsecs = NsecRecordsFor(entry.Advertisement);
+
+            Add(answering, entry.Interface, entry.Advertisement, nsecs);
 
             if (entry.IPv6Interface is { } companion)
             {
-                Add(answering, companion, entry.Advertisement);
+                Add(answering, companion, entry.Advertisement, nsecs);
             }
         }
 
@@ -344,9 +393,10 @@ public sealed partial class MdnsResponder
         static void Add(
             Dictionary<(AddressFamily, int), AnsweringInterface> into,
             MdnsInterface via,
-            Advertisement advertisement)
+            Advertisement advertisement,
+            IReadOnlyList<OutgoingRecord> nsecs)
         {
-            if (!into.TryAdd((via.Transport, via.Index), new AnsweringInterface(advertisement, via)))
+            if (!into.TryAdd((via.Transport, via.Index), new AnsweringInterface(advertisement, via, nsecs)))
             {
                 throw new ArgumentException(
                     $"Two advertised interfaces both claim {via}. An arriving query could not be "
@@ -355,6 +405,95 @@ public sealed partial class MdnsResponder
             }
         }
     }
+
+    /// <summary>
+    /// One NSEC record for each name the advertisement claims, listing the types
+    /// of the records it claims there. It is what this responder sends to say
+    /// that a claimed name has no record of some other type (RFC 6762 s6.1).
+    /// </summary>
+    /// <remarks>
+    /// Only claimed names get one. The service probes for them with type ANY
+    /// (<see cref="ProbeAsync"/>), which is what entitles it to say that a type
+    /// does not exist there (s6.1). The shared names, the service types, get
+    /// none: other responders hold records for them too, and s6 forbids a
+    /// negative answer for a shared record.
+    ///
+    /// The types come from <see cref="TypesAt"/>, the same list a heard NSEC is
+    /// judged against (<see cref="NoteConflicts"/>), so this responder's own
+    /// NSEC, heard back, agrees with it by construction.
+    ///
+    /// The cache-flush bit is set, as on every record of a claimed name
+    /// (s10.2). <see cref="Adjust"/> clears it for a legacy unicast answer.
+    ///
+    /// Each record's data is encoded once here, so a list of types the writer
+    /// refuses is found now. The writer accepts types 1 to 127 only: the
+    /// restricted form cannot list a type above 255, and s6.1 forbids sending
+    /// it for a name that has one.
+    ///
+    /// Public so that the service can log, at startup, exactly the records
+    /// built here (AdvertisementLog; README REQ-OBS-003). The responder's
+    /// constructor calls this same method, so the log and the wire cannot
+    /// differ.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// The advertisement holds a shared record at a name it also claims, or
+    /// claims a type an NSEC record in the restricted form cannot list.
+    /// </exception>
+    public static IReadOnlyList<OutgoingRecord> NsecRecordsFor(Advertisement advertisement)
+    {
+        ArgumentNullException.ThrowIfNull(advertisement);
+
+        var nsecs = new List<OutgoingRecord>();
+        List<OutgoingRecord> claimed = Claimed(advertisement);
+
+        foreach (DnsName name in claimed.Select(record => record.Name).Distinct())
+        {
+            // A claimed name is claimed for every type. A record at it that is
+            // not marked unique would be left out of the list below, and the
+            // NSEC would then deny a record this responder publishes.
+            if (advertisement.Records.FirstOrDefault(
+                    record => record.Name.Equals(name) && !record.CacheFlush) is { } shared)
+            {
+                throw new ArgumentException(
+                    $"The advertisement holds a shared {shared.Type} record at {name}, a name it also claims as "
+                    + "unique. An NSEC record for that name lists the claimed types only, and would deny the "
+                    + "shared one.",
+                    nameof(advertisement));
+            }
+
+            List<OutgoingRecord> atName = [.. claimed.Where(record => record.Name.Equals(name))];
+
+            // RFC 6762 s2: a host name is a name that has an address record.
+            bool isHostName = atName.Any(record => record.Type is DnsRecordType.A or DnsRecordType.Aaaa);
+
+            var nsec = new OutgoingRecord(
+                name,
+                DnsRecordType.Nsec,
+                isHostName ? HostNameNsecTtl : OtherNameNsecTtl,
+                CacheFlush: true,
+                new NsecPayload(name, TypesAt(atName)));
+
+            try
+            {
+                _ = DnsRecordWriter.EncodeRdata(nsec.Type, nsec.Payload);
+            }
+            catch (ArgumentException refused)
+            {
+                throw new ArgumentException(
+                    $"No NSEC record can be built for {name}, which the advertisement claims: {refused.Message}",
+                    nameof(advertisement),
+                    refused);
+            }
+
+            nsecs.Add(nsec);
+        }
+
+        return nsecs;
+    }
+
+    /// <summary>The NSEC record for a name, or null when the name is not a claimed one.</summary>
+    private static OutgoingRecord? NsecFor(IReadOnlyList<OutgoingRecord> nsecs, DnsName name) =>
+        nsecs.FirstOrDefault(nsec => nsec.Name.Equals(name));
 
     public ResponderActivity Activity => new(
         _announcements,
@@ -423,7 +562,7 @@ public sealed partial class MdnsResponder
     [Requirement("REQ-ADV-017",
         "Answers a legacy unicast querier by unicast, echoing its query identifier and capping TTLs.")]
     [Requirement("REQ-SEC-001",
-        "Every record sent comes from this responder's own Advertisement. Received datagrams are read for their questions and, to detect conflicts with the names this responder claims, for records about those names; no byte of a received packet is ever re-emitted, so nothing is forwarded or reflected between networks.")]
+        "Every record sent comes from this responder's own Advertisement, or is an NSEC record built from that Advertisement when the responder is constructed, listing the types of the records it claims at one of its own names. Received datagrams are read for their questions and, to detect conflicts with the names this responder claims, for records about those names; no byte of a received packet is ever re-emitted, so nothing is forwarded or reflected between networks.")]
     [Requirement("REQ-ADV-018",
         "Answers over the transport the query arrived on: the advertisement is looked up by the arrival interface's address family as well as its index, and the answer is sent through the entry for that family. The receiving half of this requirement is MdnsSocket.ReceiveAsync.")]
     [Requirement("REQ-SEC-002",
@@ -546,7 +685,19 @@ public sealed partial class MdnsResponder
             List<OutgoingRecord> answers = MatchingRecords(entry.Advertisement, name, type);
             if (answers.Count == 0)
             {
-                continue;
+                // No record of that type at that name. When the name is one
+                // this responder claims for every type, the answer is its NSEC
+                // record, which lists the types the name does have (RFC 6762
+                // s6.1). That includes a question for type NSEC itself. For any
+                // other name, the shared service types included, there is
+                // nothing to say (s6). A question for type ANY never comes
+                // here for a claimed name, because a claimed name has records.
+                if (NsecFor(entry.Nsecs, name) is not { } nsec)
+                {
+                    continue;
+                }
+
+                answers = [nsec];
             }
 
             if (legacyUnicast)
@@ -566,7 +717,7 @@ public sealed partial class MdnsResponder
         }
 
         var addedAdditionals = new HashSet<string>(StringComparer.Ordinal);
-        foreach (OutgoingRecord extra in AdditionalsFor(entry.Advertisement, answered))
+        foreach (OutgoingRecord extra in AdditionalsFor(entry.Advertisement, entry.Nsecs, answered))
         {
             if (!answeredKeys.Contains(Key(extra)) && addedAdditionals.Add(Key(extra)))
             {
@@ -639,14 +790,26 @@ public sealed partial class MdnsResponder
     /// Retracts the advertisement by sending every record with TTL 0, so clients
     /// drop the printer immediately rather than waiting for it to expire.
     /// </summary>
+    /// <remarks>
+    /// The NSEC records for the advertisement's claimed names are retracted
+    /// with it (RFC 6762 s10.1), whether or not one was ever sent. A client
+    /// that was told the host has no record of some type would otherwise keep
+    /// that for up to the NSEC's TTL after the names were given up.
+    /// </remarks>
     [Requirement("REQ-LIF-003",
-        "Sends goodbye records for everything advertised, on every advertised interface, at shutdown.")]
+        "Sends goodbye records for everything advertised, and for the NSEC records built from it, on every advertised interface, at shutdown.")]
     public async Task SendGoodbyeAsync(CancellationToken cancellationToken)
     {
         foreach (AdvertisedInterface entry in _advertised)
         {
+            // BuildAnswering files every advertised interface under its own
+            // family and index, so this lookup cannot miss.
+            IReadOnlyList<OutgoingRecord> nsecs =
+                _answering[(entry.Interface.Transport, entry.Interface.Index)].Nsecs;
+
             var builder = new DnsResponseBuilder();
-            foreach (OutgoingRecord record in AdvertisementBuilder.ToGoodbye(entry.Advertisement.Records))
+            foreach (OutgoingRecord record in
+                     AdvertisementBuilder.ToGoodbye([.. entry.Advertisement.Records, .. nsecs]))
             {
                 builder.AddAnswer(record);
             }
@@ -695,8 +858,27 @@ public sealed partial class MdnsResponder
     /// lost packet cannot leave a client holding one address type and not the
     /// other.
     /// </summary>
+    /// <remarks>
+    /// Last comes the NSEC record of a host whose address record is in the
+    /// response, as an answer or as one of the additionals above, when the
+    /// advertisement holds no address record of the other type for that host.
+    /// RFC 6762 s6.2 says it SHOULD be there, so that the querier knows the
+    /// host has no address of that kind and does not wait for one.
+    ///
+    /// s6.2 also says a responder that treats an adapter's IPv4 and IPv6 sides
+    /// as two interfaces MUST NOT send such an NSEC. This responder treats them
+    /// as one: one advertisement serves both transports, and the same records
+    /// are sent over either (REQ-ADV-018).
+    ///
+    /// s6.1 says a responder MAY add an NSEC beside any unique answer, to say
+    /// what else the name lacks. This one does not; it adds the one s6.2 asks
+    /// for and no other.
+    ///
+    /// The caller leaves out anything listed here that is already an answer,
+    /// or listed twice.
+    /// </remarks>
     private static List<OutgoingRecord> AdditionalsFor(
-        Advertisement advertisement, List<OutgoingRecord> answers)
+        Advertisement advertisement, IReadOnlyList<OutgoingRecord> nsecs, List<OutgoingRecord> answers)
     {
         var additionals = new List<OutgoingRecord>();
 
@@ -727,6 +909,19 @@ public sealed partial class MdnsResponder
                              && r.Type is DnsRecordType.A or DnsRecordType.Aaaa
                              && r.Type != answer.Type));
                     break;
+            }
+        }
+
+        // The remarks above: the NSEC of a host with addresses of one type only.
+        foreach (OutgoingRecord address in
+                 answers.Concat(additionals).Where(r => r.Payload is AddressPayload).ToList())
+        {
+            DnsRecordType other = address.Type == DnsRecordType.A ? DnsRecordType.Aaaa : DnsRecordType.A;
+
+            if (!advertisement.Records.Any(r => r.Name.Equals(address.Name) && r.Type == other)
+                && NsecFor(nsecs, address.Name) is { } nsec)
+            {
+                additionals.Add(nsec);
             }
         }
 

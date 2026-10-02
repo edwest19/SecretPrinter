@@ -36,6 +36,15 @@
 // docs/findings/2026-10-01-a-record-was-sent-as-an-answer-and-an-additional.md.
 // Reviewed by a human before merge.
 //
+// Nothing_sent_originates_from_a_received_packet changed by Claude (Anthropic
+// model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-01, when the
+// responder began sending NSEC records (README REQ-ADV-022). It allowed only
+// records that are in the advertisement, and an NSEC is not in it: the
+// responder builds one from it for each name it claims. The test now also
+// allows an NSEC, and only one that is about a claimed name and lists exactly
+// the types the advertisement holds there. Its title changed to say so.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies which queries get answered, which are ignored, what the answers
 //   contain, and how they are addressed.
@@ -399,7 +408,7 @@ internal static class MdnsResponderTests
             "a reflector would have forwarded these; this service is not one");
     }
 
-    [TestCase("Every record sent comes from our own advertisement")]
+    [TestCase("Every record sent comes from our own advertisement, or is an NSEC listing exactly the types it holds at a name it claims")]
     [Requirement("REQ-SEC-001")]
     public static void Nothing_sent_originates_from_a_received_packet()
     {
@@ -409,25 +418,47 @@ internal static class MdnsResponderTests
         var permitted = new HashSet<string>(
             ours.Records.Select(r => $"{r.Name}|{r.Type}"), StringComparer.Ordinal);
 
-        // A realistic mixture: our own service, someone else's, and answers we
-        // never asked for.
+        // A realistic mixture: our own service, someone else's, answers we
+        // never asked for, and a question for a type our host does not have.
         Handle(responder, ForeignResponse("_smb._tcp.local"));
         Handle(responder, Query("_ipp._tcp.local"));
         Handle(responder, ForeignResponse("_airplay._tcp.local"));
         Handle(responder, Query("_universal._sub._ipp._tcp.local"));
         Handle(responder, Query("_smb._tcp.local"));
+        Handle(responder, Query("secretprinter.local", DnsRecordType.Txt));
+        Handle(responder, Query("someone-else.local", DnsRecordType.Txt));
 
         Assert.True(transport.Sent.Count > 0, "our own service must still have been answered");
 
+        int nsecs = 0;
         foreach (SentDatagram sent in transport.Sent)
         {
             foreach (DnsRecord record in sent.Parsed.AllRecords)
             {
+                if (record.Type == DnsRecordType.Nsec)
+                {
+                    // An NSEC is not in the advertisement. It is built from it,
+                    // and may say only what the advertisement says: which types
+                    // it holds at a name it claims as unique.
+                    nsecs++;
+                    List<OutgoingRecord> held = [.. ours.Records.Where(r => r.Name.Equals(record.Name))];
+
+                    Assert.True(held.Count > 0 && held.All(r => r.CacheFlush),
+                        $"an NSEC for {record.Name} was emitted, and that is not a name our advertisement claims");
+                    Assert.Equal(
+                        string.Join(",", held.Select(r => (int)r.Type).Distinct().Order()),
+                        string.Join(",", record.NsecTypes!.Select(t => (int)t)),
+                        $"the NSEC for {record.Name} lists exactly the types our advertisement holds there");
+                    continue;
+                }
+
                 Assert.True(permitted.Contains($"{record.Name}|{record.Type}"),
                     $"{record.Type} {record.Name} was emitted but is not in our advertisement, "
                     + "which means something received was passed on");
             }
         }
+
+        Assert.True(nsecs > 0, "the mixture produced at least one NSEC, so the check above ran");
     }
 
     [TestCase("A service seen on one network does not become answerable on the other")]

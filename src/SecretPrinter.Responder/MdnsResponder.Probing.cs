@@ -26,9 +26,12 @@
 // responder's own NSEC, heard back, is not taken for a conflict, by Claude
 // (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 // 2026-10-01, for REQ-ADV-022 and REQ-ADV-024. Before, any NSEC for a claimed
-// name was a conflict, because this responder published no NSEC. It still
-// sends none; the change comes first so that it can. Reviewed by a human before
-// merge.
+// name was a conflict, because this responder published no NSEC. It sent none
+// when this was written; the change came first so that it could, and it has
+// sent them since a later change the same day (MdnsResponder.cs). (That
+// sentence updated 2026-10-01 by Claude, Claude Opus 5.5; it said "It still
+// sends none".) The REQ-ADV-024 note on NoteConflicts now says how an NSEC is
+// judged, as README REQ-ADV-024 does. Reviewed by a human before merge.
 //
 // Purpose:
 //   Before a responder may treat a name as its own, RFC 6762 s8.1 has it ask
@@ -274,7 +277,7 @@ public sealed partial class MdnsResponder
     /// agree, so it is a conflict.
     /// </remarks>
     [Requirement("REQ-ADV-024",
-        "Defines a conflict: a class IN record from another device, for a claimed name, that this responder would not itself publish - another type, or the same type with different data. Identical records are not one. The first is kept for the life of the responder and reported once.")]
+        "Defines a conflict: a class IN record from another device, for a claimed name, that this responder would not itself publish - another type, or the same type with different data. Identical records are not one. An NSEC record is judged by the types it lists: one listing exactly the types claimed at its name is not a conflict, and one listing anything else, or not in the restricted form, is. The first conflict is kept for the life of the responder and reported once.")]
     private void NoteConflicts(DnsMessage response, MdnsDatagram datagram, MdnsInterface arrivedOn, Advertisement advertisement)
     {
         if (Conflict is not null)

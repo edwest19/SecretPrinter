@@ -7,10 +7,11 @@
 //
 // Purpose:
 //   Checks how the responder judges an NSEC record for one of the names it
-//   claims, heard in a response. This comes before the responder sends NSEC
-//   records itself (README REQ-ADV-022), because it will hear its own: a
-//   responder that took its own NSEC for somebody else's claim would withdraw
-//   the printer the first time it answered with one.
+//   claims, heard in a response. The responder sends NSEC records itself
+//   (README REQ-ADV-022; NsecAnsweringTests.cs) and hears its own: a responder
+//   that took its own NSEC for somebody else's claim would withdraw the
+//   printer the first time it answered with one. These tests were written
+//   before it sent any, for that reason.
 //
 //   An NSEC says which types exist at its name. One that says exactly what the
 //   responder's own records say, the types it publishes at that name, is not a
@@ -23,11 +24,12 @@
 //   ignore it when it is not the record's own name, and process the rest of the
 //   record as usual. The rest of the record is the list of types.
 //
-// Why these carry no [Requirement] marker:
-//   They check REQ-ADV-024's definition of a conflict as it applies to NSEC
-//   records. README.md does not yet name the NSEC among the records the service
-//   sends; that comes with the change that makes the responder send it, and
-//   the markers come with it.
+// REQ-ADV-024 markers placed by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-01, with the change that made the
+// responder send NSEC records and README REQ-ADV-024 say how a heard NSEC is
+// judged. Until then this header said why the tests carried none: the README
+// did not yet name the NSEC. No test changed what it checks. Reviewed by a
+// human before merge.
 //
 // Addresses:
 //   fe80::10 is made up, scoped to 13, the IPv6 index of the test adapter.
@@ -39,6 +41,7 @@ using System.Net;
 using SecretPrinter.Advertising;
 using SecretPrinter.Dns;
 using SecretPrinter.Mdns;
+using SecretPrinter.Spec;
 using SecretPrinter.TestKit;
 
 namespace SecretPrinter.Responder.Tests;
@@ -88,6 +91,7 @@ internal static class NsecConflictTests
     // ---- Not a conflict -------------------------------------------------------
 
     [TestCase("The responder's own NSEC for the host, A and AAAA, heard back, is not a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Own_host_nsec_heard_back_is_not_a_conflict()
     {
         (MdnsResponder responder, Advertisement advertisement) = Build(LinkLocal);
@@ -99,6 +103,7 @@ internal static class NsecConflictTests
     }
 
     [TestCase("With no link-local address, the responder's own NSEC for the host, A alone, heard back, is not a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Own_host_nsec_without_aaaa_heard_back_is_not_a_conflict()
     {
         (MdnsResponder responder, Advertisement advertisement) = Build();
@@ -109,6 +114,7 @@ internal static class NsecConflictTests
     }
 
     [TestCase("The responder's own NSEC for the instance, SRV and TXT, heard back, is not a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Own_instance_nsec_heard_back_is_not_a_conflict()
     {
         (MdnsResponder responder, Advertisement advertisement) = Build(LinkLocal);
@@ -119,6 +125,7 @@ internal static class NsecConflictTests
     }
 
     [TestCase("An NSEC listing the responder's own types, from another device, is not a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Identical_nsec_from_another_device_is_not_a_conflict()
     {
         (MdnsResponder responder, Advertisement advertisement) = Build(LinkLocal);
@@ -130,6 +137,7 @@ internal static class NsecConflictTests
     }
 
     [TestCase("An NSEC with a compressed next domain name, listing the responder's own types, is not a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Compressed_nsec_listing_our_types_is_not_a_conflict()
     {
         (MdnsResponder responder, Advertisement advertisement) = Build(LinkLocal);
@@ -149,6 +157,7 @@ internal static class NsecConflictTests
     }
 
     [TestCase("An NSEC naming another next domain name, listing the responder's own types, is not a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Next_domain_name_is_not_compared()
     {
         (MdnsResponder responder, Advertisement advertisement) = Build(LinkLocal);
@@ -167,6 +176,7 @@ internal static class NsecConflictTests
     // ---- A conflict -----------------------------------------------------------
 
     [TestCase("An NSEC for the host that leaves out its AAAA record is a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Nsec_denying_our_aaaa_is_a_conflict()
     {
         (MdnsResponder responder, Advertisement advertisement) = Build(LinkLocal);
@@ -178,6 +188,7 @@ internal static class NsecConflictTests
     }
 
     [TestCase("An NSEC for the host that lists a type the responder does not publish is a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Nsec_asserting_another_type_is_a_conflict()
     {
         (MdnsResponder responder, Advertisement advertisement) = Build(LinkLocal);
@@ -190,6 +201,7 @@ internal static class NsecConflictTests
     }
 
     [TestCase("An NSEC for one of the responder's names that is not in the restricted form is a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void Unreadable_nsec_for_our_name_is_a_conflict()
     {
         (MdnsResponder responder, Advertisement advertisement) = Build(LinkLocal);
@@ -207,6 +219,7 @@ internal static class NsecConflictTests
     }
 
     [TestCase("An NSEC for a name the responder does not claim is not its concern")]
+    [Requirement("REQ-ADV-024")]
     public static void Nsec_for_another_name_is_not_a_conflict()
     {
         (MdnsResponder responder, _) = Build(LinkLocal);

@@ -38,6 +38,11 @@
 // ListenPlanTests registered by Claude (Anthropic model, Claude Opus 5.5) at the
 // direction of Edwin West, 2026-09-30, for REQ-ADV-021. Reviewed by a human
 // before merge.
+//
+// AdvertisementLogTests registered by Claude (Anthropic model, Claude Opus 5.5)
+// at the direction of Edwin West, 2026-10-01, for REQ-OBS-002 and REQ-OBS-003
+// as they apply to the NSEC records of REQ-ADV-022. Reviewed by a human before
+// merge.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.TestKit;
@@ -81,6 +86,7 @@ internal static class Program
             typeof(AvailabilityGateTests),
             typeof(StartupWaitTests),
             typeof(OfferingTests),
-            typeof(ListenPlanTests));
+            typeof(ListenPlanTests),
+            typeof(AdvertisementLogTests));
     }
 }

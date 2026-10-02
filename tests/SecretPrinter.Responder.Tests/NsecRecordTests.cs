@@ -25,8 +25,12 @@
 //   is the only user of NSEC records.
 //
 // Why these carry no [Requirement] marker:
-//   REQ-ADV-022 is about what the responder sends, and nothing sends an NSEC
-//   record yet. Markers go on when the requirement is fully met.
+//   REQ-ADV-022 is about what the responder sends. The responder sends NSEC
+//   records (NsecAnsweringTests.cs), but the requirement is marked only after
+//   that has been captured on hardware, which had not been done when this
+//   note was written. (Updated 2026-10-01 by Claude, Claude Opus 5.5: this
+//   said that nothing sent an NSEC record yet, which stopped being true with
+//   the change that made the responder send them.)
 // -----------------------------------------------------------------------------
 
 using System.Text;
