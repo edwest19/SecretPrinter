@@ -94,6 +94,12 @@ closed it.
 So the capture shows the relay answering everything in the first attempt.
 What the iPhone showed, and why it did not go on to print, is not established.
 
+*(Status note, 2026-10-02, by Claude, Claude Opus 5.5: the same thing happened
+twice more on 2026-10-02, with the same byte counts on the first connection,
+and the iPhone showed a message that it could not reach the printer. It is
+still not explained. See
+[the finding](2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md).)*
+
 ## Open question 11
 
 *Offered both an `A` record and a link-local `AAAA` record, which address does
@@ -122,6 +128,12 @@ version was not recorded.
    pktmon reported none dropped, and the iPhone's acknowledgements show the
    data arrived. Reading a pktmon capture, an acknowledgement is better
    evidence of delivery than the absence of a packet.
+
+   *(Status note, 2026-10-02, by Claude, Claude Opus 5.5: in the captures of
+   2026-10-02 the gaps are replies larger than one packet, recorded before the
+   adapter splits them, which tshark does not read as TCP. This capture was not
+   read again to confirm the same of it. See
+   [the finding](2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md).)*
 
 ## Prediction record
 

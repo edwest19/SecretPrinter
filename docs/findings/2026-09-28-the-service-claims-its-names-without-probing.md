@@ -80,6 +80,11 @@ finding records.
   denies that a record exists, and §6.1 allows that only for a name the service
   owns. Until it probes, it does not.
 
+  *(Status note, 2026-10-02, by Claude, Claude Opus 5.5: the service now
+  probes, `REQ-ADV-023`, and since `64e8fc2` it sends the `NSEC`. Step 3 below
+  is done, and was verified on hardware on 2026-10-02; see
+  [the finding](2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md).)*
+
 ## What was decided
 
 Edwin, 2026-09-28, in this order:

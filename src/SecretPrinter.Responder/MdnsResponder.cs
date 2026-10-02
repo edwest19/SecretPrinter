@@ -78,6 +78,14 @@
 // at the time of this change the behaviour had not been captured on hardware.
 // Reviewed by a human before merge.
 //
+// REQ-ADV-022 markers placed by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-02, on NsecRecordsFor, HandleAsync,
+// SendGoodbyeAsync and AdditionalsFor. A capture on FIOS-STB-01 that day shows
+// an iPhone's type 65 question for the host name answered with the NSEC, and a
+// page printed 63 seconds later. See
+// docs/findings/2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md.
+// No code changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -439,6 +447,8 @@ public sealed partial class MdnsResponder
     /// The advertisement holds a shared record at a name it also claims, or
     /// claims a type an NSEC record in the restricted form cannot list.
     /// </exception>
+    [Requirement("REQ-ADV-022",
+        "Builds the NSEC record for each name the advertisement claims. It lists the types of the records claimed at that name, in the restricted form of RFC 6762 s6.1, with the cache-flush bit set and a TTL of 120 s for a host name and 4,500 s for any other name. A shared name gets none. An advertisement whose NSEC would say something false is refused.")]
     public static IReadOnlyList<OutgoingRecord> NsecRecordsFor(Advertisement advertisement)
     {
         ArgumentNullException.ThrowIfNull(advertisement);
@@ -578,6 +588,8 @@ public sealed partial class MdnsResponder
         "Answers nothing while probing: the names are not this responder's until the probe comes back clear.")]
     [Requirement("REQ-ADV-025",
         "Answers a question only when its class, read without the unicast-response bit, is IN or ANY, because every record it sends is in class IN; a legacy unicast answer repeats each question in the class it was asked in.")]
+    [Requirement("REQ-ADV-022",
+        "A question in class IN or ANY for a type that a claimed name has no record of is answered with that name's NSEC record, in the Answer section. A question for type ANY gets the records at the name and no NSEC. A shared name, or any name this responder does not claim, gets no negative answer. Nothing is answered while probing, while nothing is offered, or after a conflict.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
@@ -798,6 +810,8 @@ public sealed partial class MdnsResponder
     /// </remarks>
     [Requirement("REQ-LIF-003",
         "Sends goodbye records for everything advertised, and for the NSEC records built from it, on every advertised interface, at shutdown.")]
+    [Requirement("REQ-ADV-022",
+        "The goodbye retracts both NSEC records, with TTL 0.")]
     public async Task SendGoodbyeAsync(CancellationToken cancellationToken)
     {
         foreach (AdvertisedInterface entry in _advertised)
@@ -877,6 +891,8 @@ public sealed partial class MdnsResponder
     /// The caller leaves out anything listed here that is already an answer,
     /// or listed twice.
     /// </remarks>
+    [Requirement("REQ-ADV-022",
+        "Adds the host's NSEC record as an additional when the response carries an address record of the host and the advertisement holds no address record of the other type (RFC 6762 s6.2). Adds no NSEC beside any other answer.")]
     private static List<OutgoingRecord> AdditionalsFor(
         Advertisement advertisement, IReadOnlyList<OutgoingRecord> nsecs, List<OutgoingRecord> answers)
     {

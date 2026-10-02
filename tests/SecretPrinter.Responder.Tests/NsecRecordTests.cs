@@ -24,17 +24,21 @@
 //   tested through the suites of the projects that use them, and the responder
 //   is the only user of NSEC records.
 //
-// Why these carry no [Requirement] marker:
-//   REQ-ADV-022 is about what the responder sends. The responder sends NSEC
-//   records (NsecAnsweringTests.cs), but the requirement is marked only after
-//   that has been captured on hardware, which had not been done when this
-//   note was written. (Updated 2026-10-01 by Claude, Claude Opus 5.5: this
-//   said that nothing sent an NSEC record yet, which stopped being true with
-//   the change that made the responder send them.)
+// Markers:
+//   The eleven tests of what the writer emits carry REQ-ADV-022, which says the
+//   NSEC is in the restricted form of RFC 6762 section 6.1. They were placed
+//   by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
+//   West, 2026-10-02, after the responder's NSEC was captured on hardware; see
+//   docs/findings/2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md.
+//   Until then this header said why the tests carried none. The five tests of
+//   the reader carry none: no README requirement is about how an NSEC is
+//   read. What is done with one that has been read is REQ-ADV-024, checked in
+//   NsecConflictTests.cs. Reviewed by a human before merge.
 // -----------------------------------------------------------------------------
 
 using System.Text;
 using SecretPrinter.Dns;
+using SecretPrinter.Spec;
 using SecretPrinter.TestKit;
 
 namespace SecretPrinter.Responder.Tests;
@@ -109,6 +113,7 @@ internal static class NsecRecordTests
     // ---- Writing --------------------------------------------------------------
 
     [TestCase("The host's NSEC lists A and AAAA in one bitmap, block 0, four bytes long")]
+    [Requirement("REQ-ADV-022")]
     public static void Host_nsec_is_written_in_the_restricted_form()
     {
         byte[] rdata = DnsRecordWriter.EncodeRdata(
@@ -119,6 +124,7 @@ internal static class NsecRecordTests
     }
 
     [TestCase("The instance's NSEC lists TXT and SRV in a five-byte bitmap")]
+    [Requirement("REQ-ADV-022")]
     public static void Instance_nsec_is_written_in_the_restricted_form()
     {
         byte[] rdata = DnsRecordWriter.EncodeRdata(
@@ -129,6 +135,7 @@ internal static class NsecRecordTests
     }
 
     [TestCase("A and MX are written as RFC 4034's own example writes them")]
+    [Requirement("REQ-ADV-022")]
     public static void Bitmap_matches_the_rfc_4034_example()
     {
         byte[] rdata = DnsRecordWriter.EncodeRdata(DnsRecordType.Nsec, new NsecPayload(Host, [DnsRecordType.A, Mx]));
@@ -140,6 +147,7 @@ internal static class NsecRecordTests
     }
 
     [TestCase("The order types are listed in does not change the bytes")]
+    [Requirement("REQ-ADV-022")]
     public static void Type_order_does_not_matter()
     {
         byte[] forwards = DnsRecordWriter.EncodeRdata(
@@ -151,6 +159,7 @@ internal static class NsecRecordTests
     }
 
     [TestCase("An NSEC listing no type is refused")]
+    [Requirement("REQ-ADV-022")]
     public static void Empty_type_list_is_refused()
     {
         Assert.Throws<ArgumentException>(
@@ -159,6 +168,7 @@ internal static class NsecRecordTests
     }
 
     [TestCase("An NSEC listing NSEC itself is refused")]
+    [Requirement("REQ-ADV-022")]
     public static void Nsec_bit_is_refused()
     {
         Assert.Throws<ArgumentException>(
@@ -168,6 +178,7 @@ internal static class NsecRecordTests
     }
 
     [TestCase("An NSEC listing type 0, a question or meta type, or a type above 255 is refused")]
+    [Requirement("REQ-ADV-022")]
     public static void Types_outside_the_data_range_are_refused()
     {
         foreach (int value in new[] { 0, 128, 255, 256, 1234 })
@@ -180,6 +191,7 @@ internal static class NsecRecordTests
     }
 
     [TestCase("Types 1 and 127, the ends of the data range, are written")]
+    [Requirement("REQ-ADV-022")]
     public static void Ends_of_the_data_range_are_written()
     {
         byte[] rdata = DnsRecordWriter.EncodeRdata(
@@ -190,6 +202,7 @@ internal static class NsecRecordTests
     }
 
     [TestCase("An NSEC whose next domain name is not its own name is refused when written")]
+    [Requirement("REQ-ADV-022")]
     public static void Next_domain_name_must_be_the_record_name()
     {
         var builder = new DnsResponseBuilder().AddAnswer(Nsec(Host, Instance, DnsRecordType.A));
@@ -199,6 +212,7 @@ internal static class NsecRecordTests
     }
 
     [TestCase("An NSEC payload in a record of another type, or another payload in an NSEC record, is refused")]
+    [Requirement("REQ-ADV-022")]
     public static void Payload_and_type_must_agree()
     {
         Assert.Throws<ArgumentException>(
@@ -212,6 +226,7 @@ internal static class NsecRecordTests
     // ---- Reading --------------------------------------------------------------
 
     [TestCase("An NSEC written by the writer reads back as its name and types, cache-flush bit included")]
+    [Requirement("REQ-ADV-022")]
     public static void Written_nsec_reads_back()
     {
         byte[] message = new DnsResponseBuilder()

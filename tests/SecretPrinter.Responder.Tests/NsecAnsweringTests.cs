@@ -28,10 +28,23 @@
 //   docs/findings/2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md.
 //   The reader has no name for type 65, so it is written as a number.
 //
-// Why these carry no [Requirement] marker:
-//   They check REQ-ADV-022 with a fake transport. The requirement is marked
-//   only after the same behaviour has been captured on hardware, which had not
-//   been done when this file was written.
+// Markers:
+//   Placed by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+//   Edwin West, 2026-10-02, after a capture on FIOS-STB-01 showed an iPhone's
+//   type 65 question for the host name answered with the NSEC and a page
+//   printed 63 seconds later; see
+//   docs/findings/2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md.
+//   Until then this header said why the tests carried none. No test changed
+//   what it checks. Twenty-five carry REQ-ADV-022. The test of the
+//   responder's own NSEC records heard back carries REQ-ADV-024, which is the
+//   requirement that says how a heard NSEC is judged. The two tests of what
+//   is refused when the responder is built carry none: the README does not
+//   state those refusals. Reviewed by a human before merge.
+//
+//   What the capture showed is the host's NSEC as an answer, and both NSEC
+//   records in the goodbye. The instance's NSEC as an answer, the NSEC as an
+//   additional and the legacy unicast answer have been seen only here, with a
+//   fake transport.
 //
 // Addresses:
 //   fe80::10 is made up, scoped to 13, the IPv6 index of the test adapter.
@@ -43,6 +56,7 @@ using System.Net;
 using SecretPrinter.Advertising;
 using SecretPrinter.Dns;
 using SecretPrinter.Mdns;
+using SecretPrinter.Spec;
 using SecretPrinter.TestKit;
 
 namespace SecretPrinter.Responder.Tests;
@@ -157,6 +171,7 @@ internal static class NsecAnsweringTests
     // ---- The negative answer (RFC 6762 section 6.1) ---------------------------
 
     [TestCase("A type 65 (HTTPS) query for the host is answered by multicast with the host's NSEC: A and AAAA, TTL 120, cache-flush bit set")]
+    [Requirement("REQ-ADV-022")]
     public static void A_type_the_host_lacks_gets_the_hosts_nsec()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -171,6 +186,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("With no link-local address, an AAAA query for the host is answered with an NSEC listing A alone")]
+    [Requirement("REQ-ADV-022")]
     public static void Without_a_link_local_address_an_aaaa_query_gets_an_nsec_listing_a()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build();
@@ -183,6 +199,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("A query for a type the instance lacks is answered with the instance's NSEC: TXT and SRV, TTL 4500")]
+    [Requirement("REQ-ADV-022")]
     public static void A_type_the_instance_lacks_gets_the_instances_nsec()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -198,6 +215,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("A query for type NSEC itself, for the host, is answered with the host's NSEC")]
+    [Requirement("REQ-ADV-022")]
     public static void A_question_for_type_nsec_is_answered_with_the_nsec()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -209,6 +227,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("Two questions for types the host lacks are answered with its NSEC once")]
+    [Requirement("REQ-ADV-022")]
     public static void Two_negative_questions_for_one_name_send_the_nsec_once()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -222,6 +241,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("A question the responder has records for and one it has none for are both answered, in the Answer section")]
+    [Requirement("REQ-ADV-022")]
     public static void A_positive_and_a_negative_question_are_both_answered()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -236,6 +256,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("A type 65 query arriving over IPv6 is answered over IPv6, and counted there")]
+    [Requirement("REQ-ADV-022")]
     public static void A_negative_answer_leaves_by_the_transport_the_query_arrived_on()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -250,6 +271,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("A question in class ANY for a type the host lacks is answered with the NSEC")]
+    [Requirement("REQ-ADV-022")]
     public static void A_class_any_question_gets_the_nsec()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -263,6 +285,7 @@ internal static class NsecAnsweringTests
     // ---- No negative answer ---------------------------------------------------
 
     [TestCase("A shared service-type name gets no negative answer, whatever type is asked for")]
+    [Requirement("REQ-ADV-022")]
     public static void A_shared_name_gets_no_negative_answer()
     {
         (MdnsResponder responder, FakeTransport transport, _) = Build(LinkLocal);
@@ -287,6 +310,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("Another host's name gets no negative answer")]
+    [Requirement("REQ-ADV-022")]
     public static void Another_hosts_name_gets_no_negative_answer()
     {
         (MdnsResponder responder, FakeTransport transport, _) = Build(LinkLocal);
@@ -302,6 +326,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("An ANY question is answered with the records at the name and no NSEC")]
+    [Requirement("REQ-ADV-022")]
     public static void An_any_question_gets_no_nsec()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -316,6 +341,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("A positive answer for the instance carries no NSEC for the instance")]
+    [Requirement("REQ-ADV-022")]
     public static void A_positive_answer_carries_no_nsec_for_its_own_name()
     {
         // RFC 6762 section 6.1 says a responder MAY add one. This one does not.
@@ -335,6 +361,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("While probing, a query for a type the host lacks is not answered")]
+    [Requirement("REQ-ADV-022")]
     public static void Nothing_is_denied_while_probing()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -361,6 +388,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("While withdrawn, a query for a type the host lacks is not answered")]
+    [Requirement("REQ-ADV-022")]
     public static void Nothing_is_denied_while_withdrawn()
     {
         bool advertising = false;
@@ -376,6 +404,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("After a conflict, a query for a type the host lacks is not answered")]
+    [Requirement("REQ-ADV-022")]
     public static void Nothing_is_denied_after_a_conflict()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -398,6 +427,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("A question in class CHAOS for a type the host lacks gets no NSEC")]
+    [Requirement("REQ-ADV-022")]
     public static void A_question_in_another_class_gets_no_nsec()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -410,6 +440,7 @@ internal static class NsecAnsweringTests
     // ---- Beside an address record (RFC 6762 section 6.2) ----------------------
 
     [TestCase("With no link-local address, an A answer, an SRV answer and a PTR answer each carry the host's NSEC as an additional")]
+    [Requirement("REQ-ADV-022")]
     public static void Without_a_link_local_address_an_address_record_brings_the_nsec()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build();
@@ -438,6 +469,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("With a link-local address, no response to an A, AAAA, SRV or PTR query carries an NSEC")]
+    [Requirement("REQ-ADV-022")]
     public static void With_a_link_local_address_no_nsec_is_added()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -463,6 +495,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("With no link-local address, an A and an AAAA question in one query put the NSEC in the Answer section only, in either order")]
+    [Requirement("REQ-ADV-022")]
     public static void An_nsec_that_answers_is_not_also_an_additional()
     {
         DnsRecordType[][] orders =
@@ -487,6 +520,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("A host with an AAAA record and no A record gets the same treatment the other way round")]
+    [Requirement("REQ-ADV-022")]
     public static void A_host_with_only_an_aaaa_record_brings_the_nsec_too()
     {
         // AdvertisementBuilder always publishes an A record, so the service
@@ -513,6 +547,7 @@ internal static class NsecAnsweringTests
     // ---- Legacy unicast queriers (RFC 6762 section 6.7) -----------------------
 
     [TestCase("A legacy querier asking for type 65 gets the NSEC by unicast: its question repeated, its identifier, TTL 10, no cache-flush bit")]
+    [Requirement("REQ-ADV-022")]
     public static void A_legacy_querier_gets_the_nsec_by_unicast()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build(LinkLocal);
@@ -535,6 +570,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("With no link-local address, a legacy querier asking for the A record gets the NSEC as an additional, TTL 10, no cache-flush bit")]
+    [Requirement("REQ-ADV-022")]
     public static void A_legacy_querier_gets_the_additional_nsec_capped()
     {
         (MdnsResponder responder, FakeTransport transport, Advertisement advertisement) = Build();
@@ -550,6 +586,7 @@ internal static class NsecAnsweringTests
     // ---- Announcing, probing and retracting -----------------------------------
 
     [TestCase("No announcement carries an NSEC")]
+    [Requirement("REQ-ADV-022")]
     public static void Announcements_carry_no_nsec()
     {
         (MdnsResponder responder, FakeTransport transport, _) = Build();
@@ -562,6 +599,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("No probe proposes an NSEC or asks for one")]
+    [Requirement("REQ-ADV-022")]
     public static void Probes_propose_no_nsec()
     {
         (MdnsResponder responder, FakeTransport transport, _) = Build();
@@ -578,6 +616,7 @@ internal static class NsecAnsweringTests
     }
 
     [TestCase("The goodbye retracts both NSEC records with TTL zero, beside every advertised record")]
+    [Requirement("REQ-ADV-022")]
     public static void The_goodbye_retracts_both_nsec_records()
     {
         foreach (IPAddress[] linkLocal in new IPAddress[][] { [], [LinkLocal] })
@@ -607,6 +646,7 @@ internal static class NsecAnsweringTests
     // ---- Heard back -----------------------------------------------------------
 
     [TestCase("The responder's own NSEC records, heard back exactly as it sent them, are not a conflict")]
+    [Requirement("REQ-ADV-024")]
     public static void What_the_responder_sent_is_not_a_conflict_when_heard_back()
     {
         // With and without an AAAA record: the NSEC says something different in

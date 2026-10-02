@@ -167,6 +167,11 @@ name "SecretPrinter (ET-3760)".
 - **`HTTPS` and `AAAA` questions for `secretprinter.local` went unanswered,**
   from both devices. SecretPrinter publishes neither and sends no `NSEC`: the
   subjects of `REQ-ADV-021` and `REQ-ADV-022`, the next items of work.
+
+  *(Status note, 2026-10-02, by Claude, Claude Opus 5.5: both are done. The
+  `AAAA` question has been answered since `2c93864`, and the `HTTPS` question,
+  type 65, has been answered with an `NSEC` since `64e8fc2`. See
+  [the finding](2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md).)*
 - **The iPhone's address.** It appears as `192.168.1.156` in the log at
   17:20-17:28, matched to its screenshots by time, and as `192.168.1.152` in
   the first two captures.

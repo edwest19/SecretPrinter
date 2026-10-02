@@ -113,6 +113,13 @@ not hold: AAAA and type 65 for `secretprinter.local`, and the PTR for
 from. An NSEC stating that `secretprinter.local` has no AAAA is the subject of
 `REQ-ADV-022`, which is not yet implemented.
 
+*(Status note, 2026-10-02, by Claude, Claude Opus 5.5: the service has
+published an `AAAA` record since `2c93864`, and since `64e8fc2` it answers the
+type 65 question with an `NSEC`. That was captured on 2026-10-02; see
+[the finding](2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md).
+The `_ipps` subtype is a shared name the service does not advertise, and it
+still, rightly, says nothing about it.)*
+
 No packet from `192.168.1.161` answered any of the 15. The only packets from
 that address in the 30 minutes were four identical query-and-reply pairs at
 21:35:20Z and 21:35:21Z (dev-box clock) about `FIOS-STB-01.local`, TTL 60.

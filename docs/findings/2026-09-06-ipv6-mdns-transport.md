@@ -189,6 +189,15 @@ is a stale cache entry on the phone. If iOS shows a dead "EPSON ET-3760" beside
 the SecretPrinter entry, selecting the wrong one fails exactly as observed. Rule
 this out before attributing a future failure to code.
 
+*(Corrected 2026-10-02 by Claude, Claude Opus 5.5: "It is a stale cache entry
+on the phone" was not measured. Why the phone asked for that name was not
+established here; the
+[2026-09-29 finding](2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md)
+looked into it later. The warning stands. On 2026-10-02 an entry beginning
+"Epson" was seen in the list beside SecretPrinter, and attempts to print
+failed in the same session; whether one caused the other is not established.
+See [the finding](2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md).)*
+
 ## Limitations
 
 This does **not** establish:
