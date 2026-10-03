@@ -31,6 +31,11 @@
 // socket between the responder and the resolver. Comments only; no behaviour
 // changed. Reviewed by a human before merge.
 //
+// A note saying that tools/SecretPrinter.Respond6 has been deleted was added
+// by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-02. Comments only; no behaviour changed. Reviewed by a human before
+// merge.
+//
 // Purpose:
 //   The service's single point of contact with the network for mDNS. It binds
 //   UDP 5353, joins the multicast group on configured interfaces, receives
@@ -52,6 +57,11 @@
 //   The IPv6 socket is the configuration measured working on 2026-09-06
 //   (docs/findings/2026-09-06-ipv6-mdns-transport.md), promoted from
 //   tools/SecretPrinter.Respond6 - with one honest exception noted below.
+//
+//   That tool was deleted on 2026-10-02, once the service did over IPv6 what
+//   it had stood in for. This file mentions it three more times below, each about
+//   what it did when it was measured. Its source is in the repository's
+//   history; the last commit that holds it is a10087d.
 //
 // How far the IPv6 work has got:
 //   This file opens a second socket, binds it to [::]:5353, joins ff02::fb on

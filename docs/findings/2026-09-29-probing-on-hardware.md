@@ -24,6 +24,12 @@ session of 2026-09-29; the log lines quoted are the service's own.**
   list could show the two apart: with its default instance, `Respond6` would
   have advertised "SecretPrinter (ET-3760)" itself. `Respond6` sends and
   listens over IPv6 only.
+  *(Status note, 2026-10-02, by Claude, Claude Opus 5.5: `Respond6` was
+  deleted on 2026-10-02. Its source is in the repository's history; the last
+  commit that holds `tools/SecretPrinter.Respond6` is `a10087d`. Repeating
+  steps 2 to 5 below needs the tool from that commit, or another responder
+  that claims the service's host name. No tool now in `tools/` is recorded as
+  having been run as one.)*
 
 ## What happened
 

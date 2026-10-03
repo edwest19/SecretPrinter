@@ -8,6 +8,11 @@
 // West, 2026-09-13, for the SecretPrinter project. Reviewed by a human before
 // merge.
 //
+// The NO REQUIREMENT MARKERS section of this header updated by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-02, when SecretPrinter.Respond6 was deleted. Comments only. Reviewed
+// by a human before merge.
+//
 // THE ONE QUESTION THIS TOOL EXISTS TO ANSWER
 // -------------------------------------------
 // When a datagram arrives on a socket bound to [::]:5353 with IPV6_PKTINFO
@@ -71,16 +76,17 @@
 //
 // NO REQUIREMENT MARKERS
 // ----------------------
-// Deliberately carries none, for the same reason as SecretPrinter.Respond and
-// SecretPrinter.Respond6: the requirements in README.md describe the service.
+// Deliberately carries none, for the same reason as SecretPrinter.Respond: the
+// requirements in README.md describe the service.
 // A marker here would make the coverage matrix report that the service has a
 // behaviour, when what exists is a diagnostic that measured the platform.
 // REQ-ADV-020 is earned by SecretPrinter.Mdns or not at all.
 //
-// Unlike Respond6, this tool is not scheduled for deletion. Respond6 is a
-// stand-in for product behaviour and is superseded once the product has it.
-// This one measures a property of the operating system, which stays worth
-// re-checking on a new machine, a new Windows build, or a new adapter.
+// This tool is not scheduled for deletion. SecretPrinter.Respond6 was: it stood
+// in for product behaviour, and was deleted on 2026-10-02 once the product had
+// it (the last commit that holds it is a10087d). This one measures a property
+// of the operating system, which stays worth re-checking on a new machine, a
+// new Windows build, or a new adapter.
 // -----------------------------------------------------------------------------
 
 using System.Globalization;

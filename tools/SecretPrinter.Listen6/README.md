@@ -7,6 +7,10 @@ question that the service's IPv6 support depends on.
 *Written by Claude (Anthropic model, Claude Opus 5) at the direction of Edwin
 West, 2026-09-13. Reviewed by a human before merge.*
 
+*The last section updated by Claude (Anthropic model, Claude Opus 5.5) at the
+direction of Edwin West, 2026-10-02, when `SecretPrinter.Respond6` was deleted.
+Reviewed by a human before merge.*
+
 ## The question
 
 > When a datagram arrives on a socket bound to `[::]:5353` with `IPV6_PKTINFO`
@@ -84,7 +88,8 @@ Recorded in
 
 ## Why this is not scheduled for deletion
 
-`SecretPrinter.Respond6` stands in for behaviour the product will have, and is
-deleted once the product has it. This tool measures a property of the operating
-system instead, which stays worth re-checking on a new machine, a new Windows
-build, or a new adapter.
+`SecretPrinter.Respond6` stood in for behaviour the product did not yet have,
+and was deleted on 2026-10-02 once the product had it; the last commit that
+holds it is `a10087d`. This tool measures a property of the operating system
+instead, which stays worth re-checking on a new machine, a new Windows build,
+or a new adapter.

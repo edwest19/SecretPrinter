@@ -201,6 +201,9 @@ The `NSEC` (`REQ-ADV-022`) comes after this, then the removal of
 [the finding](2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md).
 `SecretPrinter.Respond6` has not been removed yet.)*
 
+*(Status note, 2026-10-02, later the same day, by Claude, Claude Opus 5.5:
+`SecretPrinter.Respond6` is removed, in the commit that added this note.)*
+
 ## Not established
 
 - Whether iOS connects to a link-local address it received in an `AAAA` record

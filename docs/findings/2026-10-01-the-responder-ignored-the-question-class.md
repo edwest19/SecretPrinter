@@ -114,6 +114,8 @@ Every break failed a test, and none hung. Nothing covers the change to
 - **`tools/SecretPrinter.Respond6`** has its own DNS code. It reads the class
   and does not use it when matching. It is to be deleted once the `NSEC` is in
   the service, and it is not changed here.
+  *(Status note, 2026-10-02, by Claude, Claude Opus 5.5: it was deleted on
+  2026-10-02. The last commit that holds it is `a10087d`.)*
 
 ## Not affected
 

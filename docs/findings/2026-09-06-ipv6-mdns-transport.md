@@ -33,6 +33,13 @@ changed. Reviewed by a human before merge.*
 **Status:** Concluded. Result positive, reproducible.
 **Instrument:** `tools/SecretPrinter.Respond6`
 
+*(Status note, 2026-10-02, by Claude, Claude Opus 5.5: the instrument was
+deleted on 2026-10-02, once the service answered over IPv6 and sent the `NSEC`
+itself. Its source is in the repository's history; the last commit that holds
+`tools/SecretPrinter.Respond6` is `a10087d`. Step 3 under "Reproduction" needs
+the tool from that commit. Where this finding says what the tool does, it
+describes that version.)*
+
 *(Corrected 2026-10-01 by Claude, Claude Opus 5.5: under "Result" this finding
 said the `NSEC` "was accepted as a definite negative and did not stall the
 address lookup", and under "What this implies for the specification" it said

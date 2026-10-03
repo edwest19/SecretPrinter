@@ -118,6 +118,10 @@ original words:
    exclusively over IPv6 (to ff02::fb)". It now says the capture held queries
    from an iPhone that had arrived over IPv6 only. The tool is to be deleted
    once IPv6 is in the product, which is a separate item.
+   *(Status note, 2026-10-02, by Claude, Claude Opus 5.5: the tool was deleted
+   on 2026-10-02, and with it this header and the tool's `README.md` named
+   under "Read and left alone" below. The last commit that holds them is
+   `a10087d`.)*
 
 The sentence in the 2026-09-24 access-point finding that called the list
 complete is corrected with this finding, and the 2026-09-23 finding gains a

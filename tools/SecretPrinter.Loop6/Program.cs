@@ -8,6 +8,11 @@
 // West, 2026-09-14, for the SecretPrinter project. Reviewed by a human before
 // merge.
 //
+// SecretPrinter.Respond6 taken out of the list under NO REQUIREMENT MARKERS by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-02, when that tool was deleted. Comments only. Reviewed by a human
+// before merge.
+//
 // THE ONE QUESTION THIS TOOL EXISTS TO ANSWER
 // -------------------------------------------
 // When a socket on this host sends to ff02::fb, and the operating system loops
@@ -124,7 +129,7 @@
 //
 // NO REQUIREMENT MARKERS
 // ----------------------
-// Deliberately, as with Listen6, Respond and Respond6. The requirements in
+// Deliberately, as with Listen6 and Respond. The requirements in
 // README.md describe the service. A marker here would make the coverage matrix
 // report a service behaviour when what exists is a measurement of the operating
 // system.
