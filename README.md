@@ -76,7 +76,7 @@ configuration and checked on every connection; see
 The service does not tie its connection to the printer to the printer-side
 network adapter. Windows chooses the way out from its routing table, as it would
 for any program. Normally that is the printer-side adapter, because it gives
-Windows the most specific route to the printer's address. On two occasions
+Windows the most specific route to the printer's address. On three occasions
 Windows has been measured choosing its default route instead, which sends the
 attempt to connect out on the client network, addressed to the printer and
 handed to the client network's router. The first time, the printer-side adapter
@@ -87,9 +87,15 @@ the printer-side adapter was up, with its address and its route to the printer's
 network, but the printer had stopped answering on that network. Measured again
 after the printer had come back, Windows chose the printer-side adapter. Why
 Windows chose the default route while the adapter was up was not established,
-and that time no packets were captured. Both were measured with Windows' own
-tools, `Test-NetConnection` and `Find-NetRoute`, not with the service's
-connection. No print job goes that way. The service sends job data only after a
+and that time no packets were captured. The third time, two attempts in a row
+took the default route and failed, and a later one took the printer-side
+adapter and connected; the state of that adapter during the first two was not
+read, no packets were captured, and by the operator's account nothing was
+reconnected by hand in between.
+The first two occasions were measured with Windows' own tools,
+`Test-NetConnection` and `Find-NetRoute`, and the third with
+`Test-NetConnection` alone, none of them with the service's connection. No
+print job goes that way. The service sends job data only after a
 TLS handshake with the pinned printer succeeds, and a connection that is never
 answered never gets that far. What does leave is the attempt itself: the
 printer's address and port, from the proxy's client-side address. The same fact
@@ -98,9 +104,12 @@ measured: if another adapter on the machine is connected to the printer's
 network, Windows may route the connection through that adapter rather than the
 one the configuration names. What the router does with such packets was not
 observed either. See the findings of
-[2026-09-22](docs/findings/2026-09-22-connections-to-the-printer-leave-by-the-default-route.md)
+[2026-09-22](docs/findings/2026-09-22-connections-to-the-printer-leave-by-the-default-route.md),
+[2026-09-27](docs/findings/2026-09-27-the-printer-went-silent-and-the-join-held.md)
 and
-[2026-09-27](docs/findings/2026-09-27-the-printer-went-silent-and-the-join-held.md).
+[2026-10-03](docs/findings/2026-10-03-the-printer-came-back-at-an-hourly-question.md).
+(Updated 2026-10-03 by Claude, Claude Opus 5.5: until then this point said two
+occasions and described two.)
 
 ---
 

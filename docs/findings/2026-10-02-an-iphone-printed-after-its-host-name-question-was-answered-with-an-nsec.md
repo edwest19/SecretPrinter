@@ -249,6 +249,14 @@ transport.
    [2026-09-19](2026-09-19-the-printer-side-multicast-membership-is-lost.md),
    [2026-09-25](2026-09-25-a-reconnect-did-not-restore-the-membership.md) and
    [2026-09-27](2026-09-27-a-lost-membership-recovered-without-a-restart.md).
+   *(Status note, 2026-10-03, by Claude, Claude Opus 5.5: the service does not
+   log the questions it asks while the printer is unreachable, so "with the
+   service still unanswered" above does not mean it asked at that time. Worked
+   out from the schedule in the code, a service started at 13:52 and never
+   answered asks at about 14:27 and about 15:01, and not between. That is
+   arithmetic, with the start known only to the minute. See
+   [the 2026-10-03 finding](2026-10-03-the-printer-came-back-at-an-hourly-question.md),
+   which also records Edwin's decision that the hourly schedule stays.)*
 9. **The printer closed connections on the relay nine times** between 04:58
    and 05:55 (`forcibly closed by the remote host`), one TLS handshake timed
    out at 05:36, and two lookups failed at 06:02:36 with no withdrawal
