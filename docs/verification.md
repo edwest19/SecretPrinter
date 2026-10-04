@@ -15,6 +15,11 @@ README. Reviewed by a human before merge.*
 direction of Edwin West, 2026-09-22, after the change was measured on
 FIOS-STB-01. Reviewed by a human before merge.*
 
+*The REQ-DIST-011 row under "Not yet evidenced" added by Claude (Anthropic
+model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-03. The
+requirement was uncovered before then and was missing from that list. Reviewed
+by a human before merge.*
+
 Some requirements in [README.md](../README.md) cannot be satisfied by code.
 "Release binaries are signed" and "CI runs the specification checker" are
 properties of the build and release process; no attribute on a class will ever
@@ -81,3 +86,4 @@ Listed for visibility. These have no entry above, so SpecCheck reports them as
 | REQ-DIST-004 | No release workflow, and no signing step, has been written. |
 | REQ-DIST-005 | Signature verification instructions cannot be written before signing exists. |
 | REQ-DIST-006 | No release has been tagged; `CHANGELOG.md` does not exist. |
+| REQ-DIST-011 | `publish-release.ps1` produces a self-contained folder holding the service and the probe. That folder has not been run on a machine with no .NET installed, `docs/operating.md` still installs with the SDK, and the configuration tool a release will also carry (README open question 9) is not built. |
