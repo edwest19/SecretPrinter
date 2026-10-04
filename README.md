@@ -666,10 +666,12 @@ own files in a job that waits for a person's approval, checks every signature,
 and publishes the zip only if the specification check passed. The version lives
 in one place, `<Version>` in `Directory.Build.props`, and the workflow refuses a
 tag that does not match it or that has no entry in `CHANGELOG.md`. As of
-2026-10-04 the workflow has never run and nothing has been signed, so
-REQ-DIST-004, REQ-DIST-005 and REQ-DIST-006 are still uncovered. (Paragraph, the
-`release.yml` line in the tree and the `[done]` beside `CHANGELOG.md` added
-2026-10-04 by Claude, Claude Opus 5.5.)
+2026-10-04 the workflow has run once, for the trial tag `v0.1.0-rc.1`, and
+failed before its signing job; `CHANGELOG.md` says why. Nothing has been
+signed, so REQ-DIST-004, REQ-DIST-005 and REQ-DIST-006 are still uncovered.
+(Paragraph, the `release.yml` line in the tree and the `[done]` beside
+`CHANGELOG.md` added 2026-10-04 by Claude, Claude Opus 5.5. It first said the
+workflow had never run; corrected the same day, after its first run.)
 
 `SecretPrinter.Listen6` and `SecretPrinter.Loop6` are measurement tools written
 to answer one question each while IPv6 was being added; each one's header

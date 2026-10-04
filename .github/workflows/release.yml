@@ -62,10 +62,13 @@
 #                                             signing tools, which add the
 #                                             signatures and are not shipped.
 #
-# What this workflow has NOT yet shown, as of the day it was written:
-#   It has never run. Whether the Azure sign-in is accepted, what name the
+# What this workflow has NOT yet shown:
+#   Its first run, on 2026-10-04 for the tag v0.1.0-rc.1, failed in the build
+#   job at "Check the specification" and never reached the sign job; see the
+#   comment at the end of that step, and CHANGELOG.md. So the sign job has
+#   still never run. Whether the Azure sign-in is accepted, what name the
 #   signing certificate carries, and whether a job with only "id-token: write"
-#   can fetch another job's files are all learned from its first run. The
+#   can fetch another job's files are all still to be learned. The
 #   certificate's subject is printed and is not yet compared with an expected
 #   value, because that value has not been measured.
 # -----------------------------------------------------------------------------
@@ -232,6 +235,13 @@ jobs:
               "result=not-passed" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
               Write-Host "::warning::The specification check did not pass (exit code $checkExit). The folder will be built and may be signed for examination, but no GitHub Release will be published."
           }
+
+          # GitHub ends a pwsh step with the exit code of the last program the
+          # step ran, whatever the script did afterwards. Here that program is
+          # SpecCheck, whose non-zero code has just been recorded as a result
+          # and is not a failure of this step. So the step ends with 0 itself.
+          # Without this line the first run, on 2026-10-04, stopped here.
+          exit 0
 
       - name: Make the release folder
         shell: pwsh
