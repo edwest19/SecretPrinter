@@ -50,6 +50,19 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <!-- The version, in one place. Every assembly is stamped with it, and
+         .github/workflows/release.yml refuses a tag that does not match it
+         (REQ-DIST-006). To make a release: change this value, add the matching
+         entry to CHANGELOG.md, commit, and tag that commit "v" followed by this
+         value. A value with a hyphen, such as 0.1.0-rc.1, is a pre-release.
+
+         Added 2026-10-04 by Claude (Anthropic model, Claude Opus 5.5) at the
+         direction of Edwin West. Until then no version was set anywhere, and
+         every assembly carried the SDK's default of 1.0.0. -->
+    <Version>0.1.0-rc.1</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <Product>SecretPrinter</Product>
     <Authors>Claude (Anthropic), directed by Edwin West</Authors>
     <Company>Edwin West</Company>

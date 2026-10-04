@@ -25,6 +25,12 @@ Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 2026-10-04, after a folder made by `publish-release.ps1` was run on a machine
 with no .NET installed. Reviewed by a human before merge.*
 
+*The REQ-DIST-004 and REQ-DIST-006 rows under "Not yet evidenced" reworded by
+Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+2026-10-04, when the release workflow and `CHANGELOG.md` were written. They had
+said that neither existed. Both requirements are still uncovered. Reviewed by a
+human before merge.*
+
 Some requirements in [README.md](../README.md) cannot be satisfied by code.
 "Release binaries are signed" and "CI runs the specification checker" are
 properties of the build and release process; no attribute on a class will ever
@@ -89,6 +95,6 @@ Listed for visibility. These have no entry above, so SpecCheck reports them as
 
 | Requirement | What it is waiting on |
 | --- | --- |
-| REQ-DIST-004 | No release workflow, and no signing step, has been written. |
+| REQ-DIST-004 | `.github/workflows/release.yml` has a signing step. It has never run, so nothing has been signed. |
 | REQ-DIST-005 | Signature verification instructions cannot be written before signing exists. |
-| REQ-DIST-006 | No release has been tagged; `CHANGELOG.md` does not exist. |
+| REQ-DIST-006 | `CHANGELOG.md` exists, and `.github/workflows/release.yml` refuses a tag that has no entry in it. No release has been tagged. |

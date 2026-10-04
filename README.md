@@ -377,7 +377,7 @@ How print jobs are moved.
 | REQ-DIST-001 | MUST | The project targets .NET 10 (LTS) and builds with the published SDK version recorded in `global.json`. |
 | REQ-DIST-002 | MUST | The solution builds with `TreatWarningsAsErrors` and produces zero warnings. |
 | REQ-DIST-003 | MUST | Continuous integration builds the solution, runs all tests, and runs the specification checker described in Section 11. |
-| REQ-DIST-004 | MUST | Release binaries are signed with Azure Trusted Signing. |
+| REQ-DIST-004 | MUST | Release binaries are signed with Azure Trusted Signing. (Microsoft has since renamed that service Artifact Signing; this requirement means the same service. Note added 2026-10-04 by Claude, Claude Opus 5.5.) |
 | REQ-DIST-005 | MUST | The release documentation states how to verify a signature, and that unsigned binaries are not official releases. |
 | REQ-DIST-006 | MUST | Every release is a tagged commit with a changelog entry. |
 | REQ-DIST-007 | MUST | Analyzer suppressions are justified in place, in source, with a written reason. Blanket suppression files are not used. |
@@ -583,7 +583,7 @@ SecretPrinter/
 ├── README.md                          This specification
 ├── LICENSE                            MIT                                [done]
 ├── SECURITY.md                        How to report a vulnerability      [done]
-├── CHANGELOG.md                       Per-release history
+├── CHANGELOG.md                       Per-release history                [done]
 ├── .gitignore                         Ignore rules, incl. captures       [done]
 ├── .gitattributes                     Line endings, fixed per file type  [done]
 ├── global.json                        Pinned SDK version                 [done]
@@ -632,7 +632,8 @@ SecretPrinter/
 │   └── SecretPrinter.Service.Tests/   Includes assembly metadata scans   [built]
 │
 └── .github/workflows/
-    └── ci.yml                         Build, test, spec-check            [done]
+    ├── ci.yml                         Build, test, spec-check            [done]
+    └── release.yml                    Build, sign, publish on a v tag    [done]
 ```
 
 `[done]` and `[built]` mark what exists today. The rest is specified and not
@@ -658,6 +659,17 @@ That run is the evidence for REQ-DIST-011 in `docs/verification.md`. (Paragraph,
 and the script's line in the tree, added 2026-10-03 by Claude, Claude Opus 5.5.
 Its last two sentences replaced 2026-10-04, when the run was made; they had said
 REQ-DIST-011 stayed uncovered until such a run was recorded.)
+
+`.github/workflows/release.yml` turns a tag beginning with `v` into a release.
+It builds, runs every test, runs `publish-release.ps1`, signs SecretPrinter's
+own files in a job that waits for a person's approval, checks every signature,
+and publishes the zip only if the specification check passed. The version lives
+in one place, `<Version>` in `Directory.Build.props`, and the workflow refuses a
+tag that does not match it or that has no entry in `CHANGELOG.md`. As of
+2026-10-04 the workflow has never run and nothing has been signed, so
+REQ-DIST-004, REQ-DIST-005 and REQ-DIST-006 are still uncovered. (Paragraph, the
+`release.yml` line in the tree and the `[done]` beside `CHANGELOG.md` added
+2026-10-04 by Claude, Claude Opus 5.5.)
 
 `SecretPrinter.Listen6` and `SecretPrinter.Loop6` are measurement tools written
 to answer one question each while IPv6 was being added; each one's header
