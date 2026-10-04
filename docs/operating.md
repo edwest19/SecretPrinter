@@ -80,6 +80,13 @@ Reviewed by a human before merge.*
 ([finding](findings/2026-09-29-the-audits-redaction-was-undone.md)). Reviewed by
 a human before merge.*
 
+*The section "Where the program comes from", the release form of the probe step
+and of the install step, and the first paragraph under "Updating an installed
+service" added by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+Edwin West, 2026-10-04, after a folder made by `publish-release.ps1` was
+installed and run on a machine with no .NET
+([finding](findings/2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md)). Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -99,6 +106,24 @@ unused.
 **This departs from the mDNS standard on purpose.** Names ending in `.local` are
 meant to be meaningful on one network segment. SecretPrinter makes one printer
 visible on a second segment. That is why it confines itself to printing.
+
+---
+
+## Where the program comes from
+
+**From a release, once there is one.** No release has been published yet. A
+release will be a folder holding `SecretPrinter.Service.exe`,
+`SecretPrinter.Probe.exe` and the .NET runtime they need, so that nothing else
+has to be installed (`REQ-DIST-011`). `publish-release.ps1` makes that folder. On
+2026-10-04 one was unpacked on a machine running Windows 11 with no .NET
+installed, and printed for an iPhone, first from a console window and then
+installed as a service by the steps below
+([the finding](findings/2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md)).
+
+**From source, today.** Clone the repository and install the .NET 10 SDK.
+
+Where a step differs between the two, both forms are shown. Nothing a release
+needs uses the `dotnet` command.
 
 ---
 
@@ -250,7 +275,13 @@ Get-NetAdapter | Where-Object Status -eq 'Up' | Select-Object Name, InterfaceDes
 Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias, IPAddress
 ```
 
-To find the printer's instance name, use the probe:
+To find the printer's instance name, use the probe. From a release folder:
+
+```powershell
+.\SecretPrinter.Probe.exe --interface <printer-side-ipv4>
+```
+
+From a clone of the repository, which needs the .NET SDK:
 
 ```powershell
 dotnet run --project tools\SecretPrinter.Probe -- --interface <printer-side-ipv4>
@@ -336,8 +367,22 @@ administrators and to `SYSTEM`, and not to `LocalService`. The service control
 manager then cannot launch the process at all: `sc.exe start` fails with error
 5, *Access is denied*, even from an elevated prompt, and the log stays empty
 because nothing ran to write it. That happened on FIOS-STB-01 on 2026-09-18.
-Publish to `C:\Program Files\SecretPrinter` and keep the configuration in
-`C:\ProgramData\SecretPrinter`, which is how a release will be installed anyway:
+Put the program in `C:\Program Files\SecretPrinter` and keep the configuration in
+`C:\ProgramData\SecretPrinter`. From a release folder, copy it there:
+
+```powershell
+# Run as Administrator.
+Copy-Item <release-folder> "C:\Program Files\SecretPrinter" -Recurse
+Copy-Item <your>\secretprinter.json "C:\ProgramData\SecretPrinter\secretprinter.json"
+```
+
+`C:\Program Files\SecretPrinter` must not exist yet. If it does, `Copy-Item`
+puts the release folder inside it and not in its place, and the service path
+below then points at nothing. On the machine this was measured on, 2026-10-04,
+it did not exist, and all 216 files arrived
+([the finding](findings/2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md)).
+
+From a clone of the repository, publish there instead:
 
 ```powershell
 # Run as Administrator.
@@ -396,6 +441,9 @@ sc.exe delete SecretPrinter
 ```
 
 ### Updating an installed service
+
+This procedure is for an installation built from source. Updating from one
+release to the next has not been exercised, because no release exists yet.
 
 Registration points the service control manager at a path. Building a new
 version does not change what is at that path, so a build alone updates nothing

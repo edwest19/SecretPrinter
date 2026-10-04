@@ -20,6 +20,11 @@ model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-03. The
 requirement was uncovered before then and was missing from that list. Reviewed
 by a human before merge.*
 
+*The REQ-DIST-011 entry added, and its row under "Not yet evidenced" removed, by
+Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+2026-10-04, after a folder made by `publish-release.ps1` was run on a machine
+with no .NET installed. Reviewed by a human before merge.*
+
 Some requirements in [README.md](../README.md) cannot be satisfied by code.
 "Release binaries are signed" and "CI runs the specification checker" are
 properties of the build and release process; no attribute on a class will ever
@@ -73,6 +78,7 @@ proportion resting on evidence rather than tests is always visible.
 | REQ-DIST-010 | `tests/SecretPrinter.TestKit/TestHarness.cs`, `tools/SecretPrinter.SpecCheck/CoverageMatrix.cs` | The harness records each exercised assembly's module version id; SpecCheck compares them against the assemblies it scans and fails on any mismatch. Verified by editing a source file, rebuilding without re-running the tests, and confirming the check named the rebuilt assembly and failed. |
 | REQ-LIF-007 | `docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md`, `src/SecretPrinter.Service/RefusedStartService.cs`, `src/SecretPrinter.Service/Program.cs` | No test can reach the control manager, so this rests on a recorded run. On FIOS-STB-01, with `937de66` installed and the printer-side adapter disconnected, `Start-Service` failed and returned within three seconds; the service log recorded the refusal and its reason at 21:00:13Z; the System log recorded event 7023, "terminated with the following error: An exception occurred in the service when handling the control request", in the same second, with no 7009 timeout and no "timely fashion"; and `sc.exe query` reported `WIN32_EXIT_CODE : 1064`. Before the change, each of nine refusals was recorded as a timeout, event 7009, with event 7000 "did not respond ... in a timely fashion". Measured for one kind of refusal, the adapter being down, on one machine. |
 | REQ-DIST-009 | `tools/SecretPrinter.SpecCheck/TestResultsDocument.cs`, `tests/SecretPrinter.TestKit/TestHarness.cs` | The harness records PASS/FAIL/SKIP per requirement; SpecCheck counts a requirement as tested only on a recorded PASS, and reports `TEST DID NOT RUN` otherwise. Verified by flipping a PASS to FAIL in a results file and confirming the requirement lost its coverage. |
+| REQ-DIST-011 | `publish-release.ps1`, `docs/findings/2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md`, `docs/operating.md` | The script publishes the service and the probe self-contained for `win-x64` into one folder, and fails unless each program's `runtimeconfig.json` lists an included runtime. A folder it made at `26ddfbe` was run on 2026-10-04 on a machine from which every .NET SDK and runtime had been removed: the service printed for an iPhone from a console window, and again installed as a service under `LocalService`, and the probe listed the printer's instances. `docs/operating.md` gives the release form of each step, and nothing a release needs uses the `dotnet` command. Limits, all in the finding: no release exists yet, so no release workflow has run the script; the probe is the only tool the documentation names, and the configuration tool must be added to the script when it exists; starting at boot and updating were not exercised. |
 
 ---
 
@@ -86,4 +92,3 @@ Listed for visibility. These have no entry above, so SpecCheck reports them as
 | REQ-DIST-004 | No release workflow, and no signing step, has been written. |
 | REQ-DIST-005 | Signature verification instructions cannot be written before signing exists. |
 | REQ-DIST-006 | No release has been tagged; `CHANGELOG.md` does not exist. |
-| REQ-DIST-011 | `publish-release.ps1` produces a self-contained folder holding the service and the probe. That folder has not been run on a machine with no .NET installed, `docs/operating.md` still installs with the SDK, and the configuration tool a release will also carry (README open question 9) is not built. |
