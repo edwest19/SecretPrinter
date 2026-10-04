@@ -499,6 +499,12 @@ the number is now read from the matrix instead of asserted here. The consequence
 red for a known reason, it is less useful at signalling a *new* problem, so read
 which step failed rather than trusting the colour.
 
+(2026-10-04: the last four binding requirements without coverage, REQ-DIST-004,
+005, 006 and 011, were covered by evidence that day, and the check passed on
+the development machine at the commit that added this note. Whether CI is green
+is for its run page to say, not this paragraph. Note added by Claude, Claude
+Opus 5.5.)
+
 **Step 4 — A tool checks the correspondence.** `tools/SecretPrinter.SpecCheck`
 parses the requirement tables out of this README, reflects over the built
 assemblies, and produces a coverage matrix:
@@ -665,13 +671,16 @@ It builds, runs every test, runs `publish-release.ps1`, signs SecretPrinter's
 own files in a job that waits for a person's approval, checks every signature,
 and publishes the zip only if the specification check passed. The version lives
 in one place, `<Version>` in `Directory.Build.props`, and the workflow refuses a
-tag that does not match it or that has no entry in `CHANGELOG.md`. As of
-2026-10-04 the workflow has run once, for the trial tag `v0.1.0-rc.1`, and
-failed before its signing job; `CHANGELOG.md` says why. Nothing has been
-signed, so REQ-DIST-004, REQ-DIST-005 and REQ-DIST-006 are still uncovered.
+tag that does not match it or that has no entry in `CHANGELOG.md`. It has run
+twice, both on 2026-10-04 and both for trial tags that are not releases. The
+first run failed before its signing job. The second signed twelve files, and
+the signatures were read on a downloaded copy
+([finding](docs/findings/2026-10-04-the-release-workflow-signed-a-build.md)).
+No release has been published, and the job that publishes one has never run.
 (Paragraph, the `release.yml` line in the tree and the `[done]` beside
-`CHANGELOG.md` added 2026-10-04 by Claude, Claude Opus 5.5. It first said the
-workflow had never run; corrected the same day, after its first run.)
+`CHANGELOG.md` added 2026-10-04 by Claude, Claude Opus 5.5, and corrected twice
+the same day as the workflow ran: it first said the workflow had never run, and
+then that nothing had been signed.)
 
 `SecretPrinter.Listen6` and `SecretPrinter.Loop6` are measurement tools written
 to answer one question each while IPv6 was being added; each one's header

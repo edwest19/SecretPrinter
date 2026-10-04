@@ -25,6 +25,14 @@ is published for it.**
   the check's result. Nothing in SecretPrinter itself changed.
 - **Why nothing is published,** and what the build holds: as for `0.1.0-rc.1`
   below.
+- **What happened.** The workflow ran for this tag and signed. Twelve
+  SecretPrinter files came out signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`, each with a timestamp,
+  and the other 190 program files were still validly signed by Microsoft. The
+  zip is 37,554,102 bytes with SHA-256
+  `8A422569A5BBFB63C61385C5AE4117992CB3C3D173E8CB15B1F0D44A683C2A46`. It was
+  kept with the workflow run for seven days and published nowhere. (Added
+  2026-10-04 by Claude, Claude Opus 5.5.)
 
 ## [0.1.0-rc.1] - 2026-10-04
 

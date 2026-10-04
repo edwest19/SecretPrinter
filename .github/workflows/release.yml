@@ -62,15 +62,16 @@
 #                                             signing tools, which add the
 #                                             signatures and are not shipped.
 #
-# What this workflow has NOT yet shown:
+# What has been shown, and what has not:
 #   Its first run, on 2026-10-04 for the tag v0.1.0-rc.1, failed in the build
-#   job at "Check the specification" and never reached the sign job; see the
-#   comment at the end of that step, and CHANGELOG.md. So the sign job has
-#   still never run. Whether the Azure sign-in is accepted, what name the
-#   signing certificate carries, and whether a job with only "id-token: write"
-#   can fetch another job's files are all still to be learned. The
-#   certificate's subject is printed and is not yet compared with an expected
-#   value, because that value has not been measured.
+#   job at "Check the specification"; see the comment at the end of that step.
+#   Its second, the same day for v0.1.0-rc.2, signed: Azure accepted the
+#   sign-in, the sign job fetched the build job's files with only
+#   "id-token: write", and twelve files were signed under the name the sign job
+#   now requires. Both runs are recorded in
+#   docs/findings/2026-10-04-the-release-workflow-signed-a-build.md.
+#   The release job has never run. It was skipped both times, because the
+#   specification check had not passed, so "gh release create" is unexercised.
 # -----------------------------------------------------------------------------
 
 name: Release
@@ -398,6 +399,16 @@ jobs:
                     ($subjects.Keys -join ' | ')
           }
           $subject = @($subjects.Keys)[0]
+
+          # The name measured on the first signed build, 2026-10-04
+          # (docs/findings/2026-10-04-the-release-workflow-signed-a-build.md),
+          # and the name docs/operating.md tells people to look for. The name
+          # is compared and not the certificate's thumbprint: the signing
+          # service issues a new certificate every day, and only the name stays.
+          $expected = 'CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US'
+          if ($subject -cne $expected) {
+              throw "SecretPrinter's files are signed as '$subject'. A release is signed as '$expected'."
+          }
 
           # Which files changed while this job had them. Only ours may have.
           $before = @{}

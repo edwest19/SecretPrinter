@@ -87,6 +87,12 @@ Edwin West, 2026-10-04, after a folder made by `publish-release.ps1` was
 installed and run on a machine with no .NET
 ([finding](findings/2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md)). Reviewed by a human before merge.*
 
+*The section "Checking a release before you install it" added by Claude
+(Anthropic model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-04,
+for `REQ-DIST-005`, after the release workflow signed a trial build and the
+commands in it were run on that build
+([finding](findings/2026-10-04-the-release-workflow-signed-a-build.md)). Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -124,6 +130,70 @@ installed as a service by the steps below
 
 Where a step differs between the two, both forms are shown. Nothing a release
 needs uses the `dotnet` command.
+
+---
+
+## Checking a release before you install it
+
+No release has been published yet. When one is, it will be on the repository's
+Releases page as two files: `SecretPrinter-<version>-win-x64.zip`, and a small
+file beside it with the same name ending in `.sha256`. Make both checks below
+before you install anything. They need only PowerShell.
+
+**A SecretPrinter file that is unsigned, or signed under any name but the one
+below, is not an official release.** Do not install it, wherever it came from
+and whatever it is called. The one exception is a build you made yourself from
+source: that is unsigned, and it is yours.
+
+### 1. The download is the file that was published
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\SecretPrinter-<version>-win-x64.zip
+Get-Content .\SecretPrinter-<version>-win-x64.zip.sha256
+```
+
+The 64 characters must be the same in both. If they are not, the download is
+damaged or is not the published file.
+
+### 2. Every program file is signed, and SecretPrinter's are signed by this project
+
+Unpack the zip into a new folder, then:
+
+```powershell
+Get-ChildItem <folder> -Recurse -File | Where-Object { $_.Extension -in '.exe','.dll' } | ForEach-Object { $s = Get-AuthenticodeSignature $_.FullName; [pscustomobject]@{ Ours = $_.Name -like 'SecretPrinter*'; Status = $s.Status; Signer = $s.SignerCertificate.Subject } } | Group-Object Ours, Status, Signer | Format-Table Count, Name -AutoSize -Wrap
+```
+
+What a release shows:
+
+- **Every line says `Valid`.** Any other status, on any file, means stop.
+- **The lines beginning `True` are SecretPrinter's own files.** There is one
+  such line, and its signer is exactly:
+
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`
+
+- **The lines beginning `False` are the .NET runtime,** which Microsoft signs.
+  Their signers all end `O=Microsoft Corporation, L=Redmond, S=Washington, C=US`.
+
+Compare the signer's name, not a certificate thumbprint. The service that signs
+SecretPrinter issues a new certificate every day, so a thumbprint from one
+release will not match the next; the name does not change. Each signature
+carries a timestamp, which is what keeps it valid after that day's certificate
+has expired.
+
+Windows shows the same thing without PowerShell: right-click
+`SecretPrinter.Service.exe`, choose **Properties**, and open the **Digital
+Signatures** tab.
+
+**What the signature tells you,** and what it does not: that the files came out
+of this repository's release workflow, under the signing account of the person
+named, and have not been changed since. It says nothing about whether the
+software is free of mistakes. The README is where this project says what it
+does and what is known to be wrong with it.
+
+These two commands were run on 2026-10-04 on a trial build that the release
+workflow had signed, with the results above
+([the finding](findings/2026-10-04-the-release-workflow-signed-a-build.md)).
+That build was not a release.
 
 ---
 

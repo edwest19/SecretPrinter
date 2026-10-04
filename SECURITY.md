@@ -111,11 +111,33 @@ into the specification rather than left as an intention:
 | `REQ-DIST-005` | The release documentation states how to verify a signature, and that unsigned binaries are not official releases. |
 | `REQ-DIST-006` | Every release is a tagged commit with a changelog entry. |
 
-All three are currently unmet, and the specification checker
-(`tools/SecretPrinter.SpecCheck`) fails the build because of it. That failure is
-correct and is left visible on purpose: a project that asks to be trusted should
-not hide the requirements it has not yet met. `docs/verification.md` lists them
-under "Not yet evidenced" with what each is waiting on.
+All three were unmet until 2026-10-04, and the specification checker
+(`tools/SecretPrinter.SpecCheck`) failed the build because of it. That failure
+was left visible on purpose: a project that asks to be trusted should not hide
+the requirements it has not yet met.
 
-Verification instructions will be added here when there is a signature to
-verify. Until then, treat every artifact as unsigned, because every artifact is.
+On 2026-10-04 the release workflow signed a trial build, and the signatures
+were read on a downloaded copy
+([finding](docs/findings/2026-10-04-the-release-workflow-signed-a-build.md)).
+`docs/verification.md` records what stands behind each of the three
+requirements, and what does not.
+
+**How to check a release** is in
+[`docs/operating.md`](docs/operating.md#checking-a-release-before-you-install-it):
+compare the zip's SHA-256 with the published one, then read the signature on
+every program file. SecretPrinter's own files are signed as:
+
+`CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`
+
+A SecretPrinter file that is unsigned, or signed under any other name, is not
+an official release.
+
+**There is still no release.** The two tags that exist, `v0.1.0-rc.1` and
+`v0.1.0-rc.2`, are trials of the workflow, and nothing was published for
+either.
+
+(This section replaced 2026-10-04 by Claude, Anthropic model, Claude Opus 5.5,
+at the direction of Edwin West. From here down it had said that all three
+requirements were unmet, that verification instructions would be added when
+there was a signature to verify, and that every artifact should be treated as
+unsigned because every artifact was.)
