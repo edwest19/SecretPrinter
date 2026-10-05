@@ -186,6 +186,13 @@ FIOS-STB-01's service was started again after each run. It announced at
   tool the operating documentation tells someone using a release to run. Today
   that is the probe. When the configuration tool is built and the documentation
   tells people to run it, it has to be added to `publish-release.ps1`.
+  *(Status note, 2026-10-05, by Claude, Claude Opus 5.5: on 2026-10-05 Edwin
+  decided that release 0.1.0 has no configuration tool and that this repository
+  will not have one. A release is configured by hand, with the steps in
+  [`operating.md`](../operating.md); see README open question 9. So the probe
+  stays the only tool the documentation tells someone using a release to run,
+  and nothing has to be added to `publish-release.ps1`. Those steps have not
+  yet been followed from the first to the last on a release folder.)*
 - **Which .NET runtime a release carries depends on the machine that builds
   it.** The development machine's build carried 10.0.11. A trial on 2026-10-03
   on the test machine itself, while it still had SDK 10.0.301, produced a
