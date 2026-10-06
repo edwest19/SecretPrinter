@@ -24,6 +24,16 @@
 //   - It does not write files, touch the registry, or alter firewall rules.
 //   - It does not transmit anything off the local link.
 //
+// Which of those are checked (note added by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-10-06; no code changed):
+//   Since that day ProbeClaimsTests, in SecretPrinter.Service.Tests, reads this
+//   assembly and the two it is built on, and fails if any of them references a
+//   type that can write a file, reach the registry, start another program
+//   (which is what altering a firewall rule would take) or make an HTTP request
+//   (REQ-SEC-016). The other lines above are not checked by any test: that it
+//   does not bind port 5353, that it does not advertise, respond or forward,
+//   and that nothing leaves the local link. Those are read from the code below.
+//
 // Why ephemeral-port queries rather than binding 5353:
 //   Port 5353 on this machine is already shared by several processes. Unicast
 //   delivery to a shared port is not deterministic, so a probe bound there

@@ -13,6 +13,16 @@
 // 2026-09-30, when Build began taking one. No test changed what it checks.
 // Reviewed by a human before merge.
 //
+// Wording corrected by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-06. Reviewed by a human before merge. The
+// list these tests read was named ShippedAssemblies, and its comment said
+// diagnostic tools are left out because "they are not installed". The probe
+// has been in the release folder since 2026-10-04. The list is now named
+// ServiceAssemblies, three test names and two messages say "the service" where
+// they said "shipped", and the probe is read by ProbeClaimsTests. No test here
+// changed what it checks
+// (docs/findings/2026-10-06-the-probe-was-in-the-release-and-outside-the-security-checks.md).
+//
 // Purpose:
 //   Checks the claims in Section 8 of the specification that say what the
 //   service does NOT do.
@@ -45,12 +55,14 @@ namespace SecretPrinter.Service.Tests;
 internal static class SecurityClaimsTests
 {
     /// <summary>
-    /// Assemblies that ship as part of the service. Diagnostic tools, the test
-    /// harness and the spec checker are excluded: they are not installed, and
-    /// holding them to the service's restrictions would be checking the wrong
-    /// thing.
+    /// The assemblies that make up the service. The probe is not among them. It
+    /// is in every release beside the service, but it is a separate program and
+    /// opens a socket by design, so it is read by ProbeClaimsTests against its
+    /// own requirement (REQ-SEC-016). The other diagnostic tools, the test
+    /// harness and the spec checker are in no release, and holding them to the
+    /// service's restrictions would be checking the wrong thing.
     /// </summary>
-    private static readonly string[] ShippedAssemblies =
+    private static readonly string[] ServiceAssemblies =
     [
         "SecretPrinter.Advertising",
         "SecretPrinter.Configuration",
@@ -73,7 +85,7 @@ internal static class SecurityClaimsTests
         {
             throw new AssertionException(
                 $"{assemblyName}.dll is not beside the test assembly, so its claims cannot be checked. "
-                + "Every shipped assembly must be referenced by this test project.");
+                + "Every assembly of the service must be referenced by this test project.");
         }
 
         var references = new List<string>();
@@ -91,13 +103,13 @@ internal static class SecurityClaimsTests
         return references;
     }
 
-    /// <summary>Finds forbidden references across the shipped assemblies.</summary>
+    /// <summary>Finds forbidden references across the service's assemblies.</summary>
     private static List<string> FindForbidden(
         IReadOnlyList<string> forbiddenTypes, params string[] exceptAssemblies)
     {
         var found = new List<string>();
 
-        foreach (string assembly in ShippedAssemblies)
+        foreach (string assembly in ServiceAssemblies)
         {
             if (exceptAssemblies.Contains(assembly, StringComparer.Ordinal))
             {
@@ -121,7 +133,7 @@ internal static class SecurityClaimsTests
 
     // ---- No external processes ----------------------------------------------
 
-    [TestCase("Nothing shipped can start an external process")]
+    [TestCase("Nothing in the service can start an external process")]
     [Requirement("REQ-SEC-004")]
     [Requirement("REQ-SEC-007")]
     public static void No_process_execution()
@@ -134,12 +146,12 @@ internal static class SecurityClaimsTests
             ["System.Diagnostics.Process", "System.Diagnostics.ProcessStartInfo"]);
 
         Assert.Equal(0, found.Count,
-            "no shipped assembly may be able to run a command, but found: " + string.Join(", ", found));
+            "no assembly of the service may be able to run a command, but found: " + string.Join(", ", found));
     }
 
     // ---- No registry --------------------------------------------------------
 
-    [TestCase("Nothing shipped reads or writes the registry")]
+    [TestCase("Nothing in the service reads or writes the registry")]
     [Requirement("REQ-SEC-005")]
     public static void No_registry_access()
     {
@@ -156,12 +168,12 @@ internal static class SecurityClaimsTests
 
     // ---- No network calls off the local link --------------------------------
 
-    [TestCase("Nothing shipped can make an HTTP request")]
+    [TestCase("Nothing in the service can make an HTTP request")]
     [Requirement("REQ-SEC-008")]
     public static void No_http_client()
     {
         // There is no telemetry, no update check and no analytics, so there is
-        // no reason for any shipped assembly to be able to speak HTTP. If one
+        // no reason for any assembly of the service to be able to speak HTTP. If one
         // could, the claim would rest on nobody having called it.
         List<string> found = FindForbidden(
         [
@@ -174,7 +186,7 @@ internal static class SecurityClaimsTests
         ]);
 
         Assert.Equal(0, found.Count,
-            "no shipped assembly may speak HTTP, but found: " + string.Join(", ", found));
+            "no assembly of the service may speak HTTP, but found: " + string.Join(", ", found));
     }
 
     // ---- Sockets confined to two projects -----------------------------------
@@ -439,9 +451,9 @@ internal static class SecurityClaimsTests
     public static void Scan_actually_reads_metadata()
     {
         // A test that can only pass is worth nothing. This one confirms the
-        // scanner sees real references by looking for a type every shipped
-        // assembly certainly uses. If this ever came back empty, the checks
-        // above would be passing vacuously.
+        // scanner sees real references by looking for a type SecretPrinter.Mdns
+        // certainly uses. If this ever came back empty, the checks above would
+        // be passing vacuously.
         List<string> references = TypeReferences("SecretPrinter.Mdns");
 
         Assert.True(references.Count > 0, "the assembly must have type references to inspect");

@@ -43,6 +43,10 @@
 // at the direction of Edwin West, 2026-10-01, for REQ-OBS-002 and REQ-OBS-003
 // as they apply to the NSEC records of REQ-ADV-022. Reviewed by a human before
 // merge.
+//
+// ProbeClaimsTests registered by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-06, for REQ-SEC-016. Reviewed by a human
+// before merge.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.TestKit;
@@ -79,6 +83,7 @@ internal static class Program
             resultsPath,
             typeof(TestHarnessTests),
             typeof(SecurityClaimsTests),
+            typeof(ProbeClaimsTests),
             typeof(ServiceHostTests),
             typeof(FileServiceLogTests),
             typeof(PrinterWatchTests),

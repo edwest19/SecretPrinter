@@ -121,6 +121,13 @@ service that is already stopped, and the measurement of a start at boot. Also
 added: that day's result under "Where the program comes from". Reviewed by a
 human before merge.*
 
+*Under "What you must do that the service will not", "any shipped assembly"
+corrected to "any assembly of the service", and a sentence on the probe added,
+by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+2026-10-06. The probe is shipped too, and until that day no test read it
+([finding](findings/2026-10-06-the-probe-was-in-the-release-and-outside-the-security-checks.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -243,8 +250,9 @@ That build was not a release.
 
 The service creates no firewall rules, writes no registry keys, changes no
 routes and enables no IP forwarding. Those are `REQ-SEC-004`, `-005` and `-007`,
-and they are enforced by a test that fails if any shipped assembly so much as
-references a type capable of them.
+and they are enforced by a test that fails if any assembly of the service so
+much as references a type capable of them. The probe, which a release also
+holds, is held to the same by tests of its own (`REQ-SEC-016`).
 
 The consequence is that a few things are your job.
 
