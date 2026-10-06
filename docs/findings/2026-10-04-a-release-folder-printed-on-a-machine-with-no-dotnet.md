@@ -4,7 +4,7 @@
 West, 2026-10-04. Reviewed by a human before merge.*
 
 **Status: the first sentence of `REQ-DIST-011` is measured. A folder made by
-`publish-release.ps1` at `26ddfbe` was unpacked on a second machine that had no
+`publish-release.ps1` was unpacked on a second machine that had no
 .NET SDK and no .NET runtime installed. SecretPrinter ran from it twice on
 2026-10-04, once in a console window and once installed as a Windows service
 under `LocalService` by the steps in [`operating.md`](../operating.md), and an
@@ -13,13 +13,28 @@ listed the printer's instances. That machine runs Windows 11, so these are also
 the first runs of SecretPrinter on Windows 11. No release exists yet, and what
 these runs do not show is listed below.**
 
+*(Status note, 2026-10-06, by Claude, Claude Opus 5.5: this is a correction.
+The paragraph above said the folder was made by `publish-release.ps1` "at
+`26ddfbe`", and "How the folder was made" said "from a clean working tree at
+`26ddfbe`". On 2026-10-06 the installed files were read on the test machine.
+All twelve of SecretPrinter's own program files are stamped `0ae262d` and were
+written between 17:06:00Z and 17:06:12Z on 2026-10-04; `26ddfbe` was committed
+at 17:10:31Z that day. So the folder was built with the clone at `0ae262d`, and
+with `publish-release.ps1` in the working folder and not yet committed.
+`26ddfbe` changed no compiled file, so the source compiled is the same at both
+commits, and what the folder was shown to do stands. Whether the script that ran
+was byte for byte the one committed was not shown. Both places are corrected.
+The mistake was Claude's. See
+[the finding](2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md).)*
+
 No IPv6 address, MAC address or device name appears in this finding, and the
 second machine is not named. They are household values. It is called the test
 machine here.
 
 ## How the folder was made
 
-On the development machine, from a clean working tree at `26ddfbe`:
+On the development machine, with the clone at `0ae262d` and
+`publish-release.ps1` in the working folder, not yet committed:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\publish-release.ps1 -OutputDirectory <a new folder outside the repository>
@@ -182,6 +197,12 @@ FIOS-STB-01's service was started again after each run. It announced at
   losses of the printer's side seen on FIOS-STB-01 were not looked for.
 - **Starting at boot, updating an installed release, and uninstalling** were
   not exercised.
+  *(Status note, 2026-10-06, by Claude, Claude Opus 5.5: all three were
+  exercised on this machine on 2026-10-06, with a folder the release workflow
+  had signed; see
+  [the finding](2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md),
+  which gives the limits. Neither folder was a release, and the update steps
+  were run before they were written into `operating.md`.)*
 - **The configuration tool does not exist yet.** `REQ-DIST-011` covers every
   tool the operating documentation tells someone using a release to run. Today
   that is the probe. When the configuration tool is built and the documentation

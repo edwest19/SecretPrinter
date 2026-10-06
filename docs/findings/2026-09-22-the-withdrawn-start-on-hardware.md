@@ -101,6 +101,12 @@ the screenshots, showed network credentials.
 - **A start at boot.** The service was started by hand with the adapter down.
   A reboot during a WLAN outage is the case this was built for, and it was not
   run.
+  *(Status note, 2026-10-06, by Claude, Claude Opus 5.5: a start at boot with
+  the printer-side network not connected was run on 2026-10-06, on another
+  machine, from a trial build the release workflow had signed. The service
+  started seven seconds after the boot time, waited, and offered the printer
+  when the network was connected. See
+  [the finding](2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md).)*
 - **A printer that is silent at startup.** The printer answered the first
   query, so the retry schedule was exercised only by the tests.
 - **The link-local and tentative cases.** Neither appeared on the adapter this

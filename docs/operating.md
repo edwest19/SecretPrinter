@@ -105,6 +105,22 @@ example file in, and the results of that day under "Where the program comes
 from", "Checking a release before you install it" and step 4. Reviewed by a
 human before merge.*
 
+*Corrected again by Claude (Anthropic model, Claude Opus 5.5) at the direction
+of Edwin West, 2026-10-06, after a signed trial build was installed as a service
+in place of an earlier one, started at boot and uninstalled
+([finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
+Under "Updating an installed service": steps for an installation made from a
+release added, and the steps for one built from source put under their own
+heading, in place of a first paragraph that said updating from one release to
+the next had not been exercised. Under "Uninstalling": the commands that remove
+the service's registration, the program folder and the data folder added, and
+"The service leaves nothing else behind" changed to "The service itself". In
+step 4: "the `ADDRESS` line" corrected, because the probe prints one line for
+each address. Under "As a Windows service": what `sc.exe stop` prints for a
+service that is already stopped, and the measurement of a start at boot. Also
+added: that day's result under "Where the program comes from". Reviewed by a
+human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -141,6 +157,9 @@ On 2026-10-06 a folder that the release workflow had signed was checked,
 configured by hand and run from a console window on the same machine, by the
 steps in this document, and printed
 ([the finding](findings/2026-10-06-a-signed-release-folder-was-configured-by-hand-and-printed.md)).
+Later that day the signed folder was installed there as a service, in place of
+the folder of 2026-10-04, started by Windows at boot, and then uninstalled
+([the finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
 
 **From source, today.** Clone the repository and install the .NET 10 SDK.
 
@@ -324,8 +343,15 @@ host name and its port, and the probe prints all three.
 that ends `._ipps._tcp.local`:
 
 - the `SRV` line gives the host name, as `host=`, and the port, as `port=`;
-- the `ADDRESS` line gives the address, after `->`. If the probe could not
-  find the address, that line says `(not resolved in this run)`.
+- the `ADDRESS` lines give the host's addresses, after `->`, one line for each
+  address. The development printer shows four: an IPv4 address and three IPv6
+  addresses. The one you need is the IPv4 address, four numbers with dots
+  between them. If the probe could not find an address, there is one line and
+  it says `(not resolved in this run)`.
+
+Until 2026-10-06 this said "the `ADDRESS` line", as if there were one. The lines
+were first looked at that day
+([the finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
 
 Then run this from the machine that will run SecretPrinter, as one line:
 
@@ -338,7 +364,7 @@ hashes the certificate the printer presented, prints the result with the
 certificate's subject and the TLS version, and closes the connection.
 
 - Replace `<printer-ipv4>` with the printer's address on the printer-side
-  network, from the probe's `ADDRESS` line.
+  network, from the probe's `ADDRESS` line that shows an IPv4 address.
 - Replace `<printer-host-name>` with the printer's host name: what the probe's
   `SRV` line shows after `host=`, up to and not including `.local`. The
   development printer was measured with `EPSON000000` (its host name, with the
@@ -559,17 +585,117 @@ see [the finding](findings/2026-09-04-windows-service-run.md).
 opening TLS to the printer and printing
 ([the finding](findings/2026-09-18-running-as-localservice.md)). Not LocalSystem.
 
+**`start= auto` starts the service when Windows starts.** Measured on
+2026-10-06 on a release install, on Windows 11: after a restart of Windows, the
+service's first log line came seven seconds after the boot time Windows
+reports. The printer-side network was not connected on that machine. The
+service waited, logging why, and offered the printer three seconds after the
+adapter became usable, with no restart
+([the finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
+A boot at which the client-side adapter is not yet ready has not been measured.
+
 To remove it:
 
 ```powershell
+# Run as Administrator.
 sc.exe stop SecretPrinter
 sc.exe delete SecretPrinter
 ```
 
+If the service is already stopped, `sc.exe stop` prints
+`[SC] ControlService FAILED 1062:` and `The service has not been started.` That
+is expected, and `sc.exe delete` still removes it, printing
+`[SC] DeleteService SUCCESS` (measured 2026-10-06, the same finding). This
+removes the registration only. [Uninstalling](#uninstalling) lists everything
+an install puts on the machine.
+
 ### Updating an installed service
 
-This procedure is for an installation built from source. Updating from one
-release to the next has not been exercised, because no release exists yet.
+There are two procedures: one for an installation made from a release folder,
+and one for an installation built from source.
+
+#### From a release
+
+An update replaces the program folder and nothing else. The service's
+registration, your configuration, the log and the firewall rules all name the
+same paths afterwards, so none of them is touched.
+
+**1. Get the new release and check it.** Download its two files, make both
+checks under
+[Checking a release before you install it](#checking-a-release-before-you-install-it),
+and unpack the zip into a new folder.
+
+**2. Stop the service and remove the old program folder.**
+
+```powershell
+# Run as Administrator.
+Stop-Service SecretPrinter
+Remove-Item "C:\Program Files\SecretPrinter" -Recurse
+Test-Path "C:\Program Files\SecretPrinter"
+```
+
+Go on only when the last line prints `False`. The old folder is removed, not
+copied over, for two reasons. Copying over a folder adds and overwrites and
+never removes, so a file the new version no longer has would stay behind. And
+`Copy-Item` into a folder that exists puts the new folder inside it, as the
+install step above says.
+
+**3. Copy the new folder in.**
+
+```powershell
+# Run as Administrator.
+Copy-Item <new-release-folder> "C:\Program Files\SecretPrinter" -Recurse
+```
+
+**4. Confirm what is installed, before you start it.** Run the signature check
+from "Checking a release before you install it" again, with
+`"C:\Program Files\SecretPrinter"` as the folder. Then read the version stamped
+in the program:
+
+```powershell
+(Get-Item "C:\Program Files\SecretPrinter\SecretPrinter.Service.dll").VersionInfo.ProductVersion
+```
+
+It prints the version, a `+`, and the commit the files were built from. The
+part before the `+` must be the version of the release you downloaded. The
+trial build this was measured on printed
+`0.1.0-rc.2+3bcdd4c7784aef0355a1d2d93860039e93f69278`, and `3bcdd4c` is the
+commit its tag names.
+
+**5. Start the service, wait about fifteen seconds, and read the end of its
+log.**
+
+```powershell
+# Run as Administrator.
+Start-Service SecretPrinter
+```
+```powershell
+Get-Content C:\ProgramData\SecretPrinter\secretprinter.log -Tail 5
+```
+
+A service that is offering the printer ends its start-up with `Announced.
+Answering queries.` and an `Accepting print jobs on` line for each address it
+listens on. If the last line begins `Waiting for the printer-side interface` or
+`The printer did not answer at startup`, the update itself worked and the
+service is waiting for its printer side; see
+[When the printer-side network drops](#when-the-printer-side-network-drops).
+
+**To go back** to the version you had, follow the same steps with that
+release's zip. Keep it until the new version has printed. Going back has not
+been tried.
+
+These steps were followed on 2026-10-06, on Windows 11, and an iPhone printed
+through the updated service
+([the finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
+Three limits, all in that finding. Neither folder was a release: the old one
+was an unsigned folder built by hand, and the new one a trial build the release
+workflow had signed. The steps were run before this text was written, from
+commands Claude gave Edwin West one at a time, so nobody has yet followed them
+from this document. And that service started in the waiting state described
+under step 5, because the machine's printer-side network had not been
+connected; it offered the printer by itself once it was.
+
+#### From source
 
 Registration points the service control manager at a path. Building a new
 version does not change what is at that path, so a build alone updates nothing
@@ -843,19 +969,57 @@ If iOS ignores a goodbye, the entry would stay until the record that lists it
 expires, which is 4500 seconds — 75 minutes. Why iOS kept it on 2026-09-21, and
 how long it stayed, are not established.
 
+If it is installed as a service, remove the registration next. `sc.exe stop`
+stops it if it is still running:
+
+```powershell
+# Run as Administrator.
+sc.exe stop SecretPrinter
+sc.exe delete SecretPrinter
+```
+
+If it was already stopped, `sc.exe stop` prints
+`[SC] ControlService FAILED 1062:` and `The service has not been started.` That
+is expected. `sc.exe delete` prints `[SC] DeleteService SUCCESS`.
+
 Then remove the firewall rules you added:
 
 ```powershell
+# Run as Administrator.
 Remove-NetFirewallRule -DisplayName "SecretPrinter mDNS"
 Remove-NetFirewallRule -DisplayName "SecretPrinter IPP"
 ```
 
-The service leaves nothing else behind. It writes no registry keys, and the only
-file it writes is the log you named with `--log-file`, which stays where you put
-it until you remove it:
+The service itself leaves nothing else behind. It writes no registry keys, and
+the only file it writes is the log you named with `--log-file`, which stays
+where you put it until you remove it:
 
 ```powershell
 Remove-Item "C:\ProgramData\SecretPrinter\secretprinter.log"
 ```
 
-Your configuration file is likewise yours to keep or delete.
+**The install steps in this document put two folders on the machine, and they
+stay until you remove them.** The program folder:
+
+```powershell
+# Run as Administrator.
+Remove-Item "C:\Program Files\SecretPrinter" -Recurse
+```
+
+And the data folder, which holds the log, your configuration file if you kept
+it there, and the permission the install step granted to `LocalService`.
+Removing the folder removes all three. Your configuration file is yours to keep
+or delete, so copy it somewhere else first if you want it:
+
+```powershell
+# Run as Administrator.
+Remove-Item "C:\ProgramData\SecretPrinter" -Recurse
+```
+
+Until 2026-10-06 this section gave only the firewall rules and the log. A
+release install was uninstalled that day with those commands and the two
+`sc.exe` commands, and the machine was then read. No service, no registry key
+for one and no firewall rule naming the program were left. Both folders were,
+the program folder with all 216 of its files. The two `Remove-Item` commands
+above then removed them
+([the finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).

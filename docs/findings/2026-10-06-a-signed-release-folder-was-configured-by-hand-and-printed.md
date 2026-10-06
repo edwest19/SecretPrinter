@@ -317,6 +317,15 @@ finding.
 - **Whether the signatures on the other 201 files were read after the
   certificate expired,** by the machine's own clock.
 
+*(Status note, 2026-10-06, by Claude, Claude Opus 5.5: later the same day four
+of these were read or exercised on the same machine; see
+[the finding](2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md).
+The signed files were installed as a Windows service in place of the unsigned
+folder, started at boot, and uninstalled. All 202 signatures read `Valid` at
+17:00:16Z by the machine's clock, and all carry timestamps. The signed build
+carries .NET runtime 10.0.12. And the probe's `ADDRESS` lines were looked at:
+there are four under each instance, and `operating.md` now says so.)*
+
 ## Also seen, not explained
 
 - **Two connections have no ending line.** They were accepted at 04:23:44Z and

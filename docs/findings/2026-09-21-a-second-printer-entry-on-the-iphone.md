@@ -104,3 +104,13 @@ or duplicate entry is how a user ends up tapping the one that does not work.
 Chasing it properly means looking at the client network over IPv6, and reading
 what iOS uses to decide that two printers are one. Edwin decided on 2026-09-21
 to record it and return to the open work.
+
+*(Status note, 2026-10-06, by Claude, Claude Opus 5.5: seen again on
+2026-10-06, as
+[the finding of 2026-09-29](2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md)
+describes it: two rows under "Known Printers", and the selection turning into
+`EPSON ET-3760 Series` after `SecretPrinter (ET-3760)` was tapped. It happened
+through a second installation, whose configuration has a different UUID, as
+well as through FIOS-STB-01, and the page printed through the proxy each time.
+The cause is still not established. See
+[the finding](2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md).)*
