@@ -134,6 +134,13 @@ workflow fails a SecretPrinter file that is signed without a timestamp.
   printed on 2026-10-04
   ([finding](2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md)),
   but that folder was built on the development machine and was unsigned.
+  *(Status note, 2026-10-06, by Claude, Claude Opus 5.5: they were run on
+  2026-10-06. The signed zip of this run was checked, unpacked and configured
+  by hand on a second machine, the service was run from a console window, and
+  an iPhone printed through it
+  ([finding](2026-10-06-a-signed-release-folder-was-configured-by-hand-and-printed.md)).
+  That finding also records the dates on the certificate that signed these
+  files, and that its signature still read `Valid` after it had expired.)*
 - **Whether the sign job waited for approval.** The environment was set to
   require a reviewer. Claude cannot read, without signing in to GitHub, whether
   the run stopped for one, and Edwin's account of it is not recorded here.

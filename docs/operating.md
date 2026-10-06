@@ -93,6 +93,18 @@ for `REQ-DIST-005`, after the release workflow signed a trial build and the
 commands in it were run on that build
 ([finding](findings/2026-10-04-the-release-workflow-signed-a-build.md)). Reviewed by a human before merge.*
 
+*Corrected by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+Edwin West, 2026-10-06, after the steps were followed on a signed trial build
+and three faults were found
+([finding](findings/2026-10-06-a-signed-release-folder-was-configured-by-hand-and-printed.md)):
+the command under Configuring and the two under Running given the `.\` they
+need; step 4 told where the printer's address and host name come from, and to
+run the probe first; and a paragraph added under Configuring on the instance
+name that the probe prints twice. Also added: the form PowerShell writes the
+example file in, and the results of that day under "Where the program comes
+from", "Checking a release before you install it" and step 4. Reviewed by a
+human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -125,6 +137,10 @@ has to be installed (`REQ-DIST-011`). `publish-release.ps1` makes that folder. O
 installed, and printed for an iPhone, first from a console window and then
 installed as a service by the steps below
 ([the finding](findings/2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md)).
+On 2026-10-06 a folder that the release workflow had signed was checked,
+configured by hand and run from a console window on the same machine, by the
+steps in this document, and printed
+([the finding](findings/2026-10-06-a-signed-release-folder-was-configured-by-hand-and-printed.md)).
 
 **From source, today.** Clone the repository and install the .NET 10 SDK.
 
@@ -146,6 +162,8 @@ and whatever it is called. The one exception is a build you made yourself from
 source: that is unsigned, and it is yours.
 
 ### 1. The download is the file that was published
+
+In the folder that holds the two files:
 
 ```powershell
 Get-FileHash -Algorithm SHA256 .\SecretPrinter-<version>-win-x64.zip
@@ -193,6 +211,11 @@ does and what is known to be wrong with it.
 These two commands were run on 2026-10-04 on a trial build that the release
 workflow had signed, with the results above
 ([the finding](findings/2026-10-04-the-release-workflow-signed-a-build.md)).
+They were run again on 2026-10-06 on a second machine, on the same build, with
+the same results. By then the certificate that had signed SecretPrinter's files
+had expired, at 03:27:46Z that day, and its signature on
+`SecretPrinter.Service.exe` read `Valid` at 04:39:33Z
+([the finding](findings/2026-10-06-a-signed-release-folder-was-configured-by-hand-and-printed.md)).
 That build was not a release.
 
 ---
@@ -295,7 +318,16 @@ certificate answered first would mean writing state to disk, which this project
 does not do, and it would trust exactly the connection that pinning exists to
 question.
 
-Run this from the machine that will run SecretPrinter, as one line:
+**Run the probe first.** The command below needs the printer's address, its
+host name and its port, and the probe prints all three.
+[Configuring](#configuring) shows how to run it. Look under the `INSTANCE` line
+that ends `._ipps._tcp.local`:
+
+- the `SRV` line gives the host name, as `host=`, and the port, as `port=`;
+- the `ADDRESS` line gives the address, after `->`. If the probe could not
+  find the address, that line says `(not resolved in this run)`.
+
+Then run this from the machine that will run SecretPrinter, as one line:
 
 ```powershell
 $t=[Net.Sockets.TcpClient]::new('<printer-ipv4>',631); $s=[Net.Security.SslStream]::new($t.GetStream(),$false,{$true}); $s.AuthenticateAsClient('<printer-host-name>'); $d=$s.RemoteCertificate.GetRawCertData(); 'SHA256 ' + ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($d)) -replace '-',''); 'SHA1   ' + ([BitConverter]::ToString([Security.Cryptography.SHA1]::Create().ComputeHash($d)) -replace '-',''); $s.RemoteCertificate.Subject; $s.SslProtocol; $s.Dispose(); $t.Dispose()
@@ -306,13 +338,15 @@ hashes the certificate the printer presented, prints the result with the
 certificate's subject and the TLS version, and closes the connection.
 
 - Replace `<printer-ipv4>` with the printer's address on the printer-side
-  network.
-- Replace `<printer-host-name>` with the printer's host name. The development
-  printer was measured with `EPSON000000` (its host name, with the low three
-  bytes redacted as elsewhere in this repository). Whether other printers care
-  what name is given here has not been tested.
+  network, from the probe's `ADDRESS` line.
+- Replace `<printer-host-name>` with the printer's host name: what the probe's
+  `SRV` line shows after `host=`, up to and not including `.local`. The
+  development printer was measured with `EPSON000000` (its host name, with the
+  low three bytes redacted as elsewhere in this repository). Whether other
+  printers care what name is given here has not been tested.
 - `631` is the port the development printer uses for TLS, where it advertises
-  `_ipps._tcp`. Another printer may use another port; check what it advertises.
+  `_ipps._tcp`. Another printer may use another port; use the one on the
+  probe's `SRV` line.
 
 Copy the **SHA256** line's value, all 64 digits, into `printerCertificateSha256`.
 Do not use the SHA1 line, and do not use the `Thumbprint` Windows shows for a
@@ -327,14 +361,30 @@ It is not known whether a firmware update or a factory reset gives the printer a
 new certificate. If it does, measure again. The measurement of the development
 printer, and why SHA-256 was chosen, are in
 [findings](findings/2026-09-15-printer-requires-tls-for-job-operations.md).
+It was measured again on 2026-10-06, from a second machine running Windows 11,
+with the host name taken from the probe's `SRV` line, and gave the same two
+fingerprints
+([the finding](findings/2026-10-06-a-signed-release-folder-was-configured-by-hand-and-printed.md)).
 
 ---
 
 ## Configuring
 
+In the folder that holds the program:
+
 ```powershell
-SecretPrinter.Service.exe --print-example-config > secretprinter.json
+.\SecretPrinter.Service.exe --print-example-config > secretprinter.json
 ```
+
+The `.\` is needed. PowerShell does not run a program from the current folder
+by its bare name, and until 2026-10-06 this command and the two under
+[Running](#running) were printed here without it. Run that way, this one failed
+and made no file
+([the finding](findings/2026-10-06-a-signed-release-folder-was-configured-by-hand-and-printed.md)).
+
+Windows PowerShell's `>` writes that file as UTF-16. The service reads it in
+that form, and on the machine where this was measured Notepad kept the form
+when the file was edited and saved (2026-10-06, Windows 11; the same finding).
 
 Interfaces are named the way Windows names them, not by address — addresses move
 on DHCP and a configuration that goes stale overnight is worse than useless. To
@@ -366,6 +416,12 @@ out from the other, and each is refused if it does not end in its own service
 type. The service resolves both at startup and does not start if either does
 not answer.
 
+**The name ending `._ipp._tcp.local` can be printed twice.** The probe prints an
+`INSTANCE` line under a `SERVICE TYPE` heading for each service type it asked
+about, and it asks about `_universal._sub._ipp._tcp.local` as well as
+`_ipp._tcp.local`. The development printer is listed under both, with the same
+name. It is one name; copy it once.
+
 The example leaves `printerCertificateSha256` empty on purpose, and the service
 refuses to start until it holds the fingerprint from
 [step 4](#4-measure-the-printers-certificate-fingerprint). A value that merely
@@ -381,13 +437,13 @@ the setting at fault.
 ## Running
 
 ```powershell
-SecretPrinter.Service.exe --config secretprinter.json
+.\SecretPrinter.Service.exe --config secretprinter.json
 ```
 
 Add `--log-file` to keep a copy of everything it reports:
 
 ```powershell
-SecretPrinter.Service.exe --config secretprinter.json --log-file C:\ProgramData\SecretPrinter\secretprinter.log
+.\SecretPrinter.Service.exe --config secretprinter.json --log-file C:\ProgramData\SecretPrinter\secretprinter.log
 ```
 
 The file is appended to, never truncated, so a restart adds to the record rather

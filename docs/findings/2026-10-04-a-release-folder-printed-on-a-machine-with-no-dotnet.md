@@ -193,6 +193,9 @@ FIOS-STB-01's service was started again after each run. It announced at
   stays the only tool the documentation tells someone using a release to run,
   and nothing has to be added to `publish-release.ps1`. Those steps have not
   yet been followed from the first to the last on a release folder.)*
+  *(Status note, 2026-10-06, by Claude, Claude Opus 5.5: they were followed on
+  2026-10-06, on a folder the release workflow had signed, and a page printed;
+  see [the finding](2026-10-06-a-signed-release-folder-was-configured-by-hand-and-printed.md).)*
 - **Which .NET runtime a release carries depends on the machine that builds
   it.** The development machine's build carried 10.0.11. A trial on 2026-10-03
   on the test machine itself, while it still had SDK 10.0.301, produced a
