@@ -154,6 +154,14 @@ has started, rewritten. What that paragraph describes has not been run under
 Windows.
 Reviewed by a human before merge.*
 
+*Corrected by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+Edwin West, 2026-10-07, later again, when the example configuration stopped
+printing a UUID, as Edwin West decided that day
+([finding](findings/2026-10-07-the-example-configuration-handed-every-user-the-same-uuid.md)).
+Step 3, and one paragraph under Configuring. The program's new behaviour is
+tested; the steps as now written have not been walked on a machine.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -355,6 +363,18 @@ generated default would mean every installation advertising the same identity:
 [guid]::NewGuid()
 ```
 
+The value goes in `advertise.uuid`. The example configuration prints that entry
+empty, and the service refuses to start until it holds a UUID.
+
+Until 2026-10-07 the example printed a fixed UUID,
+`b6f4e2a1-9c37-4d58-8e0b-7a1f3d6c5e94`, and that value loaded, which is the very
+thing the sentence above says the service avoids. A configuration that still
+holds it goes on loading, and advertises the same UUID as every other
+installation that kept it. To stop sharing it, put one of your own in its
+place and restart the service. What a device that has already printed through
+the proxy makes of a changed UUID has not been measured
+([finding](findings/2026-10-07-the-example-configuration-handed-every-user-the-same-uuid.md)).
+
 ### 4. Measure the printer's certificate fingerprint
 
 The printer refuses print jobs over unencrypted IPP, so the proxy has to reach it
@@ -508,6 +528,10 @@ refuses to start until it holds the fingerprint from
 [step 4](#4-measure-the-printers-certificate-fingerprint). A value that merely
 looked like a fingerprint would load, and the mistake would only show when a job
 was attempted.
+
+It leaves `advertise.uuid` empty too, since 2026-10-07, and the service refuses
+to start until it holds the UUID from [step 3](#3-generate-a-uuid). With
+neither filled in, the refusal lists both.
 
 Every setting that decides what is advertised or where traffic goes is required.
 Start it and read the errors: all problems are reported in one run, each naming

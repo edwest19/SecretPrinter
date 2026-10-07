@@ -21,6 +21,14 @@
 // Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 // 2026-09-22. Reviewed by a human before merge.
 //
+// The example configuration now prints its UUID empty, as it prints the
+// fingerprint: ValidExampleJson fills in both, the test of the example as
+// printed expects two problems, and two tests are added, by Claude (Anthropic
+// model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-07, who
+// decided it that day. See
+// docs/findings/2026-10-07-the-example-configuration-handed-every-user-the-same-uuid.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that nothing is quietly defaulted, that every mistake is named,
 //   and that a configuration which would leave the service unable to tell a
@@ -60,34 +68,69 @@ internal static class ConfigurationLoaderTests
     private const string EmptyFingerprintEntry = "\"printerCertificateSha256\": \"\"";
 
     /// <summary>
+    /// A UUID for tests that need the example to load. It is the value the
+    /// example itself printed until 2026-10-07, and belongs to no installation
+    /// in particular.
+    /// </summary>
+    private const string SyntheticUuid = "b6f4e2a1-9c37-4d58-8e0b-7a1f3d6c5e94";
+
+    /// <summary>The UUID entry exactly as ExampleJson prints it: empty.</summary>
+    private const string EmptyUuidEntry = "\"uuid\": \"\"";
+
+    /// <summary>
+    /// <paramref name="json"/> with its one occurrence of <paramref name="entry"/>
+    /// replaced. Throws if the entry is not there exactly once, for the reason
+    /// given on <see cref="ExampleWithFingerprint"/>.
+    /// </summary>
+    private static string ReplaceTheOne(string json, string entry, string replacement)
+    {
+        int first = json.IndexOf(entry, StringComparison.Ordinal);
+
+        if (first < 0 || json.IndexOf(entry, first + 1, StringComparison.Ordinal) >= 0)
+        {
+            throw new InvalidOperationException($"The example must contain the entry {entry} exactly once.");
+        }
+
+        return json.Replace(entry, replacement, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The example as printed, with its UUID entry replaced by
+    /// <paramref name="valueJson"/>, which is raw JSON.
+    /// </summary>
+    private static string ExampleWithUuid(string json, string valueJson) =>
+        ReplaceTheOne(json, EmptyUuidEntry, $"\"uuid\": {valueJson}");
+
+    /// <summary>
     /// The example with its fingerprint entry replaced by <paramref name="valueJson"/>,
     /// which is raw JSON so that a non-string value can be tested too.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Throws if the empty entry is not found exactly once. A replacement that
     /// silently matched nothing would leave the example refused for a reason the
     /// test did not intend, and a failure test could then pass for the wrong
     /// reason.
+    /// </para>
+    /// <para>
+    /// The UUID entry, which the example also prints empty, is filled in with
+    /// <see cref="SyntheticUuid"/>, so that a test about the fingerprint fails
+    /// only for the fingerprint.
+    /// </para>
     /// </remarks>
-    private static string ExampleWithFingerprint(string valueJson)
-    {
-        string example = ConfigurationLoader.ExampleJson;
-        int first = example.IndexOf(EmptyFingerprintEntry, StringComparison.Ordinal);
-
-        if (first < 0 || example.IndexOf(EmptyFingerprintEntry, first + 1, StringComparison.Ordinal) >= 0)
-        {
-            throw new InvalidOperationException(
-                "ExampleJson must contain the empty printerCertificateSha256 entry exactly once.");
-        }
-
-        return example.Replace(
-            EmptyFingerprintEntry, $"\"printerCertificateSha256\": {valueJson}", StringComparison.Ordinal);
-    }
+    private static string ExampleWithFingerprint(string valueJson) =>
+        ExampleWithUuid(
+            ReplaceTheOne(
+                ConfigurationLoader.ExampleJson,
+                EmptyFingerprintEntry,
+                $"\"printerCertificateSha256\": {valueJson}"),
+            $"\"{SyntheticUuid}\"");
 
     /// <summary>
-    /// The example as an operator would have it after measuring their printer.
-    /// Tests start from this rather than from ExampleJson, which is refused as
-    /// printed, so that each failure test fails only for the mistake it makes.
+    /// The example as an operator would have it after measuring their printer
+    /// and generating a UUID. Tests start from this rather than from
+    /// ExampleJson, which is refused as printed, so that each failure test
+    /// fails only for the mistake it makes.
     /// </summary>
     private static string ValidExampleJson => ExampleWithFingerprint($"\"{SyntheticFingerprint}\"");
 
@@ -209,8 +252,7 @@ internal static class ConfigurationLoaderTests
     [Requirement("REQ-CFG-001")]
     public static void Uuid_is_required()
     {
-        string json = ValidExampleJson.Replace(
-            "\"uuid\": \"b6f4e2a1-9c37-4d58-8e0b-7a1f3d6c5e94\",", string.Empty, StringComparison.Ordinal);
+        string json = ReplaceTheOne(ValidExampleJson, $"\"uuid\": \"{SyntheticUuid}\",", string.Empty);
 
         ConfigurationException ex = LoadExpectingFailure(
             json, "a generated-by-default UUID would make every installation identical");
@@ -355,9 +397,55 @@ internal static class ConfigurationLoaderTests
             ConfigurationLoader.ExampleJson,
             "an unmeasured example must fail at startup, not when the first job is attempted");
 
-        Assert.Equal(1, ex.Problems.Count, "the empty fingerprint must be the only problem in the example");
+        Assert.Equal(2, ex.Problems.Count,
+            "the empty fingerprint and the empty UUID must be the only problems in the example");
         Assert.True(Mentions(ex, "printerCertificateSha256"), "the empty setting must be named");
         Assert.True(Mentions(ex, "docs/operating.md"), "and the operator must be told where to learn to measure it");
+    }
+
+    [TestCase("The example configuration as printed has no UUID, and is refused until one is generated")]
+    [Requirement("REQ-CFG-001")]
+    public static void Printed_example_is_refused_until_a_uuid_is_generated()
+    {
+        Assert.True(ConfigurationLoader.ExampleJson.Contains(EmptyUuidEntry, StringComparison.Ordinal),
+            "the example must print the UUID as an empty string: a value that loaded would be the same "
+            + "identity in every installation whose operator left it in");
+
+        // The fingerprint filled in and the UUID left as printed, so that the
+        // UUID is the only thing wrong.
+        string json = ReplaceTheOne(
+            ConfigurationLoader.ExampleJson,
+            EmptyFingerprintEntry,
+            $"\"printerCertificateSha256\": \"{SyntheticFingerprint}\"");
+
+        ConfigurationException ex = LoadExpectingFailure(json, "an example whose UUID was never generated must not load");
+
+        Assert.Equal(1, ex.Problems.Count, "the empty UUID must be the only problem");
+        Assert.True(ex.Problems[0].StartsWith("advertise.uuid:", StringComparison.Ordinal),
+            "the empty setting must be named");
+        Assert.True(ex.Problems[0].Contains("NewGuid", StringComparison.Ordinal),
+            "and the message must say how to produce one, as it does when the setting is missing");
+        Assert.True(ex.Problems[0].Contains("required", StringComparison.Ordinal),
+            "an empty entry is a UUID not yet supplied, and must be reported as required, not as a bad value");
+    }
+
+    [TestCase("A UUID that is blank, malformed or all zeros is refused")]
+    [Requirement("REQ-CFG-003")]
+    public static void Unusable_uuid_is_refused()
+    {
+        foreach (string value in new[] { "   ", "not-a-uuid", "00000000-0000-0000-0000-000000000000" })
+        {
+            string json = ReplaceTheOne(
+                ValidExampleJson, $"\"uuid\": \"{SyntheticUuid}\"", $"\"uuid\": \"{value}\"");
+
+            ConfigurationException ex = LoadExpectingFailure(json, $"the UUID '{value}' identifies nothing");
+
+            Assert.Equal(1, ex.Problems.Count, $"'{value}' must be the only problem");
+            Assert.True(ex.Problems[0].StartsWith("advertise.uuid:", StringComparison.Ordinal),
+                $"the setting must be named for '{value}'");
+            Assert.True(ex.Problems[0].Contains("NewGuid", StringComparison.Ordinal),
+                $"and the message must say how to produce one for '{value}'");
+        }
     }
 
     [TestCase("A SHA-1 thumbprint is refused, and named as SHA-1")]

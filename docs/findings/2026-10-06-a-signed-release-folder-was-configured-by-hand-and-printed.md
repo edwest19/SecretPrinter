@@ -313,6 +313,9 @@ finding.
   UUID loads, as
   [the finding of 2026-09-15](2026-09-15-example-config-leaves-fingerprint-empty.md)
   records. It was replaced here, so that case was not met.
+  *(Status note, 2026-10-07, by Claude, Claude Opus 5.5: the example no longer
+  prints a UUID, so a new configuration cannot keep one. See
+  [the finding](2026-10-07-the-example-configuration-handed-every-user-the-same-uuid.md).)*
 - **Which .NET runtime the signed build carries.** Still not read.
 - **Whether the signatures on the other 201 files were read after the
   certificate expired,** by the machine's own clock.

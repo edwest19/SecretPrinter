@@ -17,6 +17,14 @@
 // model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-22, for
 // REQ-LIF-008. Reviewed by a human before merge.
 //
+// The UUID entry in ExampleJson left empty, as the fingerprint entry is, and
+// one message for every UUID that cannot be used, by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-10-07, who decided it
+// that day. Until then the example printed a fixed UUID that loaded, so every
+// installation whose operator left it in advertised the same identity. See
+// docs/findings/2026-10-07-the-example-configuration-handed-every-user-the-same-uuid.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Reads the configuration file, checks every setting, resolves every client
 //   interface name, confirms the printer-side adapter exists, and either
@@ -421,18 +429,23 @@ public static class ConfigurationLoader
             return Guid.Empty;
         }
 
-        if (!parent.TryGetProperty(name, out JsonElement element) || element.ValueKind != JsonValueKind.String)
+        const string HowToMakeOne =
+            "Generate one with [guid]::NewGuid() in PowerShell. It identifies this proxy to clients and must "
+            + "not be the printer's.";
+
+        // Missing, not a string, or empty as the example prints it: all three
+        // are a UUID nobody has supplied yet.
+        if (!parent.TryGetProperty(name, out JsonElement element)
+            || element.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(element.GetString()))
         {
-            problems.Add(
-                $"{prefix}{name}: required, and deliberately has no default. Generate one with "
-                + "[guid]::NewGuid() in PowerShell. It identifies this proxy to clients and must not be "
-                + "the printer's.");
+            problems.Add($"{prefix}{name}: required, and deliberately has no default. {HowToMakeOne}");
             return Guid.Empty;
         }
 
         if (!Guid.TryParse(element.GetString(), out Guid value) || value == Guid.Empty)
         {
-            problems.Add($"{prefix}{name}: '{element.GetString()}' is not a usable UUID.");
+            problems.Add($"{prefix}{name}: '{element.GetString()}' is not a usable UUID. {HowToMakeOne}");
             return Guid.Empty;
         }
 
@@ -522,16 +535,25 @@ public static class ConfigurationLoader
     }
 
     /// <summary>
-    /// An example configuration, used by the tests and reproduced in the
-    /// documentation so the two cannot disagree.
+    /// An example configuration, used by the tests and printed by the service
+    /// for --print-example-config, which is what the documentation tells an
+    /// operator to run, so the two cannot disagree.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// printerCertificateSha256 is deliberately empty, so this example is refused
     /// at startup until the operator measures their own printer's fingerprint. A
     /// value that looked real would load, and the mistake would only surface
-    /// when a job was attempted. The UUID below is treated differently, with a
-    /// literal value; that inconsistency is recorded in
-    /// docs/findings/2026-09-15-example-config-leaves-fingerprint-empty.md.
+    /// when a job was attempted.
+    /// </para>
+    /// <para>
+    /// advertise.uuid is empty for a like reason, since 2026-10-07. A value
+    /// printed here would load, and every installation whose operator left it
+    /// in would advertise the same identity. Until that day the example
+    /// printed a fixed UUID; a configuration that still holds that value goes
+    /// on loading. See
+    /// docs/findings/2026-10-07-the-example-configuration-handed-every-user-the-same-uuid.md.
+    /// </para>
     /// </remarks>
     public static string ExampleJson => """
         {
@@ -544,7 +566,7 @@ public static class ConfigurationLoader
           "advertise": {
             "instanceName": "SecretPrinter (ET-3760)",
             "hostLabel": "secretprinter",
-            "uuid": "b6f4e2a1-9c37-4d58-8e0b-7a1f3d6c5e94",
+            "uuid": "",
             "port": 631
           },
 

@@ -6,6 +6,13 @@ West, 2026-09-15. Reviewed by a human before merge.*
 **Status: a considered inconsistency, recorded rather than resolved. Nothing in
 the commit that carries this document changes how the UUID is handled.**
 
+*(Status note, 2026-10-07, by Claude, Claude Opus 5.5: resolved. The question
+this finding leaves to Edwin West was put to him on 2026-10-07, and he decided
+that the example prints the UUID empty, as it prints the fingerprint. It does,
+from the commit that carries this note. The comment on `ExampleJson` that this
+finding calls not true is corrected in the same commit. See
+[the finding](2026-10-07-the-example-configuration-handed-every-user-the-same-uuid.md).)*
+
 ## What the example prints
 
 `SecretPrinter.Service.exe --print-example-config` writes out
