@@ -162,6 +162,12 @@ Step 3, and one paragraph under Configuring. The program's new behaviour is
 tested; the steps as now written have not been walked on a machine.
 Reviewed by a human before merge.*
 
+*A sentence on the pre-release `0.1.0-rc.3` added in two places, under "Where
+the program comes from" and "Checking a release before you install it", by
+Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+2026-10-07, who decided that day to publish one.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -187,6 +193,8 @@ visible on a second segment. That is why it confines itself to printing.
 ## Where the program comes from
 
 **From a release, once there is one.** No release has been published yet. A
+pre-release for testing, `0.1.0-rc.3`, has the same form as a release and is
+checked and installed by the same steps; it is not a release. A
 release will be a folder holding `SecretPrinter.Service.exe`,
 `SecretPrinter.Probe.exe` and the .NET runtime they need, so that nothing else
 has to be installed (`REQ-DIST-011`). `publish-release.ps1` makes that folder. On
@@ -211,7 +219,8 @@ needs uses the `dotnet` command.
 
 ## Checking a release before you install it
 
-No release has been published yet. When one is, it will be on the repository's
+No release has been published yet. A pre-release is published the same way and
+is checked the same way. When a release is published, it will be on the repository's
 Releases page as two files: `SecretPrinter-<version>-win-x64.zip`, and a small
 file beside it with the same name ending in `.sha256`. Make both checks below
 before you install anything. They need only PowerShell.

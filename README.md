@@ -837,6 +837,8 @@ current count is whatever `run-tests.ps1` reports; the findings are the files in
 `publish-release.ps1` produces the folder a release will be made from: the
 service and the probe, published for 64-bit Windows with the .NET runtime
 beside them, into one folder outside the repository. No release exists yet.
+(Note, 2026-10-07, by Claude, Claude Opus 5.5: `0.1.0-rc.3` is a pre-release for testing, not a release; see
+`CHANGELOG.md`.)
 On 2026-10-04 a folder it made was run on a machine with no .NET installed, and
 an iPhone printed through it
 ([finding](docs/findings/2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md)).
@@ -857,6 +859,9 @@ first run failed before its signing job. The second signed twelve files, and
 the signatures were read on a downloaded copy
 ([finding](docs/findings/2026-10-04-the-release-workflow-signed-a-build.md)).
 No release has been published, and the job that publishes one has never run.
+(Note, 2026-10-07, by Claude, Claude Opus 5.5: the tag `v0.1.0-rc.3` is made to run that job for the first
+time, on a pre-release for testing. What happened is recorded under that
+version in `CHANGELOG.md` once the run is over.)
 (Paragraph, the `release.yml` line in the tree and the `[done]` beside
 `CHANGELOG.md` added 2026-10-04 by Claude, Claude Opus 5.5, and corrected twice
 the same day as the workflow ran: it first said the workflow had never run, and

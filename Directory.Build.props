@@ -58,8 +58,13 @@
 
          Added 2026-10-04 by Claude (Anthropic model, Claude Opus 5.5) at the
          direction of Edwin West. Until then no version was set anywhere, and
-         every assembly carried the SDK's default of 1.0.0. -->
-    <Version>0.1.0-rc.2</Version>
+         every assembly carried the SDK's default of 1.0.0.
+
+         Set to 0.1.0-rc.3 on 2026-10-07 by Claude (Anthropic model, Claude
+         Opus 5.5) at the direction of Edwin West, who decided that day to
+         publish a pre-release before 0.1.0, so that the publishing job and an
+         install from a downloaded zip are each tried once first. -->
+    <Version>0.1.0-rc.3</Version>
   </PropertyGroup>
 
   <PropertyGroup>

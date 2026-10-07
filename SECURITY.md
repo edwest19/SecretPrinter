@@ -94,14 +94,24 @@ demands of people doing it a favour.
 
 ## Supported versions
 
-**No release has been tagged yet.** The only way to run this today is to build
-it from source at `main`, and `main` carries no support promise of any kind.
+**No release has been published yet.** `0.1.0-rc.3` is a pre-release: a signed
+build for testing the release process and a first install. If it has been
+published, it is on this repository's Releases page and nowhere else. It
+carries no support promise of any kind, and neither does `main`.
 
-Consequently: **any binary presented as a SecretPrinter release does not come
-from this project.** None exists. If you have one, it came from somewhere else,
-and you should not run it.
+Consequently: **a binary presented as SecretPrinter that does not come from
+this repository's Releases page, or is not signed under the name given below,
+does not come from this project,** and you should not run it. The one
+exception is a build you made yourself from source.
 
 This section will be replaced with a real version table at the first release.
+
+(The first two paragraphs replaced 2026-10-07 by Claude, Anthropic model,
+Claude Opus 5.5, at the direction of Edwin West, who decided that day to
+publish a pre-release. They had said that no release had been tagged, that the
+only way to run this was to build it from source, and that any binary
+presented as a SecretPrinter release did not come from this project because
+none existed.)
 
 ## Signing, when releases exist
 
@@ -135,9 +145,11 @@ every program file. SecretPrinter's own files are signed as:
 A SecretPrinter file that is unsigned, or signed under any other name, is not
 an official release.
 
-**There is still no release.** The two tags that exist, `v0.1.0-rc.1` and
-`v0.1.0-rc.2`, are trials of the workflow, and nothing was published for
-either.
+**There is still no release.** The tags `v0.1.0-rc.1` and `v0.1.0-rc.2` were
+trials of the workflow, and nothing was published for either. `v0.1.0-rc.3` is
+the tag of a pre-release for testing; see "Supported versions" above.
+(Sentence about `v0.1.0-rc.3` added, and "The two tags that exist" reworded,
+2026-10-07 by Claude, Claude Opus 5.5.)
 
 (This section replaced 2026-10-04 by Claude, Anthropic model, Claude Opus 5.5,
 at the direction of Edwin West. From here down it had said that all three
