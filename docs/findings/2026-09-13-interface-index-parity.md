@@ -6,6 +6,12 @@ West, 2026-09-13. Reviewed by a human before merge.*
 **Status: measured.** Ten adapters across two machines. No code behaviour
 changes as a result; seven comments in four files do.
 
+*(Status note, 2026-10-07, by Claude, Claude Opus 5.5: the Windows name of the
+development machine stood in this finding in four places and is replaced by "the
+development machine", at Edwin West's decision of the same day: no machine name
+but FIOS-STB-01 belongs in this repository. Nothing else in the finding
+changed. The name remains in this repository's history.)*
+
 ## The claim that was being carried
 
 Since 2026-09-06 this project has recorded, in source comments and in two
@@ -25,7 +31,7 @@ On 2026-09-13, on both machines, reading exactly what
 `SystemInterfaceInventory` reads — `GetIPv4Properties().Index` and
 `GetIPv6Properties().Index` for every adapter, up or down.
 
-**DESKTOP-URULEFH** (development machine, dual-homed on both networks):
+**The development machine** (dual-homed on both networks):
 
 | Adapter | IPv4 index | IPv6 index | IPv4 address | Status |
 | --- | --- | --- | --- | --- |
@@ -45,7 +51,8 @@ On 2026-09-13, on both machines, reading exactly what
 | Local Area Connection* 2 | 14 | 14 | 169.254.65.104 | Down |
 | Loopback Pseudo-Interface 1 | 1 | 1 | 127.0.0.1 | Up |
 
-Twenty index readings. Every pair equal. On DESKTOP-URULEFH the figures were
+Twenty index readings. Every pair equal. On the development machine the
+figures were
 cross-checked against `Get-NetIPInterface`, which reported the same value for
 both the IPv4 and the IPv6 row of every adapter. That cross-check was not run on
 FIOS-STB-01.
@@ -67,11 +74,13 @@ its machine, and claimed nothing further. It is accurate.
 **13 is correct and belongs to the other machine.** It appears in
 `docs/findings/2026-09-01-port-5353-sharing.md` and
 `docs/findings/2026-09-02-ios-accepts-advertisement.md`, both run against
-`192.168.1.234` — DESKTOP-URULEFH. Neither document names the machine it was run
+`192.168.1.234` — the development machine. Neither document names the machine
+it was run
 on. Neither states an IPv6 index at all.
 
 So the divergence was manufactured between documents, not observed within one:
-an IPv4 index from DESKTOP-URULEFH and an IPv6 index from FIOS-STB-01 were
+an IPv4 index from the development machine and an IPv6 index from FIOS-STB-01
+were
 placed in a single row, attributed to FIOS-STB-01 because that is the name the
 IPv6 figure carried, and read as evidence that the two families are numbered
 differently. **No source document ever claimed that.** The IPv4 index of

@@ -5,6 +5,11 @@
 // Edwin West, for the SecretPrinter project, 2026-09-22, for REQ-LIF-007.
 // Reviewed by a human before merge.
 //
+// The words "not yet observed under the control manager" corrected by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-07: it was measured on 2026-09-22. Comments only; no behaviour
+// changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   Tells the Windows service control manager that the service did not start,
 //   when its configuration has been refused. It does nothing else: it opens no
@@ -21,7 +26,12 @@
 //
 // What the control manager is told, read from the source of
 // System.ServiceProcess.ServiceController 10.0.11 (the version this project
-// references), not yet observed under the control manager:
+// references), and then measured under the control manager on FIOS-STB-01 on
+// 2026-09-22, the day this file was written: sc.exe query showed the service
+// stopped with exit code 1064, and Windows recorded event 7023
+// (docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md,
+// "Measured after the fix"). The exit code of the process itself, the 3 in the
+// second point, was not read in that measurement.
 //   - OnStart below throws the refusal. ServiceBase catches it, sets the
 //     service to stopped, and reports exit code 1064,
 //     ERROR_EXCEPTION_IN_SERVICE, because no other exit code has been set.

@@ -301,6 +301,17 @@ of these are now corrected, in the change that
 records: the `WindowsService.cs` paragraph has a note beside it, and the
 `--help` text for exit code 4 is rewritten. The rest stand.)*
 
+*(Status note, 2026-10-07, later again, by Claude, Claude Opus 5.5: the rest
+are corrected, in the commit that carries this note. Each file's header says
+what was changed. All are comments but one: the line the test harness writes
+at the top of a results file, which nothing reads. On the last item, Edwin
+West decided the same day that the development machine's Windows name does not
+stay. It is replaced by "the development machine" in the three findings, each
+with a note, and in the two source files. It remains in this repository's
+history, which was not rewritten: that would change every commit hash the
+findings cite. The check for household strings that is run before every
+delivery did not look for a machine name of that form, and now does.)*
+
 ## Left open
 
 - **"About the name".** The README says of a family of projects that "every one

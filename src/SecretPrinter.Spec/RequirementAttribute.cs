@@ -4,6 +4,12 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// The example of a marked test corrected by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-10-07. It showed [Fact], an
+// attribute of a test framework this project has never used, on a test that
+// does not exist. It now shows a test that is in the repository. Comment only;
+// no behaviour changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   Ties a piece of code, or a test, to a numbered requirement in README.md.
 //
@@ -65,9 +71,9 @@ namespace SecretPrinter.Spec;
 /// </code>
 /// On a test:
 /// <code>
-/// [Fact]
+/// [TestCase("Bytes reach the printer exactly as the client sent them")]
 /// [Requirement("REQ-PXY-003")]
-/// public async Task Relay_does_not_alter_payload_bytes() { }
+/// public static void Payload_reaches_the_printer_unchanged() { }
 /// </code>
 /// </example>
 [AttributeUsage(

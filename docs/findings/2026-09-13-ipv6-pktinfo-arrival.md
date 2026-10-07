@@ -8,6 +8,12 @@ receive path for REQ-ADV-018 and REQ-ADV-020 can be built on this. Nothing in
 the product changed as a result; this finding exists so that when it is built,
 the design rests on an observation rather than an expectation.
 
+*(Status note, 2026-10-07, by Claude, Claude Opus 5.5: the Windows name of the
+development machine stood in this finding in one place and is replaced by "the
+development machine", at Edwin West's decision of the same day: no machine name
+but FIOS-STB-01 belongs in this repository. Nothing else in the finding
+changed. The name remains in this repository's history.)*
+
 ## Why this was measured before writing any code
 
 REQ-ADV-020 requires the arrival interface of an IPv6 query to be determined
@@ -41,7 +47,7 @@ Environment:
 
 | | |
 | --- | --- |
-| Machine | `DESKTOP-URULEFH`, Windows 10.0.19045.0 |
+| Machine | The development machine, Windows 10.0.19045.0 |
 | Adapter | `Ethernet 2`, `192.168.1.234` (client network) |
 | IPv4 index | 13 |
 | IPv6 index | 13 |

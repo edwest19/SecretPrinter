@@ -11,6 +11,12 @@
 // docs/findings/2026-09-25-the-test-harness-never-waited-for-an-async-test.md.
 // Reviewed by a human before merge.
 //
+// One line of the header written into every results file corrected by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-07. It said the file was written by tests/SecretPrinter.Mdns.Tests,
+// whichever suite wrote it. SpecCheck skips lines that begin with '#', so
+// nothing that reads the file is affected. Reviewed by a human before merge.
+//
 // Purpose:
 //   A very small test runner, so that this repository has automated tests
 //   without acquiring a third-party dependency. Shared by every test project.
@@ -367,7 +373,7 @@ public static class TestHarness
         {
             "# SecretPrinter test results",
             "#",
-            "# Written by tests/SecretPrinter.Mdns.Tests (TestHarness.cs).",
+            "# Written by the suite that ran, through tests/SecretPrinter.TestKit (TestHarness.cs).",
             "# Read by tools/SecretPrinter.SpecCheck via --test-results.",
             "#",
             "# A [Requirement] marker on a test is compiled-in metadata and exists whether",

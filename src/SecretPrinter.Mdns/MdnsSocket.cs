@@ -36,6 +36,17 @@
 // 2026-10-02. Comments only; no behaviour changed. Reviewed by a human before
 // merge.
 //
+// Three comments corrected by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-07, after the README was read against the
+// code (docs/findings/2026-10-07-the-readme-was-read-against-the-code.md,
+// "Seen and not corrected"). In OpenIPv6, a comment said nothing receives or
+// sends on the IPv6 socket and that REQ-ADV-019 and REQ-ADV-020 remain unmet;
+// both are met. On ReadBackIPv6SendState, a remark said its read-backs had
+// never been executed; tests execute them. And the Windows name of the
+// development machine is replaced by "the development machine", at Edwin
+// West's decision of the same day. Comments only; no behaviour changed.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The service's single point of contact with the network for mDNS. It binds
 //   UDP 5353, joins the multicast group on configured interfaces, receives
@@ -129,7 +140,7 @@
 // Arrival attribution over IPv6 is measured, not assumed:
 //   Respond6 named a single interface on its command line and therefore never
 //   set IPV6_PKTINFO, so arrival attribution over IPv6 was new ground. It has
-//   since been measured twice on DESKTOP-URULEFH: 62 datagrams arriving from
+//   since been measured twice on the development machine: 62 datagrams from
 //   the link (docs/findings/2026-09-13-ipv6-pktinfo-arrival.md) and 3 looped
 //   back locally (docs/findings/2026-09-14-ipv6-loopback-arrival.md). Every one
 //   reported the adapter's index.
@@ -479,9 +490,10 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
             socket.Bind(new IPEndPoint(IPAddress.IPv6Any, MdnsPort));
 
             // Set here for the same reason as their IPv4 counterparts, and read
-            // back by ReadBackIPv6Configuration so a test can prove it. Neither
-            // does anything yet: nothing receives on this socket and nothing
-            // sends on it. REQ-ADV-019 and REQ-ADV-020 remain unmet.
+            // back by ReadBackIPv6Configuration so a test can prove it. Both
+            // are in use: this socket receives, and the arrival interface is
+            // taken from the packet information (REQ-ADV-020); and it sends,
+            // with the hop limit set again before each send (REQ-ADV-019).
             socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.PacketInformation, true);
             socket.SetSocketOption(
                 SocketOptionLevel.IPv6,
@@ -571,11 +583,12 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     /// Call this after a send. Before the first send the interface index is
     /// whatever the OS defaults to, which is not a claim about anything.
     ///
-    /// None of these three read-backs has ever been executed on this project.
-    /// The IPv6 counterparts of options this file already reads on IPv4 are
-    /// assumed to be readable, and that assumption is exactly what this method
-    /// is here to test. If a call throws, the honest response is to delete this
-    /// method and record why, not to work around it.
+    /// When this was written none of these three read-backs had been executed
+    /// on this project: the IPv6 counterparts of options this file already
+    /// reads on IPv4 were assumed to be readable, and this method was here to
+    /// test that. Two tests in MdnsSocketTests now call it, and they pass on
+    /// Windows. If a call ever throws, the honest response is still to delete
+    /// this method and record why, not to work around it.
     /// </remarks>
     public MdnsIPv6SendState? ReadBackIPv6SendState()
     {

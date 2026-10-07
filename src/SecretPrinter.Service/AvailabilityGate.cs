@@ -10,6 +10,11 @@
 // model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-28, for
 // REQ-ADV-023 and REQ-ADV-024. Reviewed by a human before merge.
 //
+// The remark on the constructor corrected by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-10-07: it said the service
+// starts the gate open. Since 2026-09-28 the service starts it closed.
+// Comment only; no behaviour changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   One switch, read by everything that offers the printer to the client
 //   network, so those things cannot disagree about whether it is on offer.
@@ -45,8 +50,9 @@ public sealed class AvailabilityGate
     private bool _open;
 
     /// <param name="open">
-    /// The state to start in. The service resolves the printer before it
-    /// advertises anything (REQ-RES-007), so it starts open.
+    /// The state to start in. The service starts it closed (ServiceHost), and
+    /// Offering opens it once the probe for the service's names has come back
+    /// clear (REQ-ADV-023). Tests start it in either state.
     /// </param>
     public AvailabilityGate(bool open)
     {

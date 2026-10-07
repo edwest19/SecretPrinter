@@ -25,6 +25,12 @@
 // 2026-09-24: it said a client interface without IPv6 can never be discovered
 // by iOS. What the test checks is unchanged. Reviewed by a human before merge.
 //
+// The Windows name of the development machine replaced by "the development
+// machine" in one remark, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-07, at his decision of that day: no machine
+// name but FIOS-STB-01 belongs in this repository. Comment only; no test
+// changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that MdnsSocket is configured the way the specification requires,
 //   by reading the options back from the operating system rather than trusting
@@ -640,7 +646,7 @@ internal static class MdnsSocketTests
     /// traffic on a real network every time the suite runs. That a hop-limit-0
     /// multicast datagram is nonetheless delivered locally, and is attributed to
     /// the sending adapter rather than to loopback, was measured on
-    /// DESKTOP-URULEFH on 2026-09-14 and recorded in
+    /// the development machine on 2026-09-14 and recorded in
     /// docs/findings/2026-09-14-ipv6-loopback-arrival.md.
     ///
     /// Bound to 5353 rather than to an ephemeral port. A datagram from any other

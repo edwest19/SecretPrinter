@@ -29,6 +29,11 @@
 // docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
 // Reviewed by a human before merge.
 //
+// A remark on RunAsRefusedService corrected by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-10-07: it said the refusal
+// had not yet been run under the control manager, and it was, on 2026-09-22.
+// Comment only; no behaviour changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   Entry point. Loads configuration, runs the host, stops cleanly on Ctrl+C.
 //
@@ -268,8 +273,10 @@ internal static class Program
     /// dispatcher has returned. That is the refusal, and it has been logged
     /// already, so it is caught here and the caller returns 3. This is read
     /// from the source of System.ServiceProcess.ServiceController 10.0.11, the
-    /// version this project references; it has not yet been run under the
-    /// control manager.
+    /// version this project references. A refusal was run under the control
+    /// manager on 2026-09-22, and Windows was told that the start had failed
+    /// (docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md).
+    /// The exit code of the process itself was not read then.
     /// </para>
     /// <para>
     /// If the process was started from a console with <c>--service</c>, there is

@@ -10,6 +10,12 @@ this document. Nothing in the product changed as a result; this finding exists
 so that when the receive path is written, the test design rests on an
 observation rather than an expectation.
 
+*(Status note, 2026-10-07, by Claude, Claude Opus 5.5: the Windows name of the
+development machine stood in this finding in one place and is replaced by "the
+development machine", at Edwin West's decision of the same day: no machine name
+but FIOS-STB-01 belongs in this repository. Nothing else in the finding
+changed. The name remains in this repository's history.)*
+
 ## Why this was measured before writing any code
 
 The handoff of 2026-09-13 left one question to be answered before the receive
@@ -54,7 +60,7 @@ Environment:
 
 | | |
 | --- | --- |
-| Machine | `DESKTOP-URULEFH`, Windows 10.0.19045.0 |
+| Machine | The development machine, Windows 10.0.19045.0 |
 | Adapter | `Ethernet 2`, `192.168.1.234` (client network) |
 | IPv4 index | 13 |
 | IPv6 index | 13 |

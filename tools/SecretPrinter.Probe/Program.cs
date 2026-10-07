@@ -4,6 +4,12 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// Step 4 of "What this program does" corrected by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-10-07. It described two
+// rounds of questions. The code has sent a third, for addresses, since the
+// first commit. Comment only; no behaviour changed. Reviewed by a human before
+// merge.
+//
 // Purpose:
 //   A read-only diagnostic. It asks the local network what print services are
 //   being advertised over mDNS, and prints exactly what came back.
@@ -13,8 +19,9 @@
 //      on an operating-system-assigned ephemeral port.
 //   2. Sends DNS-SD PTR queries to 224.0.0.251:5353 out of that interface.
 //   3. Listens for replies until a timeout elapses.
-//   4. Optionally sends a second round of SRV/TXT/A queries for whatever
-//      instances round one revealed.
+//   4. If round one named any instance, sends a second round of SRV and TXT
+//      queries for each. If that leaves an SRV target with no address, sends
+//      a third round of A queries for those host names.
 //   5. Prints a report and exits.
 //
 // What this program does NOT do:
