@@ -8,7 +8,8 @@ another network, without joining those networks together.**
 > work, Claude Opus 5 and Claude Opus 5.5 for later changes), at the direction of
 > Edwin West, and reviewed by a human before merge. Each file's header names the
 > model that wrote it and, where a file has been changed since, the model that
-> changed it. This is stated plainly
+> changed it; three files carry no header, and Section 13 names them. This is
+> stated plainly
 > because it is the point of the project, not a disclaimer buried in a footer.
 > See [Authorship and AI involvement](#13-authorship-and-ai-involvement).
 
@@ -16,7 +17,10 @@ another network, without joining those networks together.**
 > is the definition the code must satisfy. Every normative statement carries an
 > identifier such as `REQ-ADV-001`. Those identifiers appear in the source and
 > in the tests, and a tool in this repository checks that every requirement has
-> both. See [Section 11](#11-how-to-validate-this-readme-against-the-code).
+> both, or, for a requirement that no code can meet, a named piece of evidence.
+> See [Section 11](#11-how-to-validate-this-readme-against-the-code).
+> (Corrected 2026-10-07 by Claude, Claude Opus 5.5: this said every requirement has both. Some rest on
+> evidence, as Section 11 says.)
 
 ### About the name
 
@@ -35,7 +39,7 @@ correction.
 
 ## Read this before installing
 
-Five things about this software that you should know before it runs on your
+Six things about this software that you should know before it runs on your
 machine. They are here, at the top, because burying them would defeat the
 purpose of the project.
 
@@ -59,6 +63,18 @@ The service does not copy the printer's advertisement wholesale. It publishes a
 narrower one describing what the proxy will actually deliver. Capabilities the
 proxy does not relay — scanning, faxing — are not advertised, even though the
 printer supports them.
+What it does publish says which printer is behind it: the printer's maker,
+model and product strings (`usb_MFG`, `usb_MDL` and `product`) are copied
+unchanged, with the entries that describe what will print. The whole list is
+beside REQ-ADV-009. And what the printer says inside the print conversation
+reaches the client unchanged, because the relay does not read what it carries
+(REQ-PXY-003). Measured on 2026-09-29: every reply carried the printer's
+`Server` header, which names its maker, and its replies carried links to port
+80 at the proxy's own host name, where SecretPrinter serves nothing. An iPhone
+offers "Show Printer Web Page"; which link it uses, and where that leads,
+were not established
+([finding](docs/findings/2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md)).
+(Added 2026-10-07 by Claude, Claude Opus 5.5.)
 
 **4. Your job is encrypted on one side and not the other.**
 Between your phone and this service, the job travels as plain IPP over TCP, the
@@ -76,7 +92,7 @@ configuration and checked on every connection; see
 The service does not tie its connection to the printer to the printer-side
 network adapter. Windows chooses the way out from its routing table, as it would
 for any program. Normally that is the printer-side adapter, because it gives
-Windows the most specific route to the printer's address. On three occasions
+Windows the most specific route to the printer's address. On four occasions
 Windows has been measured choosing its default route instead, which sends the
 attempt to connect out on the client network, addressed to the printer and
 handed to the client network's router. The first time, the printer-side adapter
@@ -91,8 +107,12 @@ and that time no packets were captured. The third time, two attempts in a row
 took the default route and failed, and a later one took the printer-side
 adapter and connected; the state of that adapter during the first two was not
 read, no packets were captured, and by the operator's account nothing was
-reconnected by hand in between.
-The first two occasions were measured with Windows' own tools,
+reconnected by hand in between. The fourth time, Windows reported the
+printer-side adapter up and connected, holding its address and its route to
+the printer's network, and nothing on that network answered it, while the
+printer was answering another machine on the same network. After the adapter
+was reconnected by hand, Windows chose it.
+The first two occasions and the fourth were measured with Windows' own tools,
 `Test-NetConnection` and `Find-NetRoute`, and the third with
 `Test-NetConnection` alone, none of them with the service's connection. No
 print job goes that way. The service sends job data only after a
@@ -105,11 +125,96 @@ network, Windows may route the connection through that adapter rather than the
 one the configuration names. What the router does with such packets was not
 observed either. See the findings of
 [2026-09-22](docs/findings/2026-09-22-connections-to-the-printer-leave-by-the-default-route.md),
-[2026-09-27](docs/findings/2026-09-27-the-printer-went-silent-and-the-join-held.md)
+[2026-09-27](docs/findings/2026-09-27-the-printer-went-silent-and-the-join-held.md),
+[2026-10-03](docs/findings/2026-10-03-the-printer-came-back-at-an-hourly-question.md)
 and
-[2026-10-03](docs/findings/2026-10-03-the-printer-came-back-at-an-hourly-question.md).
+[2026-10-06](docs/findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md).
 (Updated 2026-10-03 by Claude, Claude Opus 5.5: until then this point said two
-occasions and described two.)
+occasions and described two. Updated 2026-10-07 by Claude, Claude Opus 5.5: it said three; the fourth was
+measured on 2026-10-06 and recorded in that day's finding, and was not carried
+here.)
+
+**6. It has been measured in one household.**
+Every measurement on a network that this document reports was made in one
+household: on one person's machines and networks, with one printer model, an
+Epson ET-3760, and on three Windows machines. The client was an iPhone on almost every occasion; a second device
+printed through the proxy once
+([finding](docs/findings/2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md)).
+No other printer and no other household's network has been tried. Where a
+statement rests on a single run, the finding it links to says so. Which
+versions of Windows it has run on, and for how long, is under
+[open question 10](#14-open-questions).
+(Added 2026-10-07 by Claude, Claude Opus 5.5. Each fact here was already in this document or its findings;
+none of them was at the top.)
+
+### Known problems
+
+What is known to go wrong, or to fall short, as of 2026-10-07. Each is on
+record in the finding or the requirement named beside it. (Section added
+2026-10-07 by Claude, Claude Opus 5.5, when this document was read against the code and the findings from
+its first line to its last; [the finding](docs/findings/2026-10-07-the-readme-was-read-against-the-code.md) lists what that reading
+changed.)
+
+- **A print attempt can reach the printer and send no job.** On 2026-10-01 and
+  2026-10-02, in three attempts, an iPhone connected through the proxy, had
+  every request answered, and sent no job. In two of them it showed a message
+  that it could not reach the printer. A later attempt printed on both days.
+  The cause is not established
+  ([finding](docs/findings/2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md)).
+- **An iPhone that has printed to the printer directly may show the printer's
+  own name.** On such an iPhone the list has held two rows, the proxy's and
+  one with the printer's own name, and picking the proxy's row has turned the
+  selection into the printer's name. Each time the log was read, the page had
+  gone through the proxy. A second device, which had not printed to the printer, kept the
+  proxy's name, by Edwin West's account. Why iOS does this is not established
+  ([2026-09-21](docs/findings/2026-09-21-a-second-printer-entry-on-the-iphone.md),
+  [2026-09-29](docs/findings/2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md),
+  [2026-10-06](docs/findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
+- **When the printer-side network drops, the printer disappears from the
+  client network, and it can be slow to come back.** The service stops
+  offering a printer it cannot reach (REQ-LIF-006) and asks for it less and
+  less often, down to once an hour (REQ-RES-008). After a long outage the
+  printer can stay away for up to an hour after the link returns; restarting
+  the service brings it back at once. The service does not reconnect a dropped
+  Wi-Fi link, because that would change the host's network configuration
+  (REQ-SEC-007). See
+  [`docs/operating.md`](docs/operating.md#when-the-printer-side-network-drops).
+- **Any device on the client network can make the printer disappear until the
+  service is restarted,** by answering for a name the service advertises
+  (REQ-ADV-024). mDNS has no authentication.
+- **If the service fails after Windows has started it as a service, Windows is
+  not told.** When the configuration is accepted and something fails later,
+  such as a socket that cannot be opened or a published address that has gone
+  (REQ-ADV-021), the failure is logged and everything the service was doing
+  ends. Nothing then asks Windows to stop the service. Read from the code on
+  2026-09-22 and again on 2026-10-07, and never run: the process stays, so
+  Windows would go on showing the service as running, with nothing running,
+  and would apply no recovery action set for it. The log would end with a
+  line beginning `Service stopped because of an error`. Not yet corrected
+  ([finding](docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md)).
+- **A client may go on listing the printer after the service has stopped.**
+  The goodbye is sent over IPv4 only (REQ-LIF-003). An iPhone has been seen
+  keeping the entry after one, and on another day dropping it within about
+  three seconds ([`docs/operating.md`](docs/operating.md#uninstalling)).
+- **A change of address on the client side needs a restart.** The client
+  interface's addresses are read once, at startup (REQ-ADV-021).
+- **A connection that is open when the service stops, or when it withdraws the
+  printer, is cut, and the log has no line for its end** (REQ-PXY-009).
+- **Four things RFC 6762 asks of a responder are not done.** The service
+  answers a question that already carries the answer (§7.1); it will send the
+  same record by multicast more than once in a second (§6); it does not wait
+  the random 20 to 120 milliseconds before answering for a name it shares
+  with other devices (§6); and it answers by multicast when a question from
+  port 5353 asks for a unicast answer (§5.4). The first two are requirements
+  of the standard and the last two are recommendations. All four were
+  measured against the code on 2026-10-07, and the first two were seen on a
+  network on 2026-10-02 ([finding](docs/findings/2026-10-07-four-things-rfc-6762-asks-of-a-responder-are-not-done.md)). The places where the service
+  departs from the standard on purpose are in the rows that make the
+  decision: REQ-ADV-021, REQ-ADV-023 and REQ-ADV-024.
+- **Whether an IPv4 answer sent by unicast leaves with TTL 255 is not
+  established** (REQ-ADV-013).
+- **The permitted client network is worked out from the client interface's
+  address, not read from its subnet mask** (REQ-SEC-012).
 
 ---
 
@@ -224,21 +329,34 @@ still parses nothing it carries. Measured on 2026-09-15; see
 Step 5 is not bound to the printer-side interface. The relay's outbound socket
 is created without a local address, so Windows chooses its path from the
 routing table. Normally that is the printer network. Windows has been measured
-choosing the default route on the client network with the printer-side link
-down, and also with the link up while the printer was not answering on its
-network; why it chose that the second time is not established. Both were
-measured with `Test-NetConnection` and `Find-NetRoute`, not with the relay's
-socket. This is disclosed as the fifth item under
+choosing the default route on the client network on four occasions: with the
+printer-side link down; with the link up while the printer was not answering
+on its network; once with the adapter's state not read; and with the adapter
+reported up while nothing on its network answered it. Why it chose that with
+the adapter up is not established. All four were measured with Windows' own
+tools, not with the relay's socket. This is disclosed as the fifth item under
 [Read this before installing](#read-this-before-installing).
+(Updated 2026-10-07 by Claude, Claude Opus 5.5: this paragraph described two occasions. The fifth item
+had described three since 2026-10-03, and a fourth was measured on
+2026-10-06.)
 
 The address and port for step 5 come from the printer's `_ipps._tcp` service,
 and the capabilities advertised in step 2 come from the TXT record of its
 `_ipp._tcp` service (REQ-RES-007). On this printer both services name port 631.
 That is observed, not relied on.
 
+Steps 3 and 5 use IPv4 only. The service asks the printer over IPv4, takes the
+printer's `A` record, and connects to that address; its printer-side socket
+does not join the IPv6 group. Steps 1, 2 and 4 use IPv4 and IPv6 (REQ-ADV-018,
+REQ-ADV-021). (Paragraph added 2026-10-07 by Claude, Claude Opus 5.5; it describes the code as it has been
+since the IPv6 work, and this section did not say it.)
+
 Address resolution happens at connection time, because printers receive their
 addresses by DHCP and those addresses change. During development the target
-printer moved twice. Startup also resolves both services, before anything is
+printer was seen at two addresses in one session
+([finding](docs/findings/2026-09-01-printer-capabilities.md)). (Corrected
+2026-10-07 by Claude, Claude Opus 5.5: this said the printer "moved twice". The record holds two
+addresses, which is one move.) Startup also resolves both services, before anything is
 advertised, and takes the capabilities from that answer. Until both have
 answered, and before that until the printer-side adapter is usable at all, the
 service offers nothing to the client network and waits (REQ-LIF-008). A
@@ -261,11 +379,11 @@ What the service publishes on the client network.
 | REQ-ADV-006 | MUST NOT | The service publishes any TXT key asserting a capability the proxy does not relay. As of this version that includes `Scan` and `Fax`. |
 | REQ-ADV-007 | MUST NOT | The service publishes a certification claim it does not itself hold, including `mopria-certified`. |
 | REQ-ADV-008 | MUST | Any `adminurl` published either points at a resource reachable from the client network, or is omitted. The printer's own `adminurl` is never copied verbatim. |
-| REQ-ADV-009 | MUST | Format-capability TXT keys obtained from the printer (`pdl`, `URF`, `Color`, `Duplex`, `PaperMax`, `kind`) are published unchanged, because they describe what will actually print. |
+| REQ-ADV-009 | MUST | Format-capability TXT keys obtained from the printer (`pdl`, `URF`, `Color`, `Duplex`, `PaperMax`, `kind`) are published unchanged, because they describe what will actually print. (Note, 2026-10-07, by Claude, Claude Opus 5.5: the six keys named are not all that is copied. The code copies fourteen keys when the printer publishes them, from a list in `src/SecretPrinter.Advertising/AdvertisementBuilder.cs`: `txtvers`, `rp`, `qtotal`, `priority`, `pdl`, `URF`, `Color`, `Duplex`, `PaperMax`, `kind`, `Sides`, `usb_MFG`, `usb_MDL` and `product`. The last three name the printer's maker and model. It adds three entries of its own: `ty`, holding the advertised instance name; `note`, saying that this is a proxy and when the capabilities were read; and `UUID`, its own (REQ-ADV-005). Every other entry the printer publishes is dropped, and the startup log lists each one with the reason (REQ-OBS-003).) |
 | REQ-ADV-010 | MUST | The advertised TXT record set is derived from a live query to the printer, never from values hardcoded in source. |
 | REQ-ADV-011 | MUST NOT | The service advertises on any interface not listed in configuration as a client interface. |
-| REQ-ADV-012 | MUST | The service responds only to queries for service types it advertises, and ignores all other mDNS queries. |
-| REQ-ADV-013 | MUST | Outgoing mDNS packets carry IP TTL 255, per RFC 6762 §11. |
+| REQ-ADV-012 | MUST | The service responds only to queries for names it advertises, and ignores all other mDNS queries. Those names are its two service-type names (REQ-ADV-001, REQ-ADV-002); the DNS-SD service enumeration name `_services._dns-sd._udp.local` (RFC 6763 §9), under which it lists `_ipp._tcp.local`; its service instance name; and its host name. (Corrected 2026-10-07 by Claude, Claude Opus 5.5: this said "only to queries for service types it advertises". The code also answers for the instance name and the host name, as REQ-ADV-003 and REQ-ADV-022 need, and for the enumeration name, which this document did not mention anywhere.) |
+| REQ-ADV-013 | MUST | Outgoing mDNS packets carry IP TTL 255, per RFC 6762 §11. (Note, 2026-10-07, by Claude, Claude Opus 5.5: not established for one kind of packet. The code sets the multicast TTL. An IPv4 answer sent by unicast to a legacy querier (REQ-ADV-017) takes a different setting, which the code does not set, so by the reasoning in [the finding of 2026-09-06](docs/findings/2026-09-06-unicast-ttl-gap.md) it leaves with the Windows default and not 255. No capture has been taken to settle it. The IPv6 path sets both settings (REQ-ADV-019).) |
 | REQ-ADV-014 | MUST | The service binds UDP 5353 with `SO_REUSEADDR` and does not require exclusive use of the port, so it coexists with the Windows DNS Client service. |
 | REQ-ADV-015 | MUST | The arrival interface of each received query is determined from `IP_PKTINFO`, not inferred from the socket's bound address. |
 | REQ-ADV-016 | SHOULD | The advertised instance name makes the proxy's role evident to a person reading the printer list, rather than impersonating the printer. |
@@ -309,10 +427,10 @@ How print jobs are moved.
 | REQ-PXY-006 | MUST | Closing either side of a relayed connection closes the other. |
 | REQ-PXY-007 | MUST | Connections that cannot be established to the printer are refused promptly, with a logged reason, rather than left hanging. |
 | REQ-PXY-008 | MUST | Concurrent relayed connections are supported; one client must not block another. |
-| REQ-PXY-009 | MUST | Log entries about a relayed connection record endpoints, byte counts, and timing — never job content. |
+| REQ-PXY-009 | MUST | Log entries about a relayed connection record endpoints, byte counts, and timing — never job content. (Note, 2026-10-07, by Claude, Claude Opus 5.5: one case has no ending entry. A relayed connection that is still open when the service stops, or when it withdraws the printer (REQ-LIF-006), is cut by the service, and nothing is logged for its end: its acceptance and its start are in the log, and its byte counts and its duration are not. The relay reports failures and does not report its own cancellation. Seen in the logs of 2026-10-02, 2026-10-04 and 2026-10-06, and recorded in the findings of those days.) |
 | REQ-PXY-010 | MUST | The connection to the printer is TLS from its first byte. No part of a print job is sent to the printer over an unencrypted connection. |
 | REQ-PXY-011 | MUST NOT | The service parses, interprets, or emits HTTP in order to establish that TLS connection. It does not use the in-band `Upgrade: TLS/1.0` mechanism, so nothing in the relay reads the traffic it carries. |
-| REQ-PXY-012 | MUST | A failed TLS handshake or a failed certificate check ends the relayed connection with a logged reason, before any job byte reaches the printer. There is no unencrypted fallback. |
+| REQ-PXY-012 | MUST | A failed TLS handshake or a failed certificate check ends the relayed connection with a logged reason, before any job byte reaches the printer. There is no unencrypted fallback. (Note, 2026-10-07, by Claude, Claude Opus 5.5: a handshake that settles on a protocol older than TLS 1.2 is ended the same way. Windows chooses the protocol; the service reads what was chosen and abandons anything but TLS 1.2 or TLS 1.3 before a job byte is sent. The code has done this since 2026-09-17, and this row did not say it.) |
 
 ## 7. Requirements: configuration (CFG)
 
@@ -322,7 +440,7 @@ How print jobs are moved.
 | REQ-CFG-002 | MUST | Configuration names client interfaces and the printer interface separately and unambiguously. |
 | REQ-CFG-003 | MUST | Configuration is validated at startup. Any inconsistency causes the service to fail to start, with a message naming the offending setting. |
 | REQ-CFG-004 | MUST | Interface names given in configuration are resolved to addresses at startup, and the resolution is logged. |
-| REQ-CFG-005 | MUST NOT | The service starts in a partially working state. Either every configured client interface is usable, or startup fails. The printer-side interface is the one exception, defined by REQ-LIF-008: while it is not usable the service offers nothing at all, which is withdrawn rather than partially working. |
+| REQ-CFG-005 | MUST NOT | The service starts in a partially working state. Either every configured client interface is usable, or startup fails. The printer-side interface is the one exception, defined by REQ-LIF-008: while it is not usable the service offers nothing at all, which is withdrawn rather than partially working. (Note, 2026-10-07, by Claude, Claude Opus 5.5: one thing a client interface needs is not checked when the configuration is loaded, which is IPv6. The service joins `ff02::fb` on every client interface (REQ-ADV-018), and it first tries to after the printer has answered. Read from the code and never run: with IPv6 switched off on a client adapter, the service would wait for the printer as usual and then stop with an error that names the adapter.) |
 | REQ-CFG-006 | MUST | The service refuses to start if a client interface and the printer interface resolve to the same interface. |
 | REQ-CFG-007 | MUST | The printer's expected certificate fingerprint is explicit configuration: the SHA-256 hash of the DER-encoded certificate, written as exactly 64 hexadecimal digits in either case, with no separators and no whitespace. The service refuses to start without it or with a value in any other form, and names the setting when it refuses. |
 | REQ-CFG-008 | MUST | The instance name of the printer's `_ipps._tcp` service is explicit configuration, separate from the instance name of its `_ipp._tcp` service. The service does not derive either name from the other. It refuses to start without the `_ipps._tcp` instance name, and names the setting when it refuses. |
@@ -331,7 +449,7 @@ How print jobs are moved.
 
 | ID | Level | Requirement |
 | --- | --- | --- |
-| REQ-SEC-001 | MUST NOT | The service forwards, reflects, or relays any mDNS traffic between networks. It answers queries with its own advertisement, and with `NSEC` records it builds from that advertisement to say which record types its own names have (REQ-ADV-022), and nothing else. (Amended 2026-10-01 by Claude, Claude Opus 5.5: this said "with its own advertisement and nothing else". An `NSEC` record is built from the advertisement and is not one of its records, so that sentence would have stopped being true when the service began sending them.) |
+| REQ-SEC-001 | MUST NOT | The service forwards, reflects, or relays any mDNS traffic between networks. It answers queries with its own advertisement, and with `NSEC` records it builds from that advertisement to say which record types its own names have (REQ-ADV-022), and nothing else. (Amended 2026-10-01 by Claude, Claude Opus 5.5: this said "with its own advertisement and nothing else". An `NSEC` record is built from the advertisement and is not one of its records, so that sentence would have stopped being true when the service began sending them.) One kind of answer also repeats part of the question it answers: an answer sent by unicast to a legacy querier carries that query's identifier and its question, as RFC 6762 §6.7 requires (REQ-ADV-017, REQ-ADV-025). They are written again from the values the service read, and go to the device that sent them, on the network they came from. (Added 2026-10-07 by Claude, Claude Opus 5.5: until then this row said "and nothing else" with no word on this, and the marker in `MdnsResponder.cs` said "no byte of a received packet is ever re-emitted". The marker is corrected in the same commit.) |
 | REQ-SEC-002 | MUST NOT | The service exposes any service type other than those it is configured to proxy. Non-printing services on the printer network remain invisible from the client network. |
 | REQ-SEC-003 | MUST NOT | The service opens, listens on, or relays any port other than those required for the configured print services and mDNS. |
 | REQ-SEC-004 | MUST NOT | The service creates, modifies, or deletes firewall rules. Required rules are documented for the operator to apply. |
@@ -342,8 +460,8 @@ How print jobs are moved.
 | REQ-SEC-009 | MUST | Every dependency is either the .NET base class library or a project inside this repository. Packages outside that require explicit documentation and justification in this file; see [Dependencies](#dependencies). |
 | REQ-SEC-010 | MUST | The documentation states, prominently, that print job data passes through the proxy host. |
 | REQ-SEC-011 | MUST NOT | The service acts as a general-purpose proxy, router, or NAT for any traffic. |
-| REQ-SEC-012 | MUST | Relayed connections are accepted only from the configured client networks; connections from elsewhere are refused and logged. Over IPv6 that means link-local clients on the client interface itself: fe80::/10, arriving with that interface's scope, which is checked separately because a network match cannot see scopes. A relay given no permitted network refuses every connection. |
-| REQ-SEC-013 | MUST | The printer's certificate is compared against the configured SHA-256 fingerprint on every connection, and the connection is abandoned if it does not match. No other hash algorithm is accepted in its place. The certificate is self-signed, so no chain and no hostname check can stand in for this. |
+| REQ-SEC-012 | MUST | Relayed connections are accepted only from the configured client networks; connections from elsewhere are refused and logged. Over IPv6 that means link-local clients on the client interface itself: fe80::/10, arriving with that interface's scope, which is checked separately because a network match cannot see scopes. A relay given no permitted network refuses every connection. (Note, 2026-10-07, by Claude, Claude Opus 5.5: over IPv4, the client network is worked out from the client interface's address and is not read from its subnet mask. It is every address that shares the first three numbers of that address, or, when the address begins with 10, every address that begins with 10. On a network whose mask is anything else, that is more addresses, or fewer, than the network holds. The listener is bound to the client interface's own address in every case (REQ-PXY-001).) |
+| REQ-SEC-013 | MUST | The printer's certificate is compared against the configured SHA-256 fingerprint on every connection, and the connection is abandoned if it does not match. No other hash algorithm is accepted in its place. The certificate is self-signed, so no chain and no hostname check can stand in for this. (Note, 2026-10-07, by Claude, Claude Opus 5.5: the certificate's dates are not read. A certificate that matches the fingerprint is accepted after its expiry date, as Edwin West decided on 2026-09-15: the fingerprint names one exact certificate, and refusing it on a date would add only a day on which printing stops. The reason is in `src/SecretPrinter.Proxy/CertificatePin.cs`; this row did not say it.) |
 | REQ-SEC-014 | MUST NOT | Any configuration setting, command-line flag, build switch, or environment variable disables or weakens that comparison. There is no permissive mode. |
 | REQ-SEC-015 | MUST | The documentation states, prominently, that print jobs travel unencrypted on the client network and are encrypted only between the proxy and the printer. |
 | REQ-SEC-016 | MUST NOT | The probe, `SecretPrinter.Probe`, which a release includes beside the service (REQ-DIST-011), starts another program, reads or writes the Windows registry, makes an HTTP request, or writes a file. It does open a socket, and only its own assembly can: it puts its questions over UDP to the network of the interface address it is given, and reads the replies. (Added 2026-10-06 by Claude, Claude Opus 5.5. The probe has been in the release folder since 2026-10-04, and until this requirement nothing in this specification or its tests covered it; see [the finding](docs/findings/2026-10-06-the-probe-was-in-the-release-and-outside-the-security-checks.md).) |
@@ -354,17 +472,17 @@ How print jobs are moved.
 | --- | --- | --- |
 | REQ-LIF-001 | MUST | The service starts and stops cleanly under the Windows service control manager. |
 | REQ-LIF-002 | MUST | On shutdown the service leaves multicast groups, closes listening sockets, and terminates in-flight relays. |
-| REQ-LIF-003 | MUST | On shutdown the service sends mDNS goodbye records (TTL 0) for everything it advertised, so clients drop it promptly. |
-| REQ-LIF-004 | MUST | Fatal configuration or binding errors cause a fast, loud failure — never silent partial operation. |
+| REQ-LIF-003 | MUST | On shutdown the service sends mDNS goodbye records (TTL 0) for everything it advertised, so clients drop it promptly. (Note, 2026-10-07, by Claude, Claude Opus 5.5: the goodbye is sent over IPv4 only, as the announcements are (REQ-ADV-001). Probes go out over both (REQ-ADV-023), and a question is answered over the transport it arrived on (REQ-ADV-018). An iPhone has been seen keeping the printer listed after a goodbye, and on another day dropping it within about three seconds; see [`docs/operating.md`](docs/operating.md#uninstalling). Until this note the fact was in that document and not in this one.) |
+| REQ-LIF-004 | MUST | Fatal configuration or binding errors cause a fast, loud failure — never silent partial operation. (Note, 2026-10-07, by Claude, Claude Opus 5.5: under the Windows service control manager, a failure that comes after the configuration has been accepted is loud in the log and is not reported to Windows. See [Known problems](#known-problems).) |
 | REQ-LIF-005 | MUST | Transient network errors are logged and retried, and do not terminate the service. |
-| REQ-LIF-006 | MUST | While the printer is unreachable per REQ-RES-008, the service stops accepting new client connections, stops answering mDNS queries about itself, and withdraws its advertisement with goodbye records as REQ-LIF-003 requires on shutdown. It resumes all three when the printer answers again. Each change is logged once, with what was observed. The service does not offer a printer it has established it cannot reach. Measured: on 2026-09-20 the printer-side WLAN dropped at 06:49:38Z and the service, which correctly diagnosed the adapter as down, went on advertising and accepting jobs for nine hours; twelve jobs were accepted after the diagnosis and all twelve failed. |
+| REQ-LIF-006 | MUST | While the printer is unreachable per REQ-RES-008, the service stops accepting new client connections, stops answering mDNS queries about itself, and withdraws its advertisement with goodbye records as REQ-LIF-003 requires on shutdown. It resumes all three when the printer answers again. Each change is logged once, with what was observed. The service does not offer a printer it has established it cannot reach. Measured: on 2026-09-20 the printer-side WLAN dropped at 06:49:38Z and the service, which correctly diagnosed the adapter as down, went on advertising and accepting jobs for nine hours; twelve jobs were accepted after the diagnosis and all twelve failed. (Note, 2026-10-07, by Claude, Claude Opus 5.5: there is one case in which it does not resume. If the probe or the announcement cannot be sent when the printer answers again, because the socket reports an error, the service logs that the printer could not be offered, and offers nothing until the printer is lost and found again or the service is restarted. Read from the code; not seen on a network.) |
 | REQ-LIF-007 | MUST | Under the Windows service control manager, a configuration the service refuses is reported to the control manager as a failure to start, not left to time out, and the reason is in the log. Measured: on 2026-09-18 and 2026-09-19 nine refusals, each logged at once with its reason, each reached Windows as error 1053, "did not respond to the start or control request in a timely fashion". The code returned before it had called `ServiceBase.Run`, so the control manager was never answered. See [the finding](docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md). |
 | REQ-LIF-008 | MUST | At startup the service does not refuse to start because the printer-side interface is unusable or the printer does not answer. It waits, offering nothing to the client network: no advertisement, no answer to any query, and no listener, as while withdrawn under REQ-LIF-006, with no goodbye records because nothing was announced. The printer-side adapter must exist by name when the configuration is loaded; its state is examined locally at a fixed interval, and it is usable once it is up, holds exactly one IPv4 address, that address is outside 169.254.0.0/16, and the platform does not report it tentative, deprecated or invalid. Then the printer is asked on the REQ-RES-008 schedule for an unreachable printer until both instances resolve. The adapter wait is logged when it begins, when its reason changes and when it ends; the printer wait when the printer first fails to answer and when it answers. A misspelled printer instance name is indistinguishable from a printer that is switched off, so it waits as well, and the log says so. Decided 2026-09-22, after nine refusals caused by the printer-side adapter being down at startup (`docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md`). |
 | REQ-OBS-001 | MUST | Startup logs list every interface in use, its resolved address, and its role. |
 | REQ-OBS-002 | MUST | Every advertisement published is logged, including the full TXT record set. |
 | REQ-OBS-003 | MUST | The operator can determine, from logs alone, exactly what the service told the client network. |
 | REQ-OBS-004 | MUST NOT | Logs contain print job content, at any log level. |
-| REQ-OBS-005 | SHOULD | Logs note that observed mDNS traffic may contain device names, so operators handle captures accordingly. |
+| REQ-OBS-005 | SHOULD | The documentation notes that the service's log, and what the listening tool prints, hold addresses and the names of devices seen on the network, so operators handle them accordingly. (Reworded 2026-10-07 by Claude, Claude Opus 5.5: this read "Logs note that observed mDNS traffic may contain device names, so operators handle captures accordingly." No log line says so and none ever did. The note is in the listening tool's README, which is the evidence `docs/verification.md` has named for this row, and in `docs/operating.md`, which is now named with it.) |
 | REQ-OBS-006 | MUST | When a relayed connection fails, the logged reason names which peer the failure came from and whether it happened while reading or writing — and carries nothing derived from job content. |
 | REQ-OBS-007 | MUST | The shutdown summary reports queries seen and answered for each transport separately, naming both even when a count is zero, so an operator can tell whether anything was served over IPv6. |
 | REQ-OBS-008 | MUST | Startup logs record the fingerprint the service will require of the printer, and each relayed connection logs the TLS protocol negotiated with it, so an operator can confirm from logs alone that the job went encrypted and to which device. |
@@ -398,34 +516,38 @@ machine-checkable.
 ID like `REQ-PXY-003`. These are stable; they are never renumbered. A retired
 requirement is marked withdrawn, not deleted.
 
-**Step 2 — Code declares which requirement it implements.** Types and methods in
-`src/` are marked with an attribute from `SecretPrinter.Spec`:
+**Step 2 — Code declares which requirement it implements.** Types and methods
+are marked with an attribute from `SecretPrinter.Spec`. So is a whole assembly,
+for a claim about what it does not contain: the service's, and the probe's
+under `tools/`. From `src/SecretPrinter.Proxy/IppRelay.cs`:
 
 ```csharp
 [Requirement("REQ-PXY-003",
-    "Payload bytes are copied between streams without inspection.")]
-internal sealed class IppRelay
-{
-    // ...
-}
+    "Copies bytes verbatim in both directions. Nothing here reads, branches on, or alters payload content.")]
+public async Task<RelayOutcome> RelayOneAsync(IDuplexConnection client, CancellationToken cancellationToken)
 ```
 
-**Step 3 — Tests declare which requirement they verify.**
+**Step 3 — Tests declare which requirement they verify.** From
+`tests/SecretPrinter.Proxy.Tests/IppRelayTests.cs`:
 
 ```csharp
-[Fact]
+[TestCase("Bytes reach the printer exactly as the client sent them")]
 [Requirement("REQ-PXY-003")]
-public async Task Relay_does_not_alter_payload_bytes()
-{
-    // ...
-}
+public static void Payload_reaches_the_printer_unchanged()
 ```
+
+`[TestCase]` is this repository's own, from `tests/SecretPrinter.TestKit`. No
+test framework is referenced. (Both examples replaced 2026-10-07 by Claude, Claude Opus 5.5. They showed a
+class and a test that are not in the repository, the marker sat on a class
+where the real one sits on a method, and the test carried `[Fact]`, the
+attribute of a test framework this project does not use.)
 
 **Step 3a — Requirements that cannot be code are evidenced instead.** Some
 requirements are properties of the build or release process rather than of any
 type or method: `REQ-DIST-004` (release binaries are signed) can never carry an
 attribute. Those are recorded in `docs/verification.md`, one row per
-requirement, each naming the artifacts that satisfy it:
+requirement, each naming the artifacts that satisfy it. A row has this shape;
+the real row for this requirement is longer:
 
 ```
 | REQ-DIST-004 | .github/workflows/release.yml | The sign step invokes Azure Trusted Signing. |
@@ -465,7 +587,11 @@ machine, and the matrix reported it `OK` on both until this was added.
 **Step 3c — Results must describe the build being checked.** A results file
 records the module version id of every SecretPrinter assembly the run
 exercised. Builds are deterministic, so that id is a function of content and
-changes exactly when the code does.
+changes exactly when the code does. (Note, 2026-10-07, by Claude, Claude Opus 5.5:
+since 2026-10-04 the version and the commit the clone is on are stamped into
+every assembly, so the id also changes when either of those does, with no
+change to the code. After moving a clone to another commit, build and run the
+suites again before running the check.)
 
 SpecCheck compares those fingerprints against the assemblies it scans and
 refuses any file produced against different code:
@@ -508,7 +634,9 @@ Opus 5.5.)
 
 **Step 4 — A tool checks the correspondence.** `tools/SecretPrinter.SpecCheck`
 parses the requirement tables out of this README, reflects over the built
-assemblies, and produces a coverage matrix:
+assemblies, and produces a coverage matrix. The four lines below show the four
+kinds of result. They are an illustration and not today's matrix, in which
+REQ-ADV-005 and REQ-ADV-016 both read `OK`:
 
 ```
 REQ-PXY-003   MUST NOT  impl: IppRelay                  test: Relay_does_not_alter~  OK
@@ -517,9 +645,11 @@ REQ-ADV-016   SHOULD    impl: (none)                    test: (none)            
 REQ-DIST-002  MUST      impl: evidence: Directory.B~    test: (none)                 OK (evidence)
 ```
 
-The tool exits non-zero when any `MUST` or `MUST NOT` requirement lacks either an
-implementation marker or a test, and CI fails on that. `SHOULD` requirements are
-reported but do not fail the build.
+The tool exits non-zero when any `MUST` or `MUST NOT` requirement is covered
+neither by an implementation marker with a passing test nor by intact evidence,
+and CI fails on that. `SHOULD` requirements are reported but do not fail the
+build. (Reworded 2026-10-07 by Claude, Claude Opus 5.5: this said "lacks either an implementation marker
+or a test", which left out the requirements that rest on evidence.)
 
 It also fails on the reverse error: an attribute in code citing an ID that does
 not appear in this README. Requirements and code cannot drift apart in either
@@ -529,15 +659,34 @@ direction.
 
 To check whether the code matches this document:
 
-1. Run the checker from the repository root:
+1. Build, run the test suites, and then run the checker, from the repository
+   root. On Windows, with the .NET 10 SDK:
 
    ```
-   dotnet run --project tools/SecretPrinter.SpecCheck -- \
-     --readme README.md --evidence docs/verification.md --search .
+   powershell -ExecutionPolicy Bypass -File .\run-tests.ps1
+   powershell -ExecutionPolicy Bypass -File .\run-speccheck.ps1
    ```
 
-   It reports which requirements are implemented, tested, evidenced, or none of
-   these.
+   The first builds everything and runs every suite, writing a results file
+   for each. The second hands those files to the checker, which reports which
+   requirements are implemented, tested, evidenced, or none of these.
+
+   The checker reads built assemblies, so the build has to come first. Until
+   2026-10-07 this step gave one command and nothing else:
+   `dotnet run --project tools/SecretPrinter.SpecCheck -- --readme README.md --evidence docs/verification.md --search .`
+   Run on a fresh clone, that builds the checker alone. Measured that day: it
+   found 2 assemblies, reported no requirement as covered by code, and listed
+   79 binding gaps. That is a true report of a tree in which nothing has been
+   built, and a false picture of the repository
+   ([the finding](docs/findings/2026-10-07-the-readme-was-read-against-the-code.md)).
+
+   On a machine with no IPv6, the tests that open an IPv6 socket skip, and the
+   checker reports the requirements that only those tests cover as
+   `TEST DID NOT RUN`. Measured on 2026-10-07 on Linux, in a workspace with no
+   IPv6: nine tests skipped, and REQ-ADV-019 and REQ-ADV-020 read
+   `TEST DID NOT RUN`. That workspace could not download the service's one
+   package either, and compiled the service against the copy of that library
+   inside the SDK. What the suites do on Linux with IPv6 has not been measured.
 2. For each requirement, read the marked implementation and judge whether it
    actually does what the requirement says. **The tool proves a marker exists
    and that a test carrying it passed. It cannot prove the marker is honest, or
@@ -560,7 +709,7 @@ been true of the csproj and false of what actually ships:
 | Package | How | Why |
 | --- | --- | --- |
 | `System.ServiceProcess.ServiceController` 10.0.11 | Declared by `SecretPrinter.Service` | Provides `ServiceBase`, without which the program cannot register with the Windows service control manager. Published by Microsoft as part of .NET, but shipped out of band rather than in the base class library. |
-| `System.Diagnostics.EventLog` 10.0.11 | Pulled in by the above | `ServiceBase` writes to the Windows Event Log when a service fails to start. SecretPrinter does not use it directly. |
+| `System.Diagnostics.EventLog` 10.0.11 | Pulled in by the above | `ServiceBase` writes to the Windows Event Log when a service fails to start. SecretPrinter does not use it directly. (Note, 2026-10-07, by Claude, Claude Opus 5.5: not only then. SecretPrinter leaves `ServiceBase.AutoLog` at its default, which the header of `src/SecretPrinter.Service/RefusedStartService.cs` records as on. Microsoft's documentation says that with it on a service uses "the Application event log to report command failures, as well as state change information for Start, Stop, Pause, and Continue events", with the service's name as the source ([`ServiceBase.AutoLog`](https://learn.microsoft.com/en-us/dotnet/api/system.serviceprocess.servicebase.autolog), read 2026-10-07). So `ServiceBase` may write an entry at each start and stop of the service as well. Whether any such entry is written when the service runs as `LocalService` has not been measured.) |
 
 The alternative was hand-written interop against `advapi32` - roughly 150 lines,
 untestable, in exactly the code path where a mistake means the printer is never
@@ -576,6 +725,22 @@ is more useful than a claim that reads as broader than it is. (Corrected
 metadata of every shipped assembly". The probe is shipped too, and until that
 day no test read it; see
 [the finding](docs/findings/2026-10-06-the-probe-was-in-the-release-and-outside-the-security-checks.md).)
+
+**A release also carries the .NET runtime.** The release folder is published
+self-contained (REQ-DIST-011), so it holds its own copy of .NET, and the
+version of that copy is fixed when the folder is built. The folder the release
+workflow signed on 2026-10-04 carries .NET 10.0.12
+([finding](docs/findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
+Neither Windows Update nor installing .NET changes that copy. Microsoft's
+documentation says a self-contained application "doesn't roll forward to the
+latest available .NET security patch", and that its runtime "can only be
+upgraded by releasing a new version of the app"
+([.NET application publishing overview](https://learn.microsoft.com/en-us/dotnet/core/deploying/),
+read 2026-10-07). So a fix to .NET reaches an installation only in a new
+release of SecretPrinter. Which runtime a folder carries can be read from
+`SecretPrinter.Service.runtimeconfig.json` inside it. The runtime's files are
+Microsoft's and carry Microsoft's signatures; the release workflow checks
+those signatures and changes none of those files. (Paragraph added 2026-10-07 by Claude, Claude Opus 5.5.)
 
 Everything else in this repository depends only on the base class library and on
 other projects here. `REQ-SEC-009` is what keeps that true, and this table is
@@ -673,8 +838,9 @@ REQ-DIST-011 stayed uncovered until such a run was recorded.)
 
 `.github/workflows/release.yml` turns a tag beginning with `v` into a release.
 It builds, runs every test, runs `publish-release.ps1`, signs SecretPrinter's
-own files in a job that waits for a person's approval, checks every signature,
-and publishes the zip only if the specification check passed. The version lives
+own files in a job that runs in a GitHub environment set to require a person's
+approval, checks every signature, and publishes the zip only if the
+specification check passed. The version lives
 in one place, `<Version>` in `Directory.Build.props`, and the workflow refuses a
 tag that does not match it or that has no entry in `CHANGELOG.md`. It has run
 twice, both on 2026-10-04 and both for trial tags that are not releases. The
@@ -685,7 +851,10 @@ No release has been published, and the job that publishes one has never run.
 (Paragraph, the `release.yml` line in the tree and the `[done]` beside
 `CHANGELOG.md` added 2026-10-04 by Claude, Claude Opus 5.5, and corrected twice
 the same day as the workflow ran: it first said the workflow had never run, and
-then that nothing had been signed.)
+then that nothing had been signed. Corrected 2026-10-07 by Claude, Claude Opus 5.5: it said the signing
+job "waits for a person's approval". That requirement is a setting of the
+GitHub environment, which is outside this repository, and whether the run of
+2026-10-04 waited for an approval is not recorded.)
 
 `SecretPrinter.Listen6` and `SecretPrinter.Loop6` are measurement tools written
 to answer one question each while IPv6 was being added; each one's header
@@ -730,7 +899,14 @@ here rather than discovered later.
 **What that means concretely:**
 
 - Source files carry a header naming the model that wrote them and the person
-  who directed the work.
+  who directed the work. Three files carry none: `LICENSE`, which is the
+  license's own text; `global.json`, whose format has no comments; and
+  `SecretPrinter.slnx`, the solution file. The same claim is compiled into
+  every assembly as metadata, from `AuthoredBy` in `Directory.Build.props`,
+  so that it travels with a program separated from this repository. Until
+  2026-10-07 that metadata named Claude Opus 4.5 alone, although later models
+  had written much of the code; it now names the three models named at the
+  top of this document. (The last three sentences added 2026-10-07 by Claude, Claude Opus 5.5.)
 - Design decisions were made in conversation between a human and Claude. Where a
   decision was contested or uncertain, that is recorded in `docs/` rather than
   presented as settled.
@@ -758,11 +934,11 @@ Recorded here rather than resolved silently.
 
 | # | Question | Status |
 | --- | --- | --- |
-| 1 | **Does iOS require IPPS?** | Resolved: no, not for discovery. An iPhone listed a printer advertised with no IPPS service and no TLS. See [findings](docs/findings/2026-09-02-ios-accepts-advertisement.md). For printing the answer is different and was measured on 2026-09-15: the ET-3760 answers `Get-Printer-Attributes` in the clear but refuses `Validate-Job` with `426 Upgrade Required`, so a job does not complete over plain IPP. TLS is not deferred; it is the remaining blocker to printing. See [findings](docs/findings/2026-09-15-printer-requires-tls-for-job-operations.md) and open question 8. |
+| 1 | **Does iOS require IPPS?** | Resolved: no, not for discovery. An iPhone listed a printer advertised with no IPPS service and no TLS. See [findings](docs/findings/2026-09-02-ios-accepts-advertisement.md). For printing the answer is different and was measured on 2026-09-15: the ET-3760 answers `Get-Printer-Attributes` in the clear but refuses `Validate-Job` with `426 Upgrade Required`, so a job does not complete over plain IPP. The proxy therefore carries jobs to the printer over TLS; see [findings](docs/findings/2026-09-15-printer-requires-tls-for-job-operations.md) and open question 8. (Corrected 2026-10-07 by Claude, Claude Opus 5.5: this still said "TLS is not deferred; it is the remaining blocker to printing." That stopped being true on 2026-09-17, the day of the first end-to-end print ([finding](docs/findings/2026-09-21-a-second-printer-entry-on-the-iphone.md)).) |
 | 2 | **Can the service send mDNS responses that clients accept while another responder holds port 5353?** | Resolved: yes. Responses sent from a socket sharing 5353 with `Dnscache` were accepted by iOS, which listed the advertised printer. See [findings](docs/findings/2026-09-02-ios-accepts-advertisement.md). |
 | 3 | **What should the project be called?** | Resolved: SecretPrinter. The prefix is a deliberate joke shared across a family of open projects and means the opposite of what it says. Explained under [About the name](#about-the-name). |
 | 4 | **Is `mopria-certified` safe to relay?** The bytes would be identical to the printer's, and the printer is certified — but the proxy is not the certified device. | Currently forbidden by REQ-ADV-007. Revisit with evidence. |
-| 5 | **What privileges does the service actually need?** | Resolved: none beyond standard user. Measured on 2026-09-04 by running unelevated and confirming every bind, join and relay succeeded. Running as a Windows service under `NT AUTHORITY\LocalService` was measured on 2026-09-21 on FIOS-STB-01: under that account the service bound its sockets, joined both multicast groups, resolved the printer, answered discovery, opened TLS to the printer and relayed pages that printed. That is one machine; the dev box has no service registered. The folder grant it runs with also lets it modify its own configuration file, which the service never does; that is recorded, not decided. (Until 2026-09-22 this entry said running under `LocalService` remained unmeasured, which had stopped being true on 2026-09-21.) See [findings](docs/findings/2026-09-04-service-runs-unelevated.md) and [findings](docs/findings/2026-09-18-running-as-localservice.md). |
+| 5 | **What privileges does the service actually need?** | Resolved: none beyond standard user. Measured on 2026-09-04 by running unelevated and confirming every bind, join and relay succeeded. Running as a Windows service under `NT AUTHORITY\LocalService` was measured on 2026-09-21 on FIOS-STB-01: under that account the service bound its sockets, joined both multicast groups, resolved the printer, answered discovery, opened TLS to the printer and relayed pages that printed. That was one machine. On a second, the test machine of [the finding of 2026-10-04](docs/findings/2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md) and [the finding of 2026-10-06](docs/findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md), the service was registered under `LocalService`, started, and relayed pages that printed; the account of the running process was not read there. The dev box has no service registered. (Updated 2026-10-07 by Claude, Claude Opus 5.5: this said "That is one machine", which stopped being so on 2026-10-04.) The folder grant it runs with also lets it modify its own configuration file, which the service never does; that is recorded, not decided. (Until 2026-09-22 this entry said running under `LocalService` remained unmeasured, which had stopped being true on 2026-09-21.) See [findings](docs/findings/2026-09-04-service-runs-unelevated.md) and [findings](docs/findings/2026-09-18-running-as-localservice.md). |
 | 6 | **How should the service register with Windows?** | Resolved: `System.ServiceProcess.ServiceController` is referenced for `ServiceBase`, documented under [Dependencies](#dependencies) as REQ-SEC-009 requires. Run with `--service` to register with the control manager, or without it as a console application. |
 | 7 | **Will iOS accept an `A` record delivered over IPv6 mDNS transport, and then connect over IPv4?** | Resolved: yes. Over `ff02::fb`, an iPhone was sent an mDNS response carrying an `A` record, and seventy milliseconds later it sent IPv4 SYNs to port 631. The responder was the experiment tool `SecretPrinter.Respond6`, which sends an `NSEC` denying `AAAA` with some of its answers and not with others; whether that response carried one is not recorded, and whether an `NSEC` played any part was not measured. (Note, 2026-10-02, by Claude, Claude Opus 5.5: the tool was deleted on 2026-10-02, and what is said of it here describes its last version; [section 12](#12-repository-layout) says where its source is.) IPv6 mDNS transport is specified as REQ-ADV-018 to REQ-ADV-020. Resolution, which talks to the printer, is unaffected by IPv6. The relay is not: REQ-ADV-021 publishes an `AAAA` record for each preferred link-local address of the client interface, and the relay listens on those addresses; open question 11 records which address an iPhone then used. See [findings](docs/findings/2026-09-06-ipv6-mdns-transport.md). (Corrected 2026-10-01 by Claude, Claude Opus 5.5: until then this entry said that the iPhone accepted the `NSEC`, which was not measured; that IPv6 was therefore mostly a transport addition to `SecretPrinter.Mdns`; and that resolution and relay were unaffected because REQ-ADV-021 forbade publishing an `AAAA` record. The last two stopped being true at commit `2c93864`, on 2026-10-01, when REQ-ADV-021 was rewritten to publish link-local `AAAA` records and the relay began listening on them. This entry was not updated in that commit.) |
 | 8 | **Should the proxy originate TLS toward the printer?** Open question 1 establishes that this printer will not accept a job without it, so printing depends on the answer. | Resolved 2026-09-15: yes, and by implicit TLS on port 631, where the printer advertises `_ipps._tcp` and accepts a handshake from the first byte. The client side stays plaintext, which is a considered choice for a home LAN and is disclosed as the fourth item under [Read this before installing](#read-this-before-installing). The certificate is self-signed — subject and issuer both `CN=EPSON000000`, the printer's host name with its low three bytes redacted as elsewhere in this repository — so it is pinned by fingerprint in configuration and checked on every connection, with no permissive mode. Trust-on-first-use was rejected because remembering a certificate means writing state to disk, and a test reads `SecretPrinter.Proxy`'s compiled metadata and fails if it references any file-writing type at all. (An earlier wording here said "several tests" enforced that across "this project". There is one test, and it covers the proxy assembly. `SecretPrinter.Service` does write one file, the operator's log — see `REQ-OBS-009`.) Specified as REQ-PXY-010 to REQ-PXY-012, REQ-CFG-007, REQ-SEC-013 to REQ-SEC-015 and REQ-OBS-008. See [findings](docs/findings/2026-09-15-printer-requires-tls-for-job-operations.md). |

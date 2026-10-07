@@ -4,6 +4,11 @@
 # Written by Claude (Anthropic model, Claude Opus 5) at the direction of
 # Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 #
+# The message for a missing results file corrected by Claude (Anthropic model,
+# Claude Opus 5.5) at the direction of Edwin West, 2026-10-07. It named
+# test1.ps1, a script this repository does not hold; the script is run-tests.ps1.
+# Reviewed by a human before merge.
+#
 # Purpose:
 #   Runs the specification checker against the results files that run-tests.ps1
 #   produced, and prints its exit code.
@@ -22,7 +27,7 @@ try {
     $results = Get-ChildItem -Path artifacts -Filter '*.Tests.txt' | Sort-Object Name
 
     if ($results.Count -ne $suites.Count) {
-        throw "Expected $($suites.Count) results file(s), found $($results.Count). Re-run test1.ps1 first."
+        throw "Expected $($suites.Count) results file(s), found $($results.Count). Re-run run-tests.ps1 first."
     }
 
     $resultArgs = $results | ForEach-Object { '--test-results', $_.FullName }

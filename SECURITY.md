@@ -60,7 +60,10 @@ demands of people doing it a favour.
 
 - The service and libraries under `src/`.
 - The diagnostic tools under `tools/`.
-- The CI workflow and, once it exists, the release workflow.
+- The CI workflow and the release workflow. (Corrected 2026-10-07 by Claude,
+  Anthropic model, Claude Opus 5.5, at the direction of Edwin West: this read
+  "and, once it exists, the release workflow". It has existed since
+  2026-10-04.)
 - **A gap between the specification and the code.** `README.md` is the
   specification. If the code does something the specification does not describe,
   or fails to do something a `MUST` requires, that is a defect in a project whose

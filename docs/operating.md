@@ -128,6 +128,22 @@ by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 ([finding](findings/2026-10-06-the-probe-was-in-the-release-and-outside-the-security-checks.md)).
 Reviewed by a human before merge.*
 
+*Corrected by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+Edwin West, 2026-10-07, when the README was read against the code and the
+findings ([finding](findings/2026-10-07-the-readme-was-read-against-the-code.md)).
+Under "Allow inbound mDNS": the sentence that Windows Firewall "will usually
+prompt on first run", which nothing had measured. Under Configuring: the
+sentence that the service "does not start if either does not answer", which
+stopped being true on 2026-09-22; and a paragraph on IPv6 on the client-side
+adapter. Under Running: the meaning of exit code 4. Under "As a Windows
+service": a line that removes the second, unused copy of the configuration
+which the install step leaves beside the program when the configuration was
+made in the release folder; and a paragraph on a service that fails after it
+has started. Under Privileges: the second machine `LocalService` has run on.
+New section: "What you will see on an iPhone". The added line has not been
+run by anyone yet.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -258,9 +274,14 @@ The consequence is that a few things are your job.
 
 ### 1. Allow inbound mDNS
 
-SecretPrinter must receive UDP 5353 on both networks. Windows Firewall will
-usually prompt on first run; if you dismiss it, or run as a service where no one
-is there to click, add the rule yourself:
+SecretPrinter must receive UDP 5353 on both networks. Add the rule yourself.
+Windows Firewall may ask when a program first listens, if it is run from a
+console window; a service has no one to answer, and whether Windows asks for
+this program has not been measured. (Until 2026-10-07 this said Windows
+Firewall "will usually prompt on first run". On 2026-10-06 a machine on which
+the program had been run from a console window on two days was read, and no
+firewall rule made by Windows named it; whether Windows had asked was not
+recorded.)
 
 ```powershell
 # Run as Administrator.
@@ -447,8 +468,24 @@ printer's capabilities, which the advertisement is built from, come from it.
 `printerIppsInstance` is the one ending in `._ipps._tcp.local`: every connection
 to the printer goes to the address and port it resolves to. Neither is worked
 out from the other, and each is refused if it does not end in its own service
-type. The service resolves both at startup and does not start if either does
-not answer.
+type. The service resolves both at startup. If either does not answer, it
+starts, offers nothing, and keeps asking (`REQ-LIF-008`). A misspelled name
+looks exactly like a printer that is switched off, and the log says so. (Until
+2026-10-07 this said the service "does not start if either does not answer",
+which was so until 2026-09-22.)
+
+**Each client-side adapter needs IPv6 switched on.** The service answers mDNS
+over IPv6 as well as IPv4 on the client side (`REQ-ADV-018`), and it is not
+built to run without that. To check:
+
+```powershell
+Get-NetAdapterBinding -Name '<adapter name>' -ComponentID ms_tcpip6
+```
+
+This is not checked when the configuration is loaded. Read from the code and
+never run: with IPv6 off on a client adapter, the service would wait for the
+printer as usual and then stop with an error naming the adapter. The printer
+side needs only IPv4.
 
 **The name ending `._ipp._tcp.local` can be printed twice.** The probe prints an
 `INSTANCE` line under a `SERVICE TYPE` heading for each service type it asked
@@ -491,8 +528,13 @@ would put a file somewhere you did not choose.
 | 0 | Stopped cleanly. |
 | 2 | Bad arguments. |
 | 3 | Configuration is not usable; every problem is listed. |
-| 4 | An interface, socket or the printer was unavailable. |
+| 4 | A socket could not be opened, or an interface could not be used. The log line begins `Could not start:`. |
 | 5 | The log file could not be opened. |
+
+A printer that does not answer, and a printer-side adapter that is down, are
+not exits: the service waits for them (`REQ-LIF-008`). Until 2026-10-07 the
+row for exit code 4 read "An interface, socket or the printer was
+unavailable", and the program's own `--help` text still says so.
 
 ### As a Windows service
 
@@ -535,6 +577,23 @@ Put the program in `C:\Program Files\SecretPrinter` and keep the configuration i
 Copy-Item <release-folder> "C:\Program Files\SecretPrinter" -Recurse
 Copy-Item <your>\secretprinter.json "C:\ProgramData\SecretPrinter\secretprinter.json"
 ```
+
+**If you made the configuration in the release folder,** as
+[Configuring](#configuring) has you do, the first command copied it into
+`C:\Program Files\SecretPrinter` with everything else. Nothing reads that
+copy: the service is registered below to read the one in
+`C:\ProgramData\SecretPrinter`. Remove it, so that there is one
+configuration and no doubt about which is in use:
+
+```powershell
+# Run as Administrator.
+Remove-Item "C:\Program Files\SecretPrinter\secretprinter.json"
+```
+
+Until 2026-10-07 this step did not say so. The stray copy was noticed by
+reading the steps, not on a machine: the installs measured so far were made
+from a folder that held no configuration. The `Remove-Item` line has not been
+run yet.
 
 `C:\Program Files\SecretPrinter` must not exist yet. If it does, `Copy-Item`
 puts the release folder inside it and not in its place, and the service path
@@ -601,6 +660,14 @@ service waited, logging why, and offered the printer three seconds after the
 adapter became usable, with no restart
 ([the finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
 A boot at which the client-side adapter is not yet ready has not been measured.
+
+**If the service fails after it has started, Windows is not told.** Read from
+the code and never run: when something fails after the configuration has been
+accepted, the service logs a line beginning `Service stopped because of an
+error`, and nothing asks Windows to stop it, so `sc.exe query` would go on
+showing `RUNNING` with nothing running. If the printer is not offered and the
+service reads as running, read the end of the log before anything else. This
+is listed under Known problems in the README and is not yet corrected.
 
 To remove it:
 
@@ -761,6 +828,46 @@ Verified on FIOS-STB-01, 2026-09-19.
 
 ---
 
+## What you will see on an iPhone
+
+Open the print screen and tap **Printer**. The proxy is listed under the name
+you gave it in `advertise.instanceName`; the example's is
+`SecretPrinter (ET-3760)`. In its list of known printers an iPhone has shown,
+with that name, a note that begins `SecretPrinter proxy. Capabilities read
+from the printer at` and gives a time.
+
+**On an iPhone that has printed to the printer directly, the name may change
+when you pick it.** This has been seen on one iPhone, which had printed to the
+development printer on the printer's own network before:
+
+- its list held two rows, `SecretPrinter (ET-3760)` and `EPSON ET-3760
+  Series`;
+- tapping the first turned the selection into `EPSON ET-3760 Series`;
+- the page printed, and the service's log showed every connection of that
+  print relayed through the proxy.
+
+So the row with the printer's name led to the proxy too. A second device,
+which had not printed to the printer, listed only the proxy and kept its name,
+by Edwin West's account. Captures on 2026-09-29 found nothing sent by
+SecretPrinter that named the printer's host, and that finding puts the label
+down to what the iPhone remembered of the printer. The proxy's advertisement
+does carry the printer's product string, `(EPSON ET-3760 Series)`, which the
+README's REQ-ADV-009 has it copy. Why iOS does it is not established, and a
+device that has never been on the printer's network was not tested. Seen on
+2026-09-21, 2026-09-29 and 2026-10-06, the last time through two different
+installations
+([2026-09-21](findings/2026-09-21-a-second-printer-entry-on-the-iphone.md),
+[2026-09-29](findings/2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md),
+[2026-10-06](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
+
+**A print attempt can send no job while the proxy is answering.** Three
+attempts on record did that, on 2026-10-01 and 2026-10-02, and in two of them
+the iPhone said it could not reach the printer. Try again; a later attempt
+printed on both days. The cause is not established
+([finding](findings/2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md)).
+
+---
+
 ## Reading the log
 
 The startup log states every interface and the address it resolved to, then the
@@ -832,9 +939,14 @@ that elevation provides.
 minimal local rights. The service runs under it on FIOS-STB-01, measured
 2026-09-21 and in use since 2026-09-18
 ([the finding](findings/2026-09-18-running-as-localservice.md)). So the claim is
-now "runs as LocalService", on that machine. It has not been measured on any
-other; if you run it elsewhere and it differs, add what you find to
-`docs/findings/`.
+now "runs as LocalService", on that machine. On a second machine, running
+Windows 11, the service was registered under `LocalService`, started, and
+printed, on 2026-10-04 and 2026-10-06; the account of the running process was
+not read there
+([the finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
+If you run it elsewhere and it differs, add what you find to
+`docs/findings/`. (Until 2026-10-07 this said "It has not been measured on any
+other".)
 
 ## When the printer-side network drops
 

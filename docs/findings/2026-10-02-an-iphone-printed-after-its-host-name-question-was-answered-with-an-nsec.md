@@ -217,6 +217,13 @@ transport.
 3. **Answers less than a second apart.** In run 1 three of the service's ten
    answers followed the one before by 0.22, 0.34 and 0.67 seconds, repeating
    the same records. RFC 6762 §6 allows one multicast of a record per second.
+
+   *(Status note, 2026-10-07, by Claude, Claude Opus 5.5: items 2 and 3 now have a
+   finding of their own, with two more things RFC 6762 asks of a responder
+   that the service does not do, each measured against the code:
+   [the finding](2026-10-07-four-things-rfc-6762-asks-of-a-responder-are-not-done.md).
+   The README lists all four under Known problems. Until today it stated
+   none of them. The code is unchanged.)*
 4. **Direct unicast questions went unanswered again,** as on 2026-10-01: 36 of
    them across the six runs, and no unicast reply from the service in any.
 5. **The capture gaps are explained.** tshark marked up to 17 segments as

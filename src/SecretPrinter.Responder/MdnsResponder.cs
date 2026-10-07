@@ -86,6 +86,15 @@
 // docs/findings/2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md.
 // No code changed. Reviewed by a human before merge.
 //
+// The REQ-SEC-001 note on HandleAsync corrected by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-10-07. It said "no byte
+// of a received packet is ever re-emitted". A legacy unicast answer repeats
+// the query's identifier and its question, as RFC 6762 s6.7 requires and as
+// this method has done since REQ-ADV-017 was met; the note now says so. The
+// text of one marker changed and no statement that runs. See
+// docs/findings/2026-10-07-the-readme-was-read-against-the-code.md. Reviewed
+// by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -572,7 +581,7 @@ public sealed partial class MdnsResponder
     [Requirement("REQ-ADV-017",
         "Answers a legacy unicast querier by unicast, echoing its query identifier and capping TTLs.")]
     [Requirement("REQ-SEC-001",
-        "Every record sent comes from this responder's own Advertisement, or is an NSEC record built from that Advertisement when the responder is constructed, listing the types of the records it claims at one of its own names. Received datagrams are read for their questions and, to detect conflicts with the names this responder claims, for records about those names; no byte of a received packet is ever re-emitted, so nothing is forwarded or reflected between networks.")]
+        "Every record sent comes from this responder's own Advertisement, or is an NSEC record built from that Advertisement when the responder is constructed, listing the types of the records it claims at one of its own names. Received datagrams are read for their questions and, to detect conflicts with the names this responder claims, for records about those names. No record from a received packet is ever sent on, so nothing is forwarded or reflected between networks. Two things from a query are repeated, to the device that sent it and on the network it came from: a legacy unicast answer carries that query's identifier and its question, written again from the parsed values, as RFC 6762 s6.7 requires.")]
     [Requirement("REQ-ADV-018",
         "Answers over the transport the query arrived on: the advertisement is looked up by the arrival interface's address family as well as its index, and the answer is sent through the entry for that family. The receiving half of this requirement is MdnsSocket.ReceiveAsync.")]
     [Requirement("REQ-SEC-002",

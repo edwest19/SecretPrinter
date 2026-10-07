@@ -80,3 +80,10 @@ that either value reaches the wire. `tests/SecretPrinter.Mdns.Tests` reads the
 options back from the socket, which proves the operating system accepted them
 and nothing more. The same capture that settles the IPv4 question should read
 the hop limit on an IPv6 response while it is there.
+
+*(Status note, 2026-10-07, by Claude, Claude Opus 5.5: still unconfirmed. No capture has been
+taken and the code is unchanged. Until today the README did not mention this:
+`REQ-ADV-013` read as met without qualification, and the coverage matrix still
+reports it `OK`. The README row now carries a note saying the TTL of an IPv4
+answer sent by unicast is not established, and the README's Known problems
+list names it. See [the finding](2026-10-07-the-readme-was-read-against-the-code.md).)*

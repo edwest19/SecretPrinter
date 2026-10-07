@@ -200,6 +200,14 @@ reasoning Section 2 gives and cites no observation.)*
 Whether the links to port 80 above belong among the README's stated limitations
 is also Edwin's call.
 
+*(Status note, 2026-10-07, by Claude, Claude Opus 5.5: they are stated there now, in the third
+item under "Read this before installing", with the `Server` header and the
+maker and model strings the advertisement copies. Claude decided to state
+them and did not put the question to Edwin again; he can have the wording
+changed or taken out. What an iPhone shows for the printer is now
+described for users in `docs/operating.md`, under "What you will see on an
+iPhone". See [the finding](2026-10-07-the-readme-was-read-against-the-code.md).)*
+
 ## Not established
 
 - **What iOS keeps from a network it has left,** for how long, and what it

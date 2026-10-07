@@ -76,9 +76,15 @@
          comments and the README. Someone holding only a binary can read it:
            ildasm, or  [Reflection.Assembly]::LoadFrom($dll).GetCustomAttributes($true)
          This is the same claim the README makes, in a place it cannot be
-         separated from the artifact. -->
+         separated from the artifact.
+
+         AuthoredBy corrected 2026-10-07 by Claude (Anthropic model, Claude
+         Opus 5.5) at the direction of Edwin West. It named Claude Opus 4.5
+         alone, which stopped being the whole of it when later models began
+         changing the code. It now names the three models the README names,
+         and says which did what, as the README does. -->
     <AssemblyMetadata Include="AuthoredBy"
-                      Value="Claude (Anthropic model, Claude Opus 4.5)" />
+                      Value="Claude (Anthropic models: Claude Opus 4.5 for the original work, Claude Opus 5 and Claude Opus 5.5 for later changes)" />
     <AssemblyMetadata Include="DirectedBy"
                       Value="Edwin West" />
     <AssemblyMetadata Include="Specification"

@@ -128,6 +128,13 @@ an error", but nothing in `WindowsService` asks the control manager to stop,
 and `Failure` is read only in `OnStop`. Whether the service is then left
 showing as running with nothing running has not been checked.
 
+*(Status note, 2026-10-07, by Claude, Claude Opus 5.5: still not checked on a machine, and
+the code is as described. It was read again today and reads the same way: the
+process stays, because `ServiceBase.Run` returns only when the service is
+stopped and nothing stops it. This paragraph was not carried into the README
+or into `docs/operating.md` when it was written. Both now state it, the README
+under Known problems. See [the finding](2026-10-07-the-readme-was-read-against-the-code.md).)*
+
 ## Measured after the fix
 
 On 2026-09-22 Edwin stopped the service, pulled `937de66` on FIOS-STB-01,
