@@ -144,6 +144,16 @@ New section: "What you will see on an iPhone". The added line has not been
 run by anyone yet.
 Reviewed by a human before merge.*
 
+*Corrected by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+Edwin West, 2026-10-07, later the same day, when the code was changed so that a
+service which fails after it has started stops, and ends its process
+([finding](findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md)).
+Under Running: the row for exit code 4 and the paragraph below the table.
+Under "As a Windows service": the paragraph on a service that fails after it
+has started, rewritten. What that paragraph describes has not been run under
+Windows.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -528,13 +538,18 @@ would put a file somewhere you did not choose.
 | 0 | Stopped cleanly. |
 | 2 | Bad arguments. |
 | 3 | Configuration is not usable; every problem is listed. |
-| 4 | A socket could not be opened, or an interface could not be used. The log line begins `Could not start:`. |
+| 4 | The service could not start, or could not go on: a socket could not be opened, an interface could not be used, or a part of the running service failed. Run from a console, the last error in the log begins `Stopped because of an error:`. |
 | 5 | The log file could not be opened. |
 
 A printer that does not answer, and a printer-side adapter that is down, are
 not exits: the service waits for them (`REQ-LIF-008`). Until 2026-10-07 the
 row for exit code 4 read "An interface, socket or the printer was
-unavailable", and the program's own `--help` text still says so.
+unavailable", and so did the program's own `--help` text; both now say what
+is above. Since the same day a part of the service that fails while it is
+running ends the whole service with this code. Before, the other parts ran on
+([finding](findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md)).
+Under `--service` the process ends with the same code; see "As a Windows
+service" below for what is and is not known about that.
 
 ### As a Windows service
 
@@ -661,13 +676,26 @@ adapter became usable, with no restart
 ([the finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
 A boot at which the client-side adapter is not yet ready has not been measured.
 
-**If the service fails after it has started, Windows is not told.** Read from
-the code and never run: when something fails after the configuration has been
-accepted, the service logs a line beginning `Service stopped because of an
-error`, and nothing asks Windows to stop it, so `sc.exe query` would go on
-showing `RUNNING` with nothing running. If the printer is not offered and the
-service reads as running, read the end of the log before anything else. This
-is listed under Known problems in the README and is not yet corrected.
+**If the service fails after it has started, it stops and its process ends.**
+Changed in the code on 2026-10-07 and not yet run under Windows. When
+something fails after the configuration has been accepted, the service stops
+everything it was doing, sends its goodbye, and logs an error line beginning
+`Service stopped because of an error`, then one beginning `Ending the process
+with exit code 4`. If it was one part of a running service that failed, such
+as a listener that could not be opened, an error line beginning `A part of the
+service failed` comes before those two. The process then ends, so that Windows
+does not go on showing a failed service as running.
+
+Not measured: what `sc.exe query` shows afterwards, what `sc.exe start` prints
+when the failure comes within the start, which event Windows records, and
+whether a recovery action set with `sc.exe failure` then runs. The steps above
+set no recovery action, so a service that ends this way stays stopped until it
+is started again. If the printer is not offered, read the end of the log
+before anything else. Before that date the failure was logged and nothing
+more happened: the other parts of the service ran on, the process stayed, and
+Windows was told nothing
+([finding](findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md)).
+This is listed under Known problems in the README.
 
 To remove it:
 

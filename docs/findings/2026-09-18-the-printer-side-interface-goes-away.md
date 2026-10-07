@@ -209,6 +209,12 @@ is done at a time. In the order I would take them:
   again, with nothing in the log. Reasoned from the code, **not** observed — the
   responder was healthy throughout this evening (`Served 42 quer(ies) of 682
   seen; IPv4 answered 1 of 47, IPv6 41 of 635`).
+  *(Status note, 2026-10-07, by Claude, Claude Opus 5.5: corrected in the code,
+  both halves. `ServeAsync` now guards the answer as it guards the receive, and
+  the error is logged. `ServiceHost` no longer waits with `Task.WhenAll`: a part
+  that fails stops the service. Still reasoned and not observed on a machine.
+  See
+  [`2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md`](2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md).)*
 
 ## Mistakes made while diagnosing this
 

@@ -4,6 +4,13 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// A failure after the service has started now ends the process, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-07. See "When the service fails after it has started" below, and
+// docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
+// The paragraph headed NOT COMPILED BY THE AUTHOR was given its note the same
+// day. Reviewed by a human before merge.
+//
 // Purpose:
 //   The handshake with the Windows service control manager, and nothing else.
 //
@@ -26,6 +33,44 @@
 //   The environment this file was written in has no access to nuget.org, so
 //   unlike every other file in this repository it was never built or run before
 //   being handed over. Treat it accordingly.
+//   (Note, 2026-10-07, by Claude, Claude Opus 5.5: true of the day it was
+//   written and not since. The file has been built by every build of the
+//   solution and has run as a service on two machines; see
+//   docs/findings/2026-09-18-running-as-localservice.md and
+//   docs/findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md.
+//   The change of 2026-10-07 was compiled in Claude's workspace and has not
+//   yet been run under the control manager.)
+//
+// When the service fails after it has started:
+//   OnStart returns as soon as the work is under way, so Windows has already
+//   been told the service is running when anything later fails. Until
+//   2026-10-07 nothing told it otherwise: the failure was logged, the work
+//   ended, and the process stayed, a service shown as running that did
+//   nothing.
+//
+//   The process is now ended with a non-zero exit code. Microsoft's guidance
+//   for a .NET Windows service says the same thing in so many words: "In order
+//   for the Windows Service Management system to leverage configured recovery
+//   options, we need to terminate the process with a non-zero exit code"
+//   (https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service,
+//   read 2026-10-07).
+//
+//   ServiceBase.Stop() was considered and not used. Read in the source of
+//   System.ServiceProcess.ServiceController (tag v10.0.0 of dotnet/runtime):
+//   after OnStart returns, ServiceBase writes its own event-log entry and only
+//   then records and reports the running state, without the lock Stop() takes.
+//   A failure that came in that interval would have Stop() report the service
+//   stopped and the start-up code then report it running. Ending the process
+//   has no such interval. It also needs nothing from the operator beyond the
+//   recovery options Windows already offers for a service whose process ends.
+//
+//   By the time the handler runs, ServiceHost.RunAsync has ended. If it had
+//   got as far as starting its parts, it has sent the goodbye, or logged that
+//   it could not. The log file is flushed entry by entry (FileServiceLog), so
+//   nothing written is lost by ending here.
+//
+//   Not yet run under the control manager. What Windows then shows for the
+//   service, and which event it records, have not been measured.
 // -----------------------------------------------------------------------------
 
 using System.Runtime.Versioning;
@@ -41,6 +86,13 @@ public sealed class WindowsService : ServiceBase
 {
     /// <summary>The name to register with, used by sc.exe and the Services console.</summary>
     public const string ServiceNameConstant = "SecretPrinter";
+
+    /// <summary>
+    /// The exit code the process ends with when the service fails after it has
+    /// started. The same code the console form returns for a failure after the
+    /// configuration has been accepted (Program.cs).
+    /// </summary>
+    public const int FailedExitCode = 4;
 
     private readonly ServiceLifecycle _lifecycle;
     private readonly IServiceLog _log;
@@ -61,7 +113,7 @@ public sealed class WindowsService : ServiceBase
         CanShutdown = true;
 
         var host = new ServiceHost(configuration, log);
-        _lifecycle = new ServiceLifecycle(host.RunAsync, log);
+        _lifecycle = new ServiceLifecycle(host.RunAsync, log, failed: EndTheProcess);
     }
 
     [Requirement("REQ-LIF-001",
@@ -95,6 +147,23 @@ public sealed class WindowsService : ServiceBase
             _log.Error($"The service had already failed: {failure.Message}");
             ExitCode = 1;
         }
+    }
+
+    /// <summary>
+    /// Ends the process after the service has failed, so that Windows sees a
+    /// service that is no longer running. See the header of this file.
+    /// </summary>
+    /// <remarks>
+    /// Called by <see cref="ServiceLifecycle"/> once the failure has been logged,
+    /// and never while a stop is under way. It does not return.
+    /// </remarks>
+    private void EndTheProcess(Exception failure)
+    {
+        _log.Error(
+            $"Ending the process with exit code {FailedExitCode}, so that Windows does not go on showing a "
+            + "service that has failed as running. Start the service again once the cause is put right.");
+
+        Environment.Exit(FailedExitCode);
     }
 
     /// <summary>Treats machine shutdown exactly like a stop.</summary>

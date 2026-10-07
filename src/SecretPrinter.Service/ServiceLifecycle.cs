@@ -4,6 +4,14 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// The failure handler added by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-07. Until then a failure of the work was
+// recorded and logged and nothing else happened, so under the service control
+// manager the process stayed and Windows went on showing a failed service as
+// running. See
+// docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The start and stop behaviour a Windows service needs, with none of the
 //   Windows service machinery.
@@ -31,6 +39,7 @@ public sealed class ServiceLifecycle : IDisposable
     private readonly Func<CancellationToken, Task> _run;
     private readonly IServiceLog _log;
     private readonly TimeSpan _stopTimeout;
+    private readonly Action<Exception>? _failed;
 
     private CancellationTokenSource? _stopping;
     private Task? _running;
@@ -43,8 +52,21 @@ public sealed class ServiceLifecycle : IDisposable
     /// control manager's own patience, so that a slow shutdown is reported by us
     /// rather than killed by Windows with no explanation.
     /// </param>
+    /// <param name="failed">
+    /// Told when the work ends with an error that nobody asked for: not when it
+    /// is stopped, and not when it fails while a stop is under way, which
+    /// <see cref="Stop"/> reports through <see cref="Failure"/>. It is called once,
+    /// after the failure has been recorded and logged, as the last act of the
+    /// work itself. <see cref="Stop"/> waits for the work, so the handler must
+    /// not call <see cref="Stop"/>. Under the service control manager the handler
+    /// ends the process (WindowsService), because nothing else tells Windows
+    /// that a service which started has since failed.
+    /// </param>
     public ServiceLifecycle(
-        Func<CancellationToken, Task> run, IServiceLog log, TimeSpan? stopTimeout = null)
+        Func<CancellationToken, Task> run,
+        IServiceLog log,
+        TimeSpan? stopTimeout = null,
+        Action<Exception>? failed = null)
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(log);
@@ -52,6 +74,7 @@ public sealed class ServiceLifecycle : IDisposable
         _run = run;
         _log = log;
         _stopTimeout = stopTimeout ?? TimeSpan.FromSeconds(20);
+        _failed = failed;
     }
 
     /// <summary>True once Start has been called and before the work has ended.</summary>
@@ -101,6 +124,26 @@ public sealed class ServiceLifecycle : IDisposable
                     // vanishing.
                     Failure = ex;
                     _log.Error($"Service stopped because of an error: {ex.Message}");
+
+                    // Nobody asked for this. Under the service control manager
+                    // the handler ends the process; without it the process
+                    // would stay, and Windows would show a service that has
+                    // failed as running. A failure while a stop is under way is
+                    // left to Stop, which is already answering Windows.
+                    if (_failed is not null && !token.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            _failed(ex);
+                        }
+                        catch (Exception handlerFailure)
+                        {
+                            // The handler is the last resort. If it fails too,
+                            // the log is the only place left to say so.
+                            _log.Error(
+                                $"The handler for that failure failed in turn: {handlerFailure.Message}");
+                        }
+                    }
                 }
             },
             CancellationToken.None);

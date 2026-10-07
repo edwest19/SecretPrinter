@@ -403,6 +403,126 @@ internal static class SecurityClaimsTests
             "and the reason must reach the log, not vanish into an unobserved task");
     }
 
+    // ---- The failure handler --------------------------------------------------
+    //
+    // Added by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
+    // West, 2026-10-07. Under the service control manager the handler ends the
+    // process (WindowsService), which no test can reach. These check what can be
+    // checked here: when the handler is told, and when it is not. See
+    // docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
+
+    [TestCase("A failure nobody asked for reaches the failure handler, after it is logged")]
+    [Requirement("REQ-LIF-004")]
+    public static void Failure_reaches_the_handler()
+    {
+        var log = new CollectingServiceLog();
+        using var told = new ManualResetEventSlim();
+        Exception? handed = null;
+        bool loggedFirst = false;
+
+        using var lifecycle = new ServiceLifecycle(
+            _ => throw new InvalidOperationException("a listener could not be opened"),
+            log,
+            failed: failure =>
+            {
+                handed = failure;
+                loggedFirst = log.Entries.Any(
+                    e => e.Level == LogLevel.Error
+                         && e.Message.Contains("could not be opened", StringComparison.Ordinal));
+                told.Set();
+            });
+
+        lifecycle.Start();
+
+        Assert.True(told.Wait(TimeSpan.FromSeconds(5)),
+            "a service that fails after it has started must tell something; otherwise the process stays "
+            + "and Windows goes on showing it as running");
+        Assert.True(handed is InvalidOperationException, "the handler is given the failure itself");
+        Assert.True(loggedFirst, "and the failure is in the log before the handler runs, because the handler may end the process");
+        Assert.True(lifecycle.Stop(), "a stop after the failure has nothing left to wait for");
+    }
+
+    [TestCase("A stop is not a failure, and the handler is not told")]
+    public static void Stop_does_not_reach_the_handler()
+    {
+        using var began = new ManualResetEventSlim();
+        int told = 0;
+
+        using var lifecycle = new ServiceLifecycle(
+            async token =>
+            {
+                began.Set();
+                await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
+            },
+            new CollectingServiceLog(),
+            failed: _ => Interlocked.Increment(ref told));
+
+        lifecycle.Start();
+        Assert.True(began.Wait(TimeSpan.FromSeconds(5)), "the work must have begun");
+
+        // The handler runs inside the work, and Stop waits for the work, so by
+        // the time Stop returns the handler has run or never will.
+        Assert.True(lifecycle.Stop(), "shutdown should complete within the timeout");
+        Assert.Equal(0, told, "ending the process on an ordinary stop would turn every stop into a failure");
+        Assert.Null(lifecycle.Failure, "and an ordinary stop records no failure");
+    }
+
+    [TestCase("A failure while a stop is under way is left to Stop, and the handler is not told")]
+    public static void Failure_during_a_stop_does_not_reach_the_handler()
+    {
+        using var began = new ManualResetEventSlim();
+        int told = 0;
+
+        using var lifecycle = new ServiceLifecycle(
+            async token =>
+            {
+                began.Set();
+                try
+                {
+                    await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new InvalidOperationException("the goodbye could not be sent");
+                }
+            },
+            new CollectingServiceLog(),
+            failed: _ => Interlocked.Increment(ref told));
+
+        lifecycle.Start();
+        Assert.True(began.Wait(TimeSpan.FromSeconds(5)), "the work must have begun");
+
+        Assert.True(lifecycle.Stop(), "shutdown should complete within the timeout");
+        Assert.NotNull(lifecycle.Failure, "the failure is still recorded, for Stop's caller to report");
+        Assert.Equal(0, told,
+            "Windows is already being answered by the stop; ending the process under it would report a crash");
+    }
+
+    [TestCase("A failure handler that fails is logged, and nothing escapes")]
+    public static void A_failing_handler_is_logged()
+    {
+        var log = new CollectingServiceLog();
+        using var told = new ManualResetEventSlim();
+
+        using var lifecycle = new ServiceLifecycle(
+            _ => throw new InvalidOperationException("a listener could not be opened"),
+            log,
+            failed: _ =>
+            {
+                told.Set();
+                throw new InvalidOperationException("the handler could not do its work");
+            });
+
+        lifecycle.Start();
+
+        Assert.True(told.Wait(TimeSpan.FromSeconds(5)), "the handler must have been told");
+        Assert.True(lifecycle.Stop(), "the work still ends, and Stop still returns");
+        Assert.True(
+            log.Entries.Any(e => e.Level == LogLevel.Error
+                                 && e.Message.Contains("could not do its work", StringComparison.Ordinal)),
+            "a handler that fails must not vanish into an unobserved task either");
+    }
+
     [TestCase("Stopping something never started is harmless")]
     [Requirement("REQ-LIF-001")]
     public static void Stop_before_start_is_safe()

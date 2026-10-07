@@ -34,6 +34,15 @@
 //   watch brings down the whole service through Task.WhenAll. That is a worse
 //   outcome than the fault it was meant to handle: before this class existed,
 //   the same error cost one print job.
+//   (Note, 2026-10-07, by Claude, Claude Opus 5.5, at the direction of Edwin
+//   West: that sentence was wrong about Task.WhenAll, which ends only when
+//   every task has ended. A faulted watch would have brought nothing down. It
+//   would have gone unnoticed, and the printer would never again have been
+//   withdrawn or restored. Since 2026-10-07 a failed part does stop the
+//   service, through ServiceHost.RunPartsAsync, so the reason for treating
+//   every failure here as silence stands. Comment only; no code in this file
+//   changed. See
+//   docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.)
 //
 //   So anything that is not cancellation counts as silence. For deciding
 //   reachability the distinction does not matter - a question that could not

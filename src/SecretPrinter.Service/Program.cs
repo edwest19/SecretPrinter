@@ -15,6 +15,20 @@
 // docs/findings/2026-09-22-a-refused-start-is-reported-as-a-timeout.md.
 // Reviewed by a human before merge.
 //
+// Exit code 4 widened, and its line in the usage text rewritten, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-07. The text said the code meant "an interface, socket or the
+// printer was unavailable"; since 2026-09-22 a printer that does not answer is
+// waited for. The console form now also returns 4, with the failure logged,
+// for a failure of any other kind after the configuration has been accepted,
+// where before it ended with an unhandled exception. Its last error line now
+// begins "Stopped because of an error:" for every such failure. For three
+// kinds of exception it used to begin "Could not start:", and since the same
+// day a failure of a part that has been running leaves by the same road, for
+// which those words would be false. See
+// docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Entry point. Loads configuration, runs the host, stops cleanly on Ctrl+C.
 //
@@ -210,11 +224,16 @@ internal static class Program
         {
             return 0;
         }
-        catch (Exception ex) when (ex is MdnsInterfaceException
-                                      or System.Net.Sockets.SocketException
-                                      or Resolution.PrinterResolutionException)
+        catch (Exception ex)
         {
-            log.Error($"Could not start: {ex.Message}");
+            // Anything that ends the host other than a stop: a socket or an
+            // interface that could not be used at startup, or a part of the
+            // running service that failed. The second kind has already been
+            // logged by the host where it happened. This line does not try to
+            // say which it was, because from here the two cannot be told
+            // apart; it gives the type and the message, so that the last
+            // error in the log explains the exit code.
+            log.Error($"Stopped because of an error: {ex.GetType().Name}: {ex.Message}");
             return 4;
         }
     }
@@ -305,7 +324,10 @@ internal static class Program
               2  Bad arguments.
               3  Configuration is not usable; every problem is listed. Under
                  --service the control manager is told the start failed.
-              4  Could not start: an interface, socket or the printer was unavailable.
+              4  Could not start, or could not go on: a socket could not be opened, an
+                 interface could not be used, or a part of the running service
+                 failed. Under --service the process ends with this code, so that
+                 Windows does not show a failed service as running.
               5  The log file could not be opened.
             """);
 }

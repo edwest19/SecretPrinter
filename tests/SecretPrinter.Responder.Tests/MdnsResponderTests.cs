@@ -45,6 +45,15 @@
 // the types the advertisement holds there. Its title changed to say so.
 // Reviewed by a human before merge.
 //
+// A_failed_send_does_not_end_the_receive_loop and
+// A_failed_receive_is_reported_and_the_loop_goes_on added by Claude (Anthropic
+// model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-07, for
+// REQ-LIF-005. They are the first tests here to run ServeAsync itself. The
+// first failed before the change it came with: a send that threw ended the
+// loop. See
+// docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies which queries get answered, which are ignored, what the answers
 //   contain, and how they are addressed.
@@ -368,6 +377,99 @@ internal static class MdnsResponderTests
 
         Assert.False(Handle(responder, rubbish), "a truncated packet cannot be answered");
         Assert.Equal(0, transport.Sent.Count, "nothing is sent in reply to nonsense");
+    }
+
+    /// <summary>Waits, for at most five seconds, until a condition holds.</summary>
+    private static async Task<bool> EventuallyAsync(Func<bool> condition)
+    {
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (!condition())
+        {
+            if (waited.Elapsed > TimeSpan.FromSeconds(5))
+            {
+                return false;
+            }
+
+            await Task.Delay(10).ConfigureAwait(false);
+        }
+
+        return true;
+    }
+
+    [TestCase("A send that fails while answering does not end the receive loop")]
+    [Requirement("REQ-LIF-005")]
+    public static async Task A_failed_send_does_not_end_the_receive_loop()
+    {
+        var transport = new FakeTransport(ClientNic);
+        var reported = new List<string>();
+        var responder = new MdnsResponder(
+            transport,
+            [new AdvertisedInterface(ClientNic, BuildAdvertisement())],
+            socketError: reported.Add);
+
+        // The first two answers cannot be sent. The third can.
+        int sends = 0;
+        transport.OnSend = _ =>
+        {
+            if (++sends <= 2)
+            {
+                throw new SocketException((int)SocketError.NetworkUnreachable);
+            }
+        };
+
+        using var stop = new CancellationTokenSource();
+        Task serving = responder.ServeAsync(stop.Token);
+
+        transport.Enqueue(Query("_universal._sub._ipp._tcp.local"));
+        transport.Enqueue(Query("_universal._sub._ipp._tcp.local"));
+        transport.Enqueue(Query("_universal._sub._ipp._tcp.local"));
+
+        bool thirdAnswered = await EventuallyAsync(() => responder.Activity.QueriesAnswered == 1)
+            .ConfigureAwait(false);
+
+        Assert.True(thirdAnswered,
+            "the third query must be answered: two sends that failed are not a reason to stop answering");
+        Assert.False(serving.IsCompleted, "and the loop must still be running");
+        Assert.Equal(3, responder.Activity.QueriesSeen, "all three queries were seen");
+        Assert.Equal(1, responder.Activity.QueriesAnswered,
+            "and only the one whose answer left is counted as answered");
+        Assert.Equal(1, reported.Count, "the same error twice is reported once");
+        Assert.True(reported[0].Contains("answering", StringComparison.Ordinal),
+            $"and the report says what the responder was doing; it said: {reported[0]}");
+
+        await stop.CancelAsync().ConfigureAwait(false);
+        await serving.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+    }
+
+    [TestCase("A receive that fails is reported, and the loop goes on")]
+    [Requirement("REQ-LIF-005")]
+    public static async Task A_failed_receive_is_reported_and_the_loop_goes_on()
+    {
+        var transport = new FakeTransport(ClientNic)
+        {
+            ThrowOnReceive = new SocketException((int)SocketError.ConnectionReset),
+        };
+        var reported = new List<string>();
+        var responder = new MdnsResponder(
+            transport,
+            [new AdvertisedInterface(ClientNic, BuildAdvertisement())],
+            socketError: reported.Add);
+
+        using var stop = new CancellationTokenSource();
+        Task serving = responder.ServeAsync(stop.Token);
+
+        transport.Enqueue(Query("_universal._sub._ipp._tcp.local"));
+
+        bool answered = await EventuallyAsync(() => responder.Activity.QueriesAnswered == 1)
+            .ConfigureAwait(false);
+
+        Assert.True(answered, "the query that arrived after the failed receive must be answered");
+        Assert.Equal(1, reported.Count, "the failed receive is reported");
+        Assert.True(reported[0].Contains("receiving", StringComparison.Ordinal),
+            $"and the report says what the responder was doing; it said: {reported[0]}");
+
+        await stop.CancelAsync().ConfigureAwait(false);
+        await serving.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
     }
 
     // ---- Nothing crosses between networks -----------------------------------

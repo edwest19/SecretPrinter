@@ -24,6 +24,16 @@ FIOS-STB-01 running `2c93864`. An iPhone connected to the link-local address
 and printed two pages over it; see the
 [2026-10-01 finding](2026-10-01-an-iphone-printed-over-ipv6-link-local.md).)*
 
+*(Status note, 2026-10-07, by Claude, Claude Opus 5.5: the note of 2026-09-30
+above says "built", and one part of what Edwin chose was not. If a published
+address was gone when the listeners next opened, the code logged that it was
+stopping and ended that interface's listeners only. The service did not stop
+and said no goodbye; it went on answering, with the address published and
+nothing listening on it. That stood from the commit that built it, `2c93864`
+of 2026-10-01, to 2026-10-07, read from the code and never seen on a machine.
+A part of the service that fails now stops the whole service. See
+[the finding](2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md).)*
+
 No address appears in this finding. The commands below print each address's
 kind and properties, never the address. The global addresses are household
 values and stay out of the repository.

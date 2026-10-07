@@ -207,6 +207,16 @@ true of what the service does and silent on what Windows is told.
 
 It has not been run. It is listed under "Known problems" as not yet corrected.
 
+*(Status note, 2026-10-07, later the same day, by Claude, Claude Opus 5.5: two
+things in this section did not stand. "Both are true of what the service does"
+was wrong of `REQ-ADV-021`: the code logged that it was stopping and did not
+stop the service. Claude had read the log line and the `throw` and had not
+followed the exception to the `Task.WhenAll` that waited on it. And the fault
+is now corrected in the code, though still not run under Windows. The Known
+problems entry, the notes on `REQ-LIF-004` and `REQ-ADV-021`, and the
+paragraph in `docs/operating.md` are rewritten to say so. See
+[the finding](2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md).)*
+
 ## The section "Known problems"
 
 The README had no one place that said what is known to go wrong. The facts were
@@ -285,6 +295,12 @@ that this commit changes no source file but the one marker.
 - The machine name of the development machine is in three findings, in
   `MdnsSocket.cs` and in `MdnsSocketTests.cs`. Whether it stays is Edwin's.
 
+*(Status note, 2026-10-07, later the same day, by Claude, Claude Opus 5.5: two
+of these are now corrected, in the change that
+[the finding of the same day](2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md)
+records: the `WindowsService.cs` paragraph has a note beside it, and the
+`--help` text for exit code 4 is rewritten. The rest stand.)*
+
 ## Left open
 
 - **"About the name".** The README says of a family of projects that "every one
@@ -293,8 +309,14 @@ that this commit changes no source file but the one marker.
   repositories. Whether every project with the prefix is, and whether each
   publishes its reasoning and limitations, Claude cannot tell. Put to Edwin.
 - **Whether the four from RFC 6762 are built before a first release.** Edwin's.
+  *(Status note, 2026-10-07, later the same day, by Claude, Claude Opus 5.5:
+  decided by Edwin West. They are stated in release 0.1.0 and built after it.
+  The reasons are in
+  [that finding](2026-10-07-four-things-rfc-6762-asks-of-a-responder-are-not-done.md).)*
 - **The service that fails after start.** To be corrected, and then run once
   on a machine.
+  *(Status note, 2026-10-07, later the same day, by Claude, Claude Opus 5.5:
+  corrected in the code. The run on a machine is still owed.)*
 - **The `Remove-Item` line added to the install step** has not been run.
 - **`SECURITY.md`, "Supported versions",** still says no release has been
   tagged and that the section will be replaced at the first release. That is

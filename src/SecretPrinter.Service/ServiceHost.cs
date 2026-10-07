@@ -88,6 +88,18 @@
 // following address changes (docs/findings/2026-09-30-which-ipv6-addresses-to-publish.md).
 // Reviewed by a human before merge.
 //
+// The failure of one part of the running service made to stop the rest, by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-07, for REQ-LIF-004 and REQ-ADV-021. RunAsync waited for its parts
+// with Task.WhenAll, which ends only when every part has ended. A part that
+// failed was therefore never noticed while the others ran: a listener that
+// could not be opened logged that the service was stopping, and the service
+// went on answering queries with nothing listening. RunPartsAsync replaces
+// that wait. The responder's socket errors are also logged now, through its
+// new callback. See
+// docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -361,7 +373,18 @@ public sealed class ServiceHost
         var conflict = new TaskCompletionSource<NameConflict>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var responder = new MdnsResponder(
-            responderSocket, advertised, () => offering.IsOpen, conflicted: found => conflict.TrySetResult(found));
+            responderSocket,
+            advertised,
+            () => offering.IsOpen,
+            conflicted: found => conflict.TrySetResult(found),
+
+            // The receive loop goes on after a socket error (REQ-LIF-005). The
+            // responder reports each different error once, and this is where
+            // it reaches the log.
+            socketError: description => _log.Warn(
+                $"mDNS on the client side met a socket error {description}"
+                + (description.EndsWith('.') ? " " : ". ")
+                + "The service goes on answering. This is logged again only if the error changes."));
 
         using var stopping = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var running = new List<Task>();
@@ -405,7 +428,18 @@ public sealed class ServiceHost
                 running.Add(RunRelayAsync(entry, printerSide, ippsInstance, printerPin, offering, watch, stopping.Token));
             }
 
-            await Task.WhenAll(running).ConfigureAwait(false);
+            // Until every part has ended. If one fails, the rest are stopped
+            // and the failure leaves this method, after the goodbye below.
+            await RunPartsAsync(
+                    running,
+                    failure =>
+                    {
+                        _log.Error(
+                            "A part of the service failed, so the whole service is stopping: "
+                            + $"{failure.GetType().Name}: {failure.Message}");
+                        return stopping.CancelAsync();
+                    })
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -435,6 +469,88 @@ public sealed class ServiceHost
             _log.Info(activity.DescribeByTransport());
             _log.Info("SecretPrinter stopped.");
         }
+    }
+
+    /// <summary>
+    /// Waits for the parts of the running service, and stops all of them when
+    /// one fails.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The parts are the responder's receive loop, the conflict handler, the
+    /// printer watch and one relay for each client interface. Each runs until
+    /// the service is stopped, except the conflict handler, which ends by
+    /// itself once it has dealt with a conflict. A part that ends without an
+    /// error is therefore not a reason to stop the others.
+    /// </para>
+    /// <para>
+    /// A part that ends with an error is. Until 2026-10-07 this wait was
+    /// <c>Task.WhenAll</c>, which completes only when every task has, so a
+    /// failed part was not noticed until the service was stopped for some other
+    /// reason. A relay whose listeners could not be opened logged "Stopping"
+    /// and threw, and the service went on answering queries for a printer with
+    /// nothing listening behind it, which is what REQ-ADV-021 says cannot
+    /// happen.
+    /// </para>
+    /// <para>
+    /// On the first failure <paramref name="onFirstFailure"/> is called, once,
+    /// and is expected to stop the other parts. They are then waited for, and
+    /// the first failure is thrown, whatever the others did on their way out.
+    /// </para>
+    /// </remarks>
+    /// <param name="parts">The tasks that make up the running service.</param>
+    /// <param name="onFirstFailure">
+    /// Called with the error of the first part to fail. In the service it logs
+    /// the error and cancels the token every part runs under.
+    /// </param>
+    [Requirement("REQ-LIF-004",
+        "The failure of any part of the running service stops every other part and leaves RunAsync as that failure, so the service does not go on with a part missing.")]
+    [Requirement("REQ-ADV-021",
+        "A relay that could not open its listeners stops the whole service, so the published addresses are retracted and not left with nothing listening.")]
+    public static async Task RunPartsAsync(IReadOnlyList<Task> parts, Func<Exception, Task> onFirstFailure)
+    {
+        ArgumentNullException.ThrowIfNull(parts);
+        ArgumentNullException.ThrowIfNull(onFirstFailure);
+
+        var remaining = new List<Task>(parts);
+        Task? failed = null;
+
+        while (remaining.Count > 0)
+        {
+            Task ended = await Task.WhenAny(remaining).ConfigureAwait(false);
+            remaining.Remove(ended);
+
+            if (ended.IsFaulted)
+            {
+                failed = ended;
+                break;
+            }
+        }
+
+        if (failed is null)
+        {
+            // Every part has ended and none failed. Awaited so that a part that
+            // was cancelled surfaces as a cancellation, as it did before.
+            await Task.WhenAll(parts).ConfigureAwait(false);
+            return;
+        }
+
+        // A faulted task holds an AggregateException around what was thrown,
+        // and the handler is to be told what was thrown.
+        AggregateException held = failed.Exception!;
+        await onFirstFailure(held.InnerException ?? held).ConfigureAwait(false);
+
+        try
+        {
+            await Task.WhenAll(remaining).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // What the other parts did while being stopped is not the news. The
+            // first failure is, and it is thrown below.
+        }
+
+        await failed.ConfigureAwait(false);
     }
 
     /// <summary>Accepts and relays print jobs on one client interface.</summary>

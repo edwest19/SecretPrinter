@@ -28,6 +28,12 @@
 // REQ-RES-009, added by Claude (Anthropic model, Claude Opus 5.5) at the
 // direction of Edwin West, 2026-09-25. Reviewed by a human before merge.
 //
+// The tests of RunPartsAsync, for REQ-LIF-004 and REQ-ADV-021, added by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-07: the failure of one part of the running service stops the rest.
+// See docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies decisions ServiceHost makes that can be checked without opening a
 //   socket: which interfaces each of its two mDNS sockets joins, how each job's
@@ -387,5 +393,137 @@ internal static class ServiceHostTests
             + "encryption to printer: TLS 1.2, certificate matched the pinned fingerprint.",
             log.Lines[0],
             "an operator must be able to read from this line alone how the job travelled to the printer");
+    }
+
+    // ---- The parts of the running service -------------------------------------
+
+    /// <summary>
+    /// A part that runs until it is stopped and then ends without an error, as
+    /// the responder's loop, the watch and each relay do.
+    /// </summary>
+    private static async Task UntilStoppedAsync(CancellationToken stopping)
+    {
+        try
+        {
+            await Task.Delay(Timeout.Infinite, stopping).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Stopped, which is how these parts end.
+        }
+    }
+
+    [TestCase("When one part of the service fails, the others are stopped and the failure is what comes out")]
+    [Requirement("REQ-LIF-004")]
+    [Requirement("REQ-ADV-021")]
+    public static async Task One_failed_part_stops_the_rest()
+    {
+        using var stopping = new CancellationTokenSource();
+        var relay = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var told = new List<Exception>();
+
+        Task responder = UntilStoppedAsync(stopping.Token);
+        Task watch = UntilStoppedAsync(stopping.Token);
+
+        Task running = ServiceHost.RunPartsAsync(
+            [responder, relay.Task, watch],
+            failure =>
+            {
+                told.Add(failure);
+                return stopping.CancelAsync();
+            });
+
+        Assert.False(running.IsCompleted, "nothing has failed yet, so the service is still running");
+
+        // As when a relay cannot open its listeners.
+        relay.SetException(new SocketException((int)SocketError.AddressNotAvailable));
+
+        SocketException? thrown = null;
+        try
+        {
+            await running.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        }
+        catch (SocketException ex)
+        {
+            thrown = ex;
+        }
+
+        Assert.NotNull(thrown,
+            "the failure must come out. Under Task.WhenAll, which this replaced, it never did while another "
+            + "part was still running");
+        Assert.Equal(1, told.Count, "the handler is told once");
+        Assert.True(told[0] is SocketException, "and is given what was thrown, not a wrapper around it");
+        Assert.True(responder.IsCompleted && watch.IsCompleted,
+            "and the other parts have been stopped and waited for, so nothing is left answering queries");
+    }
+
+    [TestCase("A part that ends without an error does not stop the others")]
+    public static async Task A_part_that_ends_cleanly_stops_nothing()
+    {
+        using var stopping = new CancellationTokenSource();
+        int told = 0;
+
+        // The conflict handler ends by itself once it has dealt with a conflict,
+        // and the service goes on, withdrawn.
+        Task conflictHandler = Task.CompletedTask;
+        Task responder = UntilStoppedAsync(stopping.Token);
+
+        Task running = ServiceHost.RunPartsAsync(
+            [conflictHandler, responder],
+            _ =>
+            {
+                told++;
+                return Task.CompletedTask;
+            });
+
+        await Task.Delay(50).ConfigureAwait(false);
+
+        Assert.False(running.IsCompleted, "one part ending cleanly is not the service ending");
+        Assert.Equal(0, told, "and it is not a failure");
+
+        await stopping.CancelAsync().ConfigureAwait(false);
+        await running.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+        Assert.Equal(0, told, "an ordinary stop is not a failure either");
+    }
+
+    [TestCase("The first failure is the one that comes out, whatever the other parts do while stopping")]
+    [Requirement("REQ-LIF-004")]
+    public static async Task The_first_failure_is_the_one_reported()
+    {
+        using var stopping = new CancellationTokenSource();
+        var first = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var told = new List<Exception>();
+
+        // A part that fails in its own way when it is stopped.
+        async Task FailsWhenStoppedAsync()
+        {
+            await UntilStoppedAsync(stopping.Token).ConfigureAwait(false);
+            throw new IOException("failed on the way out");
+        }
+
+        Task running = ServiceHost.RunPartsAsync(
+            [FailsWhenStoppedAsync(), first.Task],
+            failure =>
+            {
+                told.Add(failure);
+                return stopping.CancelAsync();
+            });
+
+        first.SetException(new InvalidOperationException("the first failure"));
+
+        Exception? thrown = null;
+        try
+        {
+            await running.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException)
+        {
+            thrown = ex;
+        }
+
+        Assert.True(thrown is InvalidOperationException,
+            $"the first failure is the news, not what followed it; got {thrown?.GetType().Name ?? "nothing"}");
+        Assert.Equal(1, told.Count, "and the handler is told of the first failure only");
     }
 }

@@ -12,6 +12,11 @@ transport in place of a network. Two of the four had been seen on a network on
 stated none of them. It now lists all four under "Known problems". No code
 changed. Whether they are built before the first release is not decided.**
 
+*(Status note, 2026-10-07, later the same day, by Claude, Claude Opus 5.5:
+decided. Edwin West chose that release 0.1.0 ships with the four stated as
+known problems and that they are built afterwards. See "Not decided" at the
+end.)*
+
 This is not a review of the service against the whole of RFC 6762. See "What
 this does not show".
 
@@ -182,3 +187,14 @@ carries TTL 255, as §11 asks
 
 Whether these are built before release 0.1.0 or stated in it as known problems.
 That is a question of what the first release waits for, which is Edwin's.
+
+*(Status note, 2026-10-07, later the same day, by Claude, Claude Opus 5.5:
+decided by Edwin West on 2026-10-07. Release 0.1.0 ships with the four stated
+as known problems, and they are built afterwards. Claude put the two courses
+to him and recommended this one, for these reasons: the four have been in
+every build that has printed, and the only cost seen is more multicast packets
+on the client network; the README lists them under Known problems, so nothing
+is hidden; and building them changes what an iPhone receives while it is
+discovering the printer, which needs runs on hardware whose number could not
+be said beforehand. What it costs: the first release knowingly misses two
+requirements of RFC 6762, and says so.)*

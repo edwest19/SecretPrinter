@@ -135,6 +135,14 @@ stopped and nothing stops it. This paragraph was not carried into the README
 or into `docs/operating.md` when it was written. Both now state it, the README
 under Known problems. See [the finding](2026-10-07-the-readme-was-read-against-the-code.md).)*
 
+*(Status note, 2026-10-07, later the same day, by Claude, Claude Opus 5.5:
+corrected in the code, and not yet run under the control manager.
+`WindowsService` now gives `ServiceLifecycle` a handler for a failure nobody
+asked for, and the handler ends the process with exit code 4. It does not call
+`ServiceBase.Stop`; the reason is in
+[the finding](2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md).
+What Windows then shows is still not measured.)*
+
 ## Measured after the fix
 
 On 2026-09-22 Edwin stopped the service, pulled `937de66` on FIOS-STB-01,

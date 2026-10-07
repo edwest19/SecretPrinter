@@ -95,6 +95,17 @@
 // docs/findings/2026-10-07-the-readme-was-read-against-the-code.md. Reviewed
 // by a human before merge.
 //
+// A socket error while answering no longer ends the receive loop, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-07, for REQ-LIF-005. ServeAsync guarded the receive and not the
+// answer, so a send that failed ended the loop, and the service then answered
+// no query until it was restarted, with nothing in its log. That was recorded
+// on 2026-09-18 as reasoned and not observed, and it still is not observed.
+// A socket error in either half is now also reported to the service, once for
+// each different error, through the new constructor parameter socketError.
+// See docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -273,6 +284,11 @@ public sealed partial class MdnsResponder
     private int _unparseable;
     private int _goodbyes;
 
+    // Told of a socket error in the receive loop, and the error last told of,
+    // so that one error repeating is reported once. Touched only by ServeAsync.
+    private readonly Action<string>? _socketError;
+    private string? _reportedSocketError;
+
     /// <param name="advertising">
     /// Asked before every query is answered. While it returns false the
     /// responder answers nothing, because the service has withdrawn the
@@ -286,17 +302,27 @@ public sealed partial class MdnsResponder
     /// must not throw. The responder does not wait for it: from the moment the
     /// conflict is recorded it answers and announces nothing by itself.
     /// </param>
+    /// <param name="socketError">
+    /// Called from <see cref="ServeAsync"/> with a description of a socket error
+    /// met while receiving a datagram or while answering one. Called when an
+    /// error first appears and again only when the description changes, so an
+    /// error that repeats on every datagram is reported once. Called on the
+    /// receive path, so it must return promptly and must not throw. The loop
+    /// goes on whether or not anything is listening here.
+    /// </param>
     public MdnsResponder(
         IMdnsTransport transport,
         IReadOnlyList<AdvertisedInterface> advertised,
         Func<bool>? advertising = null,
-        Action<NameConflict>? conflicted = null)
+        Action<NameConflict>? conflicted = null,
+        Action<string>? socketError = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(advertised);
 
         _advertising = advertising ?? (static () => true);
         _conflicted = conflicted;
+        _socketError = socketError;
 
         if (advertised.Count == 0)
         {
@@ -780,8 +806,18 @@ public sealed partial class MdnsResponder
     }
 
     /// <summary>Receives and handles datagrams until cancelled.</summary>
+    /// <remarks>
+    /// A socket error does not end the loop, whether it comes while receiving a
+    /// datagram or while answering one. Until 2026-10-07 only the receive was
+    /// guarded: a send that failed inside <see cref="HandleAsync"/> ended this
+    /// method, and no query was answered again until the service was restarted.
+    /// An error while receiving is counted, as it always was, under
+    /// <see cref="ResponderActivity.Unparseable"/>, a counter named for something
+    /// else. An error while answering needs no counter of its own: the query was
+    /// counted as seen and is not counted as answered.
+    /// </remarks>
     [Requirement("REQ-LIF-005",
-        "A transient socket error is counted and the loop continues; only cancellation ends it.")]
+        "A socket error while receiving a datagram, or while answering one, is reported once for each different error and the loop continues; only cancellation ends it.")]
     public async Task ServeAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -795,16 +831,43 @@ public sealed partial class MdnsResponder
             {
                 return;
             }
-            catch (System.Net.Sockets.SocketException)
+            catch (System.Net.Sockets.SocketException ex)
             {
                 // Transient network trouble - an adapter flapping, a buffer
                 // overrun. Losing one datagram is not a reason to stop serving.
                 _unparseable++;
+                ReportSocketError("receiving", ex);
                 continue;
             }
 
-            await HandleAsync(datagram, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await HandleAsync(datagram, cancellationToken).ConfigureAwait(false);
+            }
+            catch (System.Net.Sockets.SocketException ex)
+            {
+                // The answer could not be sent. One lost answer is not a reason
+                // to stop answering: the client asks again, and the next send
+                // may succeed. A cancellation is not caught here and ends the
+                // loop, as it did before.
+                ReportSocketError("answering", ex);
+            }
         }
+    }
+
+    /// <summary>
+    /// Tells the service of a socket error, unless it is the one last told of.
+    /// </summary>
+    private void ReportSocketError(string doing, System.Net.Sockets.SocketException error)
+    {
+        string description = $"while {doing}: {error.SocketErrorCode}: {error.Message}";
+        if (string.Equals(description, _reportedSocketError, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _reportedSocketError = description;
+        _socketError?.Invoke(description);
     }
 
     /// <summary>
