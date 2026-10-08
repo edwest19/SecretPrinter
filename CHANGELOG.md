@@ -12,8 +12,9 @@ it, and unless `<Version>` in `Directory.Build.props` says the same version.
 Everything under that heading, up to the next one, becomes the release notes.
 
 **No release has been published yet.** `0.1.0-rc.3` below is a pre-release for
-testing, not a release. (Second sentence added 2026-10-07 by Claude, Claude
-Opus 5.5.)
+testing, not a release. It was published on 2026-10-07. (Second sentence added
+2026-10-07 by Claude, Claude Opus 5.5, and the third later that day, once it
+was so.)
 
 ## [0.1.0-rc.3] - 2026-10-07
 
@@ -63,6 +64,17 @@ install on a clean machine from a zip downloaded with a browser, followed from
   - `--print-example-config` from this build, and a start on its output, on
     Windows.
   - Anything on a printer other than the one model, or in another household.
+- **What happened.** The workflow ran for this tag on 2026-10-07 and all three
+  of its jobs passed, the publishing job on its first run. The signing job
+  waited for Edwin West's approval. Twelve SecretPrinter files were signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`, in a folder of 216
+  files. The pre-release is on the repository's Releases page as
+  `SecretPrinter-0.1.0-rc.3-win-x64.zip`, with SHA-256
+  `F8310DD6B5B061925958C1A25521C32E4C9979DC2BAE751E0C69ABCBC827C315`, and its `.sha256`
+  file. When this is written nobody has downloaded and installed it; see
+  [the finding](docs/findings/2026-10-07-the-release-workflow-published-a-pre-release.md).
+  (Added 2026-10-07 by Claude, Claude Opus 5.5, after the run. It is not in
+  the release notes GitHub shows, which were taken from this file at the tag.)
 
 ## [0.1.0-rc.2] - 2026-10-04
 

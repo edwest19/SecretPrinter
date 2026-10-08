@@ -70,8 +70,15 @@
 #   "id-token: write", and twelve files were signed under the name the sign job
 #   now requires. Both runs are recorded in
 #   docs/findings/2026-10-04-the-release-workflow-signed-a-build.md.
-#   The release job has never run. It was skipped both times, because the
-#   specification check had not passed, so "gh release create" is unexercised.
+#   The release job did not run either time. It was skipped, because the
+#   specification check had not passed.
+#   Its third run, on 2026-10-07 for v0.1.0-rc.3, passed in all three jobs and
+#   published a pre-release: the first run of the release job and of
+#   "gh release create". The sign job waited for a person's approval. Recorded
+#   in docs/findings/2026-10-07-the-release-workflow-published-a-pre-release.md.
+#   (The two sentences above about the release job were reworded, and this
+#   paragraph added, by Claude (Anthropic model, Claude Opus 5.5) at the
+#   direction of Edwin West, 2026-10-07. Comments only; no step changed.)
 # -----------------------------------------------------------------------------
 
 name: Release

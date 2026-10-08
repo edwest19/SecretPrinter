@@ -95,8 +95,8 @@ demands of people doing it a favour.
 ## Supported versions
 
 **No release has been published yet.** `0.1.0-rc.3` is a pre-release: a signed
-build for testing the release process and a first install. If it has been
-published, it is on this repository's Releases page and nowhere else. It
+build for testing the release process and a first install. It was published on
+2026-10-07, on this repository's Releases page and nowhere else. It
 carries no support promise of any kind, and neither does `main`.
 
 Consequently: **a binary presented as SecretPrinter that does not come from
@@ -111,7 +111,9 @@ Claude Opus 5.5, at the direction of Edwin West, who decided that day to
 publish a pre-release. They had said that no release had been tagged, that the
 only way to run this was to build it from source, and that any binary
 presented as a SecretPrinter release did not come from this project because
-none existed.)
+none existed. Later the same day, once the pre-release had been published,
+"If it has been published, it is on" became "It was published on 2026-10-07,
+on".)
 
 ## Signing, when releases exist
 

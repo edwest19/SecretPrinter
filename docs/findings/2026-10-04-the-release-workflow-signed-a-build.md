@@ -144,6 +144,12 @@ workflow fails a SecretPrinter file that is signed without a timestamp.
 - **Whether the sign job waited for approval.** The environment was set to
   require a reviewer. Claude cannot read, without signing in to GitHub, whether
   the run stopped for one, and Edwin's account of it is not recorded here.
+  *(Status note, 2026-10-07, by Claude, Claude Opus 5.5: recorded after all.
+  The run's public page, `actions/runs/37231905990`, shows the `release`
+  environment with "edwest19 approved Oct 4, 2026" and the comment "verified".
+  Why that was not found on the page when this finding was written is not
+  established. See
+  [the finding of 2026-10-07](2026-10-07-the-release-workflow-published-a-pre-release.md).)*
 - **The run's own summary was not read.** It holds the workflow's table of the
   signer and the zip's SHA-256. What is above comes from the public run page
   and from the downloaded files.

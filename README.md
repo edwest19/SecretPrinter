@@ -838,7 +838,7 @@ current count is whatever `run-tests.ps1` reports; the findings are the files in
 service and the probe, published for 64-bit Windows with the .NET runtime
 beside them, into one folder outside the repository. No release exists yet.
 (Note, 2026-10-07, by Claude, Claude Opus 5.5: `0.1.0-rc.3` is a pre-release for testing, not a release; see
-`CHANGELOG.md`.)
+`CHANGELOG.md`. It was published that day.)
 On 2026-10-04 a folder it made was run on a machine with no .NET installed, and
 an iPhone printed through it
 ([finding](docs/findings/2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md)).
@@ -861,14 +861,24 @@ the signatures were read on a downloaded copy
 No release has been published, and the job that publishes one has never run.
 (Note, 2026-10-07, by Claude, Claude Opus 5.5: the tag `v0.1.0-rc.3` is made to run that job for the first
 time, on a pre-release for testing. What happened is recorded under that
-version in `CHANGELOG.md` once the run is over.)
+version in `CHANGELOG.md` once the run is over. Added later the same day:
+the workflow ran a third time, for that tag. All three jobs passed, the
+signing job after waiting for Edwin West's approval, and the publishing job
+published the pre-release on its first run
+([finding](docs/findings/2026-10-07-the-release-workflow-published-a-pre-release.md)).
+So the two sentences before this note are no longer so as written: the
+workflow has run three times, and the job that publishes has run once. No
+release has been published; a pre-release has.)
 (Paragraph, the `release.yml` line in the tree and the `[done]` beside
 `CHANGELOG.md` added 2026-10-04 by Claude, Claude Opus 5.5, and corrected twice
 the same day as the workflow ran: it first said the workflow had never run, and
 then that nothing had been signed. Corrected 2026-10-07 by Claude, Claude Opus 5.5: it said the signing
 job "waits for a person's approval". That requirement is a setting of the
 GitHub environment, which is outside this repository, and whether the run of
-2026-10-04 waited for an approval is not recorded.)
+2026-10-04 waited for an approval is not recorded. Added 2026-10-07 by Claude, Claude Opus 5.5: it is recorded.
+The public page of that run shows the environment approved by `edwest19` on
+2026-10-04, and the page of the run of 2026-10-07 shows the same for that day;
+see the finding linked above. The setting itself is still not read.)
 
 `SecretPrinter.Listen6` and `SecretPrinter.Loop6` are measurement tools written
 to answer one question each while IPv6 was being added; each one's header
