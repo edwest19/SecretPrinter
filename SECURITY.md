@@ -94,17 +94,28 @@ demands of people doing it a favour.
 
 ## Supported versions
 
-**No release has been published yet.** `0.1.0-rc.3` is a pre-release: a signed
-build for testing the release process and a first install. It was published on
-2026-10-07, on this repository's Releases page and nowhere else. It
-carries no support promise of any kind, and neither does `main`.
+**`0.1.0` is the first version meant as a release.** Releases are published by
+the release workflow, from a tag, on this repository's Releases page and
+nowhere else, signed under the name given below.
+
+| Version | What it is | Reports about it |
+| --- | --- | --- |
+| `0.1.0` | The first version meant as a release. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.1.0-rc.1`, `0.1.0-rc.2`, `0.1.0-rc.3` | Trials of the release workflow, and a pre-release for testing. Only `0.1.0-rc.3` was published. | Not covered. `0.1.0` is compiled from the same source code as `0.1.0-rc.3`; see whether the problem happens on `0.1.0`. |
+| `main` | The source as it stands. | No support promise of any kind. A gap between the specification and the code is in scope, as above. |
 
 Consequently: **a binary presented as SecretPrinter that does not come from
 this repository's Releases page, or is not signed under the name given below,
 does not come from this project,** and you should not run it. The one
 exception is a build you made yourself from source.
 
-This section will be replaced with a real version table at the first release.
+(The table added, and the paragraph above it rewritten, 2026-10-08 by Claude,
+Anthropic model, Claude Opus 5.5, at the direction of Edwin West, in the commit
+that sets the version to 0.1.0. The paragraph had said that no release had been
+published, that `0.1.0-rc.3` was a pre-release published on 2026-10-07 that
+carried no support promise, and that neither did `main`; and the section ended
+"This section will be replaced with a real version table at the first
+release.")
 
 (The first two paragraphs replaced 2026-10-07 by Claude, Anthropic model,
 Claude Opus 5.5, at the direction of Edwin West, who decided that day to
@@ -147,11 +158,14 @@ every program file. SecretPrinter's own files are signed as:
 A SecretPrinter file that is unsigned, or signed under any other name, is not
 an official release.
 
-**There is still no release.** The tags `v0.1.0-rc.1` and `v0.1.0-rc.2` were
-trials of the workflow, and nothing was published for either. `v0.1.0-rc.3` is
-the tag of a pre-release for testing; see "Supported versions" above.
+**The tags before `v0.1.0` are not releases.** `v0.1.0-rc.1` and
+`v0.1.0-rc.2` were trials of the workflow, and nothing was published for
+either. `v0.1.0-rc.3` is the tag of a pre-release for testing. `v0.1.0` is the
+tag of the first version meant as a release; see "Supported versions" above.
 (Sentence about `v0.1.0-rc.3` added, and "The two tags that exist" reworded,
-2026-10-07 by Claude, Claude Opus 5.5.)
+2026-10-07 by Claude, Claude Opus 5.5. Reworded again 2026-10-08, in the commit
+that sets the version to 0.1.0: this paragraph began "There is still no
+release.", and the sentence about `v0.1.0` is new.)
 
 (This section replaced 2026-10-04 by Claude, Anthropic model, Claude Opus 5.5,
 at the direction of Edwin West. From here down it had said that all three

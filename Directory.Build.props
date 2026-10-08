@@ -63,8 +63,13 @@
          Set to 0.1.0-rc.3 on 2026-10-07 by Claude (Anthropic model, Claude
          Opus 5.5) at the direction of Edwin West, who decided that day to
          publish a pre-release before 0.1.0, so that the publishing job and an
-         install from a downloaded zip are each tried once first. -->
-    <Version>0.1.0-rc.3</Version>
+         install from a downloaded zip are each tried once first.
+
+         Set to 0.1.0 on 2026-10-08 by Claude (Anthropic model, Claude Opus
+         5.5) at the direction of Edwin West, the version he chose on
+         2026-10-04 for the first release, after both of those had been tried
+         on 0.1.0-rc.3. -->
+    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>

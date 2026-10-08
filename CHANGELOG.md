@@ -11,10 +11,84 @@ this file has exactly one heading of the form `## [version] - YYYY-MM-DD` for
 it, and unless `<Version>` in `Directory.Build.props` says the same version.
 Everything under that heading, up to the next one, becomes the release notes.
 
-**No release has been published yet.** `0.1.0-rc.3` below is a pre-release for
-testing, not a release. It was published on 2026-10-07. (Second sentence added
-2026-10-07 by Claude, Claude Opus 5.5, and the third later that day, once it
-was so.)
+**`0.1.0` is the first version meant as a release.** Every version below it is
+a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
+2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
+`0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
+that sets the version to 0.1.0. It said "No release has been published yet.",
+that `0.1.0-rc.3` was a pre-release for testing and not a release, and that it
+was published on 2026-10-07.)
+
+## [0.1.0] - 2026-10-08
+
+The first version of SecretPrinter meant as a release.
+
+SecretPrinter is a Windows service for a machine connected to two networks. It
+makes one AirPrint printer on one network appear on the other, answering for it
+over mDNS, and relays each print connection to the printer over TLS, with the
+printer's certificate pinned by its fingerprint. It forwards nothing else
+between the two networks. `README.md` in the repository is its specification.
+
+- **Before you install it,** read two sections of `README.md`: "Read this
+  before installing" and, under it, "Known problems". This software was written
+  by an AI, Claude, directed by one person, and has had no outside security
+  review. Every measurement of it on a network was made in one household, with
+  one printer model, an Epson ET-3760, and almost always an iPhone as the
+  client.
+- **What it holds.** The service and the probe, for 64-bit Windows on x64
+  processors, with the .NET runtime they need beside them, so that nothing else
+  has to be installed. It is configured by hand, by the steps in
+  `docs/operating.md`; there is no configuration tool.
+- **Check it before you install it.** `docs/operating.md`, "Checking a release
+  before you install it", gives two checks that need only PowerShell: the zip's
+  SHA-256 against the `.sha256` file published beside it, and the signature on
+  every program file. SecretPrinter's own files are signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`. A SecretPrinter file
+  that is unsigned, or signed under any other name, is not from this project.
+- **The .NET runtime inside it** is the one the build machine's SDK supplied,
+  and a fix to it arrives only in a new release. Its version is in
+  `SecretPrinter.Service.runtimeconfig.json` in the folder. It is not known when
+  this entry is written; `0.1.0-rc.3`, built from the same source code on
+  2026-10-07, carries .NET 10.0.12.
+- **Where it has run.** SecretPrinter has run day to day as a service on
+  Windows 10 22H2 since 2026-09-18, built from source; and on Windows 11 Home,
+  on one machine, for a little over an hour in all, from release folders. Microsoft's
+  list of the systems .NET 10 supports includes Windows 11 and not Windows 10
+  22H2; `README.md`, open question 10, says more.
+- **How it relates to `0.1.0-rc.3`.** Its programs are compiled from the same
+  source code as the pre-release `0.1.0-rc.3` of 2026-10-07. They differ in the
+  version and the commit stamped into each file, and in the .NET runtime if the
+  build machine's SDK has changed since. What changed in between is
+  documentation:
+  - `docs/operating.md` was corrected after `0.1.0-rc.3` was downloaded with a
+    browser on 2026-10-08, installed from nothing on a second machine by the
+    document's own steps, and printed through. The firewall commands now name
+    the installed program; there is a command for unpacking; it says what
+    Windows shows when the service fails after it has started; and it says
+    where an iPhone listed the proxy.
+  - `README.md`, `SECURITY.md` and `docs/verification.md` say what that install
+    showed, and `SECURITY.md` has a table of versions.
+- **What has been shown** on `0.1.0-rc.3`, which has the same source code: the
+  published zip downloaded with a browser, with both checks passing on it;
+  configured by hand from the example the program prints; installed as a
+  Windows service under `LocalService`; a failure of the running service
+  provoked on purpose, which stopped the service and ended its process, Windows
+  then showing it stopped with error 1067; an iPhone printing through it; and
+  the uninstall steps leaving nothing behind.
+- **What has not been shown,** at the time this entry is written:
+  - This build itself. When this is written nobody has downloaded it, checked
+    it or run it.
+  - The publishing job making a release that is not marked as a pre-release.
+    It has run once, for a pre-release.
+  - Updating an installation from one release to the next by the document's
+    steps. There is no earlier release to update from.
+  - Whether a recovery action set with `sc.exe failure` runs when the service
+    ends itself after a failure.
+  - Any printer but the one model, any household but one, and any client but
+    one iPhone and, once, a second device.
+- **Reporting a problem.** Security problems go to the repository's private
+  vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
+  response-time commitment is offered.
 
 ## [0.1.0-rc.3] - 2026-10-07
 

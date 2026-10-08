@@ -188,6 +188,13 @@ browser's mark did; what the program printed when run on the example; that the
 comes from", "Checking a release before you install it" and Uninstalling.
 Reviewed by a human before merge.*
 
+*The first sentences of "Where the program comes from" and of "Checking a
+release before you install it" reworded by Claude (Anthropic model, Claude Opus
+5.5) at the direction of Edwin West, 2026-10-08, in the commit that sets the
+version to 0.1.0, so that they are true before that version is published and
+after. Each says what it said before.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -212,11 +219,13 @@ visible on a second segment. That is why it confines itself to printing.
 
 ## Where the program comes from
 
-**From a release, once there is one.** No release has been published yet. A
-pre-release for testing, `0.1.0-rc.3`, was published on 2026-10-07. It has the
-same form as a release and is checked and installed by the same steps; it is
-not a release. A
-release will be a folder holding `SecretPrinter.Service.exe`,
+**From a release.** Releases are published on the repository's Releases page,
+and `0.1.0` is the first version meant as one. A pre-release for testing,
+`0.1.0-rc.3`, was published there on 2026-10-07. It has the same form as a
+release and is checked and installed by the same steps; it is not a release.
+(Until 2026-10-08 this began "From a release, once there is one. No release has
+been published yet.", and the next sentence said what a release "will be".) A
+release is a zip of a folder holding `SecretPrinter.Service.exe`,
 `SecretPrinter.Probe.exe` and the .NET runtime they need, so that nothing else
 has to be installed (`REQ-DIST-011`). `publish-release.ps1` makes that folder. On
 2026-10-04 one was unpacked on a machine running Windows 11 with no .NET
@@ -244,11 +253,12 @@ needs uses the `dotnet` command.
 
 ## Checking a release before you install it
 
-No release has been published yet. A pre-release is published the same way and
-is checked the same way; one, `0.1.0-rc.3`, is there since 2026-10-07. When a
-release is published, it will be on the repository's
-Releases page as two files: `SecretPrinter-<version>-win-x64.zip`, and a small
-file beside it with the same name ending in `.sha256`. Make both checks below
+A release is published on the repository's Releases page as two files:
+`SecretPrinter-<version>-win-x64.zip`, and a small file beside it with the same
+name ending in `.sha256`. A pre-release is published the same way and is
+checked the same way; one, `0.1.0-rc.3`, is there since 2026-10-07. (Until
+2026-10-08 this began "No release has been published yet." and said where a
+release "will be".) Make both checks below
 before you install anything. They need only PowerShell.
 
 **A SecretPrinter file that is unsigned, or signed under any name but the one
