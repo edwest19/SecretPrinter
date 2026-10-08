@@ -169,6 +169,25 @@ Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 was published, later that day.
 Reviewed by a human before merge.*
 
+*Corrected by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+Edwin West, 2026-10-08, after the published pre-release `0.1.0-rc.3` was
+downloaded with a browser, checked, configured by hand and installed from
+nothing on a second machine by the steps in this document, made to fail once
+on purpose, printed through from an iPhone, and uninstalled
+([finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)). The two firewall
+commands now name the installed program where they named
+`C:\path\to\SecretPrinter.Service.exe`, with a sentence before them saying
+why, and the second has the "Run as Administrator" line the first has. Under
+"As a Windows service", what Windows shows when the service fails after it has
+started replaces "Not measured", and what `sc.exe start` prints is said. Under
+Running, the sentence on the exit code under `--service` says what Windows
+shows. Under "What you will see on an iPhone", "In its list of known printers"
+is replaced by what was seen. Added: a command for unpacking, and what the
+browser's mark did; what the program printed when run on the example; that the
+`Remove-Item` line was run; and that day's results under "Where the program
+comes from", "Checking a release before you install it" and Uninstalling.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -211,6 +230,10 @@ steps in this document, and printed
 Later that day the signed folder was installed there as a service, in place of
 the folder of 2026-10-04, started by Windows at boot, and then uninstalled
 ([the finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
+On 2026-10-08 the published pre-release `0.1.0-rc.3` was downloaded with a
+browser on that machine, checked, configured by hand, installed as a service and
+printed through, every step from this document, and then uninstalled
+([the finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
 
 **From source, today.** Clone the repository and install the .NET 10 SDK.
 
@@ -247,7 +270,19 @@ damaged or is not the published file.
 
 ### 2. Every program file is signed, and SecretPrinter's are signed by this project
 
-Unpack the zip into a new folder, then:
+Unpack the zip into a new folder. From the folder that holds the zip:
+
+```powershell
+Expand-Archive -LiteralPath .\SecretPrinter-<version>-win-x64.zip -DestinationPath <new folder>
+```
+
+A browser marks a file it downloads as coming from the internet. On 2026-10-08
+Microsoft Edge marked both files and showed no warning. `Expand-Archive` passed
+the mark to none of the 216 files it unpacked, and nothing asked about it at
+any later step. Unpacking with File Explorer has not been tried. (Until
+2026-10-08 this step gave no command for unpacking.)
+
+Then, with `<folder>` the new folder:
 
 ```powershell
 Get-ChildItem <folder> -Recurse -File | Where-Object { $_.Extension -in '.exe','.dll' } | ForEach-Object { $s = Get-AuthenticodeSignature $_.FullName; [pscustomobject]@{ Ours = $_.Name -like 'SecretPrinter*'; Status = $s.Status; Signer = $s.SignerCertificate.Subject } } | Group-Object Ours, Status, Signer | Format-Table Count, Name -AutoSize -Wrap
@@ -290,6 +325,13 @@ had expired, at 03:27:46Z that day, and its signature on
 ([the finding](findings/2026-10-06-a-signed-release-folder-was-configured-by-hand-and-printed.md)).
 That build was not a release.
 
+On 2026-10-08 both commands were run, as printed here, on the published
+pre-release `0.1.0-rc.3`, downloaded with Microsoft Edge on the second machine.
+The two values in check 1 were the same. Check 2 showed four lines, every one
+`Valid`: the one beginning `True` for 12 files under the name above, and three
+beginning `False` for 190 files signed by Microsoft. Each signature carried a
+timestamp ([the finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
+
 ---
 
 ## What you must do that the service will not
@@ -313,11 +355,19 @@ the program had been run from a console window on two days was read, and no
 firewall rule made by Windows named it; whether Windows had asked was not
 recorded.)
 
+Both rules here name `C:\Program Files\SecretPrinter\SecretPrinter.Service.exe`,
+which is where [As a Windows service](#as-a-windows-service) puts the program.
+The file does not have to exist yet: on 2026-10-08 both rules were added before
+the program was installed, and Windows accepted them. If you will run the
+program from anywhere else, name that file instead. (Until 2026-10-08 both
+commands named `C:\path\to\SecretPrinter.Service.exe`, and which file to name
+was said only after them.)
+
 ```powershell
 # Run as Administrator.
 New-NetFirewallRule -DisplayName "SecretPrinter mDNS" `
     -Direction Inbound -Protocol UDP -LocalPort 5353 `
-    -Program "C:\path\to\SecretPrinter.Service.exe" `
+    -Program "C:\Program Files\SecretPrinter\SecretPrinter.Service.exe" `
     -Profile Private -Action Allow
 ```
 
@@ -326,9 +376,10 @@ New-NetFirewallRule -DisplayName "SecretPrinter mDNS" `
 Print jobs arrive on the port you configured, normally 631:
 
 ```powershell
+# Run as Administrator.
 New-NetFirewallRule -DisplayName "SecretPrinter IPP" `
     -Direction Inbound -Protocol TCP -LocalPort 631 `
-    -Program "C:\path\to\SecretPrinter.Service.exe" `
+    -Program "C:\Program Files\SecretPrinter\SecretPrinter.Service.exe" `
     -Profile Private -Action Allow
 ```
 
@@ -358,7 +409,12 @@ Get-NetFirewallRule -DisplayName "SecretPrinter*" | ForEach-Object { [pscustomob
 Measured on FIOS-STB-01, 2026-09-21: both rules enabled, `Private`, scoped to
 `C:\Program Files\SecretPrinter\SecretPrinter.Service.exe`, on 5353 and 631, and
 both networks `Private`. `Get-NetConnectionProfile` has been seen not to list
-every connected network, so a missing row is not proof of anything.
+every connected network, so a missing row is not proof of anything. Measured
+again on 2026-10-08, on a second machine with no SecretPrinter rule: both
+commands as printed here were accepted, and the reading showed both rules
+enabled, `Private`, naming that path, on 5353 and 631. That machine's printer-side
+network was listed only once it was connected
+([the finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
 
 Without the IPP rule, a capture on 2026-09-06 showed connections to 631 getting
 no answer at all — no refusal — which
@@ -545,6 +601,14 @@ It leaves `advertise.uuid` empty too, since 2026-10-07, and the service refuses
 to start until it holds the UUID from [step 3](#3-generate-a-uuid). With
 neither filled in, the refusal lists both.
 
+Run as printed on 2026-10-08, on a machine with no adapter of the name the
+example gives for the client side, the program refused the example with exit
+code 3 and three problems: the fingerprint, the UUID, and
+`clientInterfaces: No interface is named 'Ethernet 2'`. That last message lists
+every interface Windows reports, 44 on that machine, most of them hidden ones.
+The adapters to choose from are the ones `Get-NetAdapter`, above, shows
+([the finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
+
 Every setting that decides what is advertised or where traffic goes is required.
 Start it and read the errors: all problems are reported in one run, each naming
 the setting at fault.
@@ -584,8 +648,10 @@ unavailable", and so did the program's own `--help` text; both now say what
 is above. Since the same day a part of the service that fails while it is
 running ends the whole service with this code. Before, the other parts ran on
 ([finding](findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md)).
-Under `--service` the process ends with the same code; see "As a Windows
-service" below for what is and is not known about that.
+Under `--service` the process ends with the same code, as the service's last
+log line says. Windows itself reports the service as stopped with error 1067,
+not 4; see "As a Windows service" below. (Until 2026-10-08 this sentence ended
+at "the same code", followed by a pointer to what was not yet known.)
 
 ### As a Windows service
 
@@ -642,9 +708,15 @@ Remove-Item "C:\Program Files\SecretPrinter\secretprinter.json"
 ```
 
 Until 2026-10-07 this step did not say so. The stray copy was noticed by
-reading the steps, not on a machine: the installs measured so far were made
-from a folder that held no configuration. The `Remove-Item` line has not been
-run yet.
+reading the steps, not on a machine: the installs measured until then were made
+from a folder that held no configuration. On 2026-10-08 it was seen: after the
+first `Copy-Item` the program folder held 217 files, the configuration among
+them. The `Remove-Item` line was then run for the first time and left 216, and
+the copy in `C:\ProgramData\SecretPrinter` was still there, with
+`LocalService`'s permission inherited from the folder
+([the finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)). (Until
+2026-10-08 this paragraph said "the installs measured so far" and ended "The
+`Remove-Item` line has not been run yet.")
 
 `C:\Program Files\SecretPrinter` must not exist yet. If it does, `Copy-Item`
 puts the release folder inside it and not in its place, and the service path
@@ -692,6 +764,10 @@ Starting and stopping a service needs an elevated prompt. From an unelevated
 one, `sc.exe start` also fails with error 5, for a different reason: your
 session's rights, not the service's.
 
+`sc.exe start` itself prints `STATE : 2 START_PENDING`; that is not a failure.
+On 2026-10-08 the `sc.exe query` run straight after it read `4 RUNNING`
+([the finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
+
 **Do not omit `obj=`.** Without it `sc.exe` runs the service as **LocalSystem**,
 the most privileged account on the machine. SecretPrinter was measured to need
 nothing beyond standard-user privileges, so LocalSystem asks for far more than
@@ -713,7 +789,7 @@ adapter became usable, with no restart
 A boot at which the client-side adapter is not yet ready has not been measured.
 
 **If the service fails after it has started, it stops and its process ends.**
-Changed in the code on 2026-10-07 and not yet run under Windows. When
+Changed in the code on 2026-10-07, and run under Windows on 2026-10-08. When
 something fails after the configuration has been accepted, the service stops
 everything it was doing, sends its goodbye, and logs an error line beginning
 `Service stopped because of an error`, then one beginning `Ending the process
@@ -722,16 +798,39 @@ as a listener that could not be opened, an error line beginning `A part of the
 service failed` comes before those two. The process then ends, so that Windows
 does not go on showing a failed service as running.
 
-Not measured: what `sc.exe query` shows afterwards, what `sc.exe start` prints
-when the failure comes within the start, which event Windows records, and
-whether a recovery action set with `sc.exe failure` then runs. The steps above
-set no recovery action, so a service that ends this way stays stopped until it
-is started again. If the printer is not offered, read the end of the log
-before anything else. Before that date the failure was logged and nothing
-more happened: the other parts of the service ran on, the process stayed, and
-Windows was told nothing
+What Windows shows, measured on 2026-10-08 on a release install, with another
+program holding TCP 631 on the client-side address so that the listener could
+not be opened ([the finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)):
+
+- `sc.exe start` printed `STATE : 2 START_PENDING`, as for a good start. The
+  failure came about three seconds later, after the service had found the
+  printer, probed and announced.
+- `sc.exe query` afterwards read `STATE : 1 STOPPED`, with
+  `WIN32_EXIT_CODE : 1067 (0x42b)` and `SERVICE_EXIT_CODE : 0`. Windows'
+  text for error 1067 is "The process terminated unexpectedly". The 4 is in
+  the log, not in what Windows shows.
+- The System log recorded event 7034 from the Service Control Manager: "The
+  SecretPrinter service terminated unexpectedly. It has done this 1 time(s)."
+- The Application log held no entry naming SecretPrinter.
+- The first error line, `Could not listen on every address published for`,
+  ended with Windows' own message, `Only one usage of each socket address
+  (protocol/network address/port) is normally permitted.` That message means
+  another program was using that port at that address. The line's advice to
+  restart the service is for an address that has changed, not for this.
+
+Not measured: whether a recovery action set with `sc.exe failure` then runs.
+The steps above set no recovery action, so a service that ends this way stays
+stopped until it is started again. If the printer is not offered, read the end
+of the log before anything else. Before 2026-10-07 the failure was logged and
+nothing more happened: the other parts of the service ran on, the process
+stayed, and Windows was told nothing
 ([finding](findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md)).
-This is listed under Known problems in the README.
+This is listed under Known problems in the README. (Until 2026-10-08 the
+paragraph before the list said the change was "not yet run under Windows", and
+this one began "Not measured: what `sc.exe query` shows afterwards, what
+`sc.exe start` prints when the failure comes within the start, which event
+Windows records, and", and its sentence on the time before the change began
+"Before that date".)
 
 To remove it:
 
@@ -896,9 +995,14 @@ Verified on FIOS-STB-01, 2026-09-19.
 
 Open the print screen and tap **Printer**. The proxy is listed under the name
 you gave it in `advertise.instanceName`; the example's is
-`SecretPrinter (ET-3760)`. In its list of known printers an iPhone has shown,
-with that name, a note that begins `SecretPrinter proxy. Capabilities read
-from the printer at` and gives a time.
+`SecretPrinter (ET-3760)`. An iPhone has shown, with that name, a note that
+begins `SecretPrinter proxy. Capabilities read from the printer at` and gives a
+time. Where its list puts the proxy has differed. On 2026-09-21, 2026-09-22,
+2026-09-25 and 2026-09-29 both rows described below were under **Known
+Printers**. On 2026-10-08, with an installation whose UUID was generated that
+day, the proxy was under **Other Printers** and the printer's own name under
+**Known Printers**. Why is not established. (Until 2026-10-08 this said "In its
+list of known printers".)
 
 **On an iPhone that has printed to the printer directly, the name may change
 when you pick it.** This has been seen on one iPhone, which had printed to the
@@ -916,13 +1020,17 @@ by Edwin West's account. Captures on 2026-09-29 found nothing sent by
 SecretPrinter that named the printer's host, and that finding puts the label
 down to what the iPhone remembered of the printer. The proxy's advertisement
 does carry the printer's product string, `(EPSON ET-3760 Series)`, which the
-README's REQ-ADV-009 has it copy. Why iOS does it is not established, and a
-device that has never been on the printer's network was not tested. Seen on
-2026-09-21, 2026-09-29 and 2026-10-06, the last time through two different
-installations
+README's REQ-ADV-009 has it copy. On 2026-10-08 the information button beside
+the proxy's row opened a screen giving `EPSON ET-3760 Series` as Name and
+Model, with the printer's ink levels. That fits iOS taking the name from what
+the printer says about itself, which the proxy passes on. Why iOS does it is
+not established, and a device that has never been on the printer's network was
+not tested. Seen on 2026-09-21, 2026-09-29, 2026-10-06, the last time through
+two different installations, and 2026-10-08
 ([2026-09-21](findings/2026-09-21-a-second-printer-entry-on-the-iphone.md),
 [2026-09-29](findings/2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md),
-[2026-10-06](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
+[2026-10-06](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md),
+[2026-10-08](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
 
 **A print attempt can send no job while the proxy is answering.** Three
 attempts on record did that, on 2026-10-01 and 2026-10-02, and in two of them
@@ -1207,3 +1315,11 @@ for one and no firewall rule naming the program were left. Both folders were,
 the program folder with all 216 of its files. The two `Remove-Item` commands
 above then removed them
 ([the finding](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md)).
+
+On 2026-10-08 every command in this section was run as printed, in this order,
+on an install made from the published pre-release, with the service already
+stopped. `sc.exe stop` printed the two lines above for a stopped service,
+`sc.exe delete` printed `[SC] DeleteService SUCCESS`, and the other five
+commands printed nothing. Read afterwards, the machine held no service, no
+registry key for one, neither folder, and no firewall rule naming the program
+([the finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).

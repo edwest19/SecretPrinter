@@ -328,7 +328,14 @@ delivery did not look for a machine name of that form, and now does.)*
   on a machine.
   *(Status note, 2026-10-07, later the same day, by Claude, Claude Opus 5.5:
   corrected in the code. The run on a machine is still owed.)*
+  *(Status note, 2026-10-08, by Claude, Claude Opus 5.5: run on a machine that
+  day; see [the finding](2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md).)*
 - **The `Remove-Item` line added to the install step** has not been run.
+  *(Status note, 2026-10-08, by Claude, Claude Opus 5.5: run that day for the
+  first time. It removed the stray copy of the configuration from the program
+  folder, which went from 217 files to 216, and left the copy in the data
+  folder readable by `LocalService`. See
+  [the finding](2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md).)*
 - **`SECURITY.md`, "Supported versions",** still says no release has been
   tagged and that the section will be replaced at the first release. That is
   for the release itself.

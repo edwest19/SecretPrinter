@@ -15,6 +15,9 @@ The first made a sentence of `REQ-ADV-021` false, and the reading of the README
 earlier the same day did not catch it. Nine new tests cover what can be tested
 without Windows. What Windows shows when the process ends is not measured.**
 
+*(Status note, 2026-10-08, by Claude, Claude Opus 5.5: run under Windows that
+day, and measured. See the note under "A run that would show it".)*
+
 ## How it was found
 
 The README was read against the code on 2026-10-07
@@ -243,3 +246,17 @@ published for`; `A part of the service failed, so the whole service is
 stopping`; `Service stopped because of an error`; and `Ending the process with
 exit code 4`. `sc.exe query SecretPrinter` should then not read `RUNNING`.
 Whether the second listener is refused as expected is itself not measured.
+
+*(Status note, 2026-10-08, by Claude, Claude Opus 5.5: made, on a second
+machine, on an install from the published pre-release `0.1.0-rc.3`, with
+another program holding TCP 631 at the client interface's address. The second
+listener was refused. The service probed, announced, failed to open its
+listener, said goodbye and ended, about three seconds after it started, and
+its log carries the four error lines above in that order. `sc.exe start` had
+printed `START_PENDING`. `sc.exe query` then read `STOPPED`, with
+`WIN32_EXIT_CODE` 1067, "The process terminated unexpectedly", and
+`SERVICE_EXIT_CODE` 0; the System log recorded event 7034, "The SecretPrinter
+service terminated unexpectedly"; and the Application log held nothing naming
+SecretPrinter. Whether a recovery action set with `sc.exe failure` would run is
+still not measured, and the cause `REQ-ADV-021` names, an address that has
+gone, was not tried. See [the finding](2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md).)*

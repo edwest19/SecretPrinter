@@ -123,6 +123,16 @@ name, and a line ending of two bytes. Its contents were not read.
   files, and Claude did not go round that.
 - **The programs.** Nothing in this build has been run.
 - **The .NET runtime it carries.** Not read.
+
+*(Status note, 2026-10-08, by Claude, Claude Opus 5.5: the three above were
+done that day, on a second machine. Both files were downloaded with Microsoft
+Edge. The `.sha256` file holds the zip's SHA-256 in capitals, two spaces and
+the zip's name, and `Get-FileHash` on the downloaded zip gave the same value.
+Check 2 read twelve SecretPrinter files and 190 Microsoft files, every one
+`Valid` and timestamped. The build carries .NET 10.0.12 and is stamped
+`0.1.0-rc.3+c5cc8c4ba5f58b438a42b3a8aefc382f9487056b`. The programs were run,
+the service was installed from the document's steps, and an iPhone printed
+through it. See [the finding](2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md).)*
 - **That the signing job cannot run without approval.** An approval is
   recorded for this run and for the second trial run. The setting that makes
   the job wait belongs to the GitHub environment, outside this repository,

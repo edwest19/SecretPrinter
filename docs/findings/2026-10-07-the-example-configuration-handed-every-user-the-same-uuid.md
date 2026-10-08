@@ -138,6 +138,14 @@ committing. Those figures are in the commit message.
 - **The program run on Windows.** Nobody has yet run `--print-example-config`
   from this commit, or started the service on its output. The install from
   nothing that is planned for a second machine will do both.
+  *(Status note, 2026-10-08, by Claude, Claude Opus 5.5: both done that day,
+  on a second machine, with the published pre-release `0.1.0-rc.3`, built from
+  `c5cc8c4`, whose code is this commit's. The example printed `"uuid": ""`.
+  Run on it as printed, the program refused it with exit code 3 and three
+  problems: the fingerprint; the UUID, with the `[guid]::NewGuid()` command;
+  and the example's client interface, which that machine does not have. Filled
+  in by hand, the configuration then loaded, and the service started on it and
+  printed. See [the finding](2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md).)*
 - **Which installations hold the old value.** The two machines this project
   has installed on are not described here. The walk of 2026-10-06 generated
   its own

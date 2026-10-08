@@ -75,6 +75,15 @@ install on a clean machine from a zip downloaded with a browser, followed from
   [the finding](docs/findings/2026-10-07-the-release-workflow-published-a-pre-release.md).
   (Added 2026-10-07 by Claude, Claude Opus 5.5, after the run. It is not in
   the release notes GitHub shows, which were taken from this file at the tag.)
+  (Added 2026-10-08 by Claude, Claude Opus 5.5: on 2026-10-08 it was
+  downloaded with a browser on a second machine, checked by both checks,
+  configured by hand, installed as a service by the steps of
+  `docs/operating.md`, made to fail once on purpose, and printed through from
+  an iPhone. It carries .NET 10.0.12. Two of the things listed above as not
+  shown were shown that day: `--print-example-config` and a start on its
+  output, and the service ending its own process after a failure, which
+  Windows then showed as stopped with error 1067; see
+  [the finding](docs/findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md).)
 
 ## [0.1.0-rc.2] - 2026-10-04
 
