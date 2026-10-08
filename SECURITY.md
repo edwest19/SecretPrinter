@@ -94,13 +94,13 @@ demands of people doing it a favour.
 
 ## Supported versions
 
-**`0.1.0` is the first version meant as a release.** Releases are published by
+**`0.1.0`, published on 2026-10-08, is the first release.** Releases are published by
 the release workflow, from a tag, on this repository's Releases page and
 nowhere else, signed under the name given below.
 
 | Version | What it is | Reports about it |
 | --- | --- | --- |
-| `0.1.0` | The first version meant as a release. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.1.0` | The first release, published on 2026-10-08. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.1.0-rc.1`, `0.1.0-rc.2`, `0.1.0-rc.3` | Trials of the release workflow, and a pre-release for testing. Only `0.1.0-rc.3` was published. | Not covered. `0.1.0` is compiled from the same source code as `0.1.0-rc.3`; see whether the problem happens on `0.1.0`. |
 | `main` | The source as it stands. | No support promise of any kind. A gap between the specification and the code is in scope, as above. |
 
@@ -115,7 +115,9 @@ that sets the version to 0.1.0. The paragraph had said that no release had been
 published, that `0.1.0-rc.3` was a pre-release published on 2026-10-07 that
 carried no support promise, and that neither did `main`; and the section ended
 "This section will be replaced with a real version table at the first
-release.")
+release." Later the same day, once 0.1.0 had been published, "is the first
+version meant as a release" became "published on 2026-10-08, is the first
+release", in the first sentence and in the table.)
 
 (The first two paragraphs replaced 2026-10-07 by Claude, Anthropic model,
 Claude Opus 5.5, at the direction of Edwin West, who decided that day to

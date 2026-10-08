@@ -838,12 +838,14 @@ current count is whatever `run-tests.ps1` reports; the findings are the files in
 
 `publish-release.ps1` produces the folder a release will be made from: the
 service and the probe, published for 64-bit Windows with the .NET runtime
-beside them, into one folder outside the repository. `0.1.0` is the first
-version meant as a release; see `CHANGELOG.md`.
+beside them, into one folder outside the repository. `0.1.0`, published on
+2026-10-08, is the first release; see `CHANGELOG.md`.
 (Note, 2026-10-07, by Claude, Claude Opus 5.5: `0.1.0-rc.3` is a pre-release for testing, not a release; see
 `CHANGELOG.md`. It was published that day.) (Corrected 2026-10-08 by Claude,
 Claude Opus 5.5, in the commit that sets the version to 0.1.0: the sentence
-before the note of 2026-10-07 read "No release exists yet.")
+before the note of 2026-10-07 read "No release exists yet." Later the same
+day, once 0.1.0 had been published, "is the first version meant as a release"
+became "published on 2026-10-08, is the first release".)
 On 2026-10-04 a folder it made was run on a machine with no .NET installed, and
 an iPhone printed through it
 ([finding](docs/findings/2026-10-04-a-release-folder-printed-on-a-machine-with-no-dotnet.md)).
@@ -870,12 +872,19 @@ job that publishes ran for the first time and published it
 On 2026-10-08 that pre-release was downloaded with a browser, checked,
 installed from nothing and printed through
 ([finding](docs/findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
-`0.1.0` is the first version meant as a release, and its tag, `v0.1.0`, runs
-the workflow for it. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the
-commit that sets the version to 0.1.0. It said the workflow had run twice, and
-"No release has been published, and the job that publishes one has never
-run.", followed by a note of 2026-10-07 recording the third run and ending "No
-release has been published; a pre-release has.")
+It ran a fourth time on 2026-10-08, for the tag `v0.1.0`: all three jobs
+passed, the signing job after Edwin West's approval, and the job that publishes
+published release 0.1.0, not marked as a pre-release, the first version it has
+published without a hyphen
+([finding](docs/findings/2026-10-08-the-first-release-was-published.md)).
+(Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit that sets the
+version to 0.1.0. It said the workflow had run twice, and "No release has been
+published, and the job that publishes one has never run.", followed by a note
+of 2026-10-07 recording the third run and ending "No release has been
+published; a pre-release has." Later the same day, once 0.1.0 had been
+published, the last sentence, "`0.1.0` is the first version meant as a
+release, and its tag, `v0.1.0`, runs the workflow for it.", was replaced by
+the one before this note.)
 (Paragraph, the `release.yml` line in the tree and the `[done]` beside
 `CHANGELOG.md` added 2026-10-04 by Claude, Claude Opus 5.5, and corrected twice
 the same day as the workflow ran: it first said the workflow had never run, and

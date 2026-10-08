@@ -195,6 +195,12 @@ version to 0.1.0, so that they are true before that version is published and
 after. Each says what it said before.
 Reviewed by a human before merge.*
 
+*Later the same day, once 0.1.0 had been published, the same two sections were
+given that fact and the results of checking a downloaded copy, by Claude
+(Anthropic model, Claude Opus 5.5) at the direction of Edwin West
+([finding](findings/2026-10-08-the-first-release-was-published.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -220,11 +226,13 @@ visible on a second segment. That is why it confines itself to printing.
 ## Where the program comes from
 
 **From a release.** Releases are published on the repository's Releases page,
-and `0.1.0` is the first version meant as one. A pre-release for testing,
+and `0.1.0`, published on 2026-10-08, is the first. A pre-release for testing,
 `0.1.0-rc.3`, was published there on 2026-10-07. It has the same form as a
 release and is checked and installed by the same steps; it is not a release.
 (Until 2026-10-08 this began "From a release, once there is one. No release has
-been published yet.", and the next sentence said what a release "will be".) A
+been published yet.", and the next sentence said what a release "will be".
+Later that day "is the first version meant as one" became "published on
+2026-10-08, is the first".) A
 release is a zip of a folder holding `SecretPrinter.Service.exe`,
 `SecretPrinter.Probe.exe` and the .NET runtime they need, so that nothing else
 has to be installed (`REQ-DIST-011`). `publish-release.ps1` makes that folder. On
@@ -341,6 +349,10 @@ The two values in check 1 were the same. Check 2 showed four lines, every one
 `Valid`: the one beginning `True` for 12 files under the name above, and three
 beginning `False` for 190 files signed by Microsoft. Each signature carried a
 timestamp ([the finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
+Later that day both were run again, the same way and on the same machine, on
+release 0.1.0, with the same results: the two values the same, and the same
+four lines, every one `Valid` and timestamped
+([the finding](findings/2026-10-08-the-first-release-was-published.md)).
 
 ---
 

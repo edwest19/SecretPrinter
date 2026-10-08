@@ -11,13 +11,15 @@ this file has exactly one heading of the form `## [version] - YYYY-MM-DD` for
 it, and unless `<Version>` in `Directory.Build.props` says the same version.
 Everything under that heading, up to the next one, becomes the release notes.
 
-**`0.1.0` is the first version meant as a release.** Every version below it is
-a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
+**`0.1.0` is the first release.** It was published on 2026-10-08. Every
+version below it is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
 2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
 `0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
 that sets the version to 0.1.0. It said "No release has been published yet.",
 that `0.1.0-rc.3` was a pre-release for testing and not a release, and that it
-was published on 2026-10-07.)
+was published on 2026-10-07. Later the same day, once 0.1.0 had been
+published, "is the first version meant as a release" became "is the first
+release", and the sentence saying when it was published was added.)
 
 ## [0.1.0] - 2026-10-08
 
@@ -89,6 +91,20 @@ between the two networks. `README.md` in the repository is its specification.
 - **Reporting a problem.** Security problems go to the repository's private
   vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
   response-time commitment is offered.
+- **What happened.** The workflow ran for this tag on 2026-10-08 and all three
+  of its jobs passed. The signing job waited for Edwin West's approval. Twelve
+  SecretPrinter files were signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`, in a folder of 216
+  files. The release is on the repository's Releases page as
+  `SecretPrinter-0.1.0-win-x64.zip`, with SHA-256
+  `7006676752EE2C767D264EAB810E835F1D56A4FF88F19DE89D277994DA209D22`, and its
+  `.sha256` file, marked Latest and not as a pre-release. A copy downloaded with
+  a browser on a second machine passed both checks. It carries .NET 10.0.12 and
+  is stamped `0.1.0+27b5f5c98368bbc1fde2ff7ece4aaa870dcb961d`. When this is
+  written nothing in it has been run; see
+  [the finding](docs/findings/2026-10-08-the-first-release-was-published.md).
+  (Added 2026-10-08 by Claude, Claude Opus 5.5, after the run. It is not in the
+  release notes GitHub shows, which were taken from this file at the tag.)
 
 ## [0.1.0-rc.3] - 2026-10-07
 
