@@ -255,7 +255,12 @@ printer-side adapter back to one it had used before, because the one recorded
 on 2026-10-06 "disconnected constantly". The log names `Ethernet` with index 18
 and `Wi-Fi` with 27, where the record of 2026-10-06 has 15 and 32. What changed
 the `Ethernet` index, and why the service had started at 19:12:54Z, were not
-asked.
+asked. *(Status note, 2026-10-09, by Claude, Claude Opus 5.5: FIOS-STB-01's log,
+read on 2026-10-09, shows a stop and a start within a second at 19:12:32Z and
+again at 19:12:53Z, and Windows had last started at 00:29:01Z that day. Edwin
+West said he had restarted the service. What changed the `Ethernet` index is
+still not established
+([finding](2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)).)*
 
 Stopped at **20:31:35Z**. Its log: `Service 'SecretPrinter' stopping.`, `No
 longer accepting print jobs on Ethernet.`, `Advertisement retracted (goodbye
@@ -525,7 +530,11 @@ Every other prediction made before a command held.
   before.
 - **Release 0.1.0.** It will be built later, from the same source code and
   changed documents. Its build will carry whatever runtime the SDK on GitHub's
-  build machine supplies then, and its stamp will name its own commit.
+  build machine supplies then, and its stamp will name its own commit. *(Status note, 2026-10-09, by Claude, Claude Opus 5.5: built and
+  published on 2026-10-08, carrying .NET 10.0.12
+  ([finding](2026-10-08-the-first-release-was-published.md)), and run on
+  2026-10-09 on FIOS-STB-01, installed by the update steps
+  ([finding](2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)).)*
 
 ## Where it was measured
 

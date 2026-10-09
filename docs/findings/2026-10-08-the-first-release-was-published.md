@@ -12,6 +12,11 @@ version without a hyphen. A copy downloaded with a browser on a second machine
 passed both checks in [`operating.md`](../operating.md). It carries .NET 10.0.12
 and is stamped with the tagged commit. Nothing in this build has been run.**
 
+*(Status note, 2026-10-09, by Claude, Claude Opus 5.5: this build was run on
+2026-10-09. It was downloaded on FIOS-STB-01, passed both checks there, and was
+installed as the service in place of a build from source; it found the printer
+and an iPhone printed through it. See "What this does not show" below.)*
+
 No IPv6 address, MAC address or device name appears in this finding. The second
 machine is called the test machine, as in the findings it follows.
 
@@ -120,7 +125,10 @@ Every prediction Claude gave before each command held.
 - **This build, run.** Its programs were checked and not run. Its source code
   is that of `0.1.0-rc.3`, which was installed from nothing and printed through
   on the same day; the two builds differ in the version and the commit stamped
-  into each file.
+  into each file. *(Status note, 2026-10-09, by Claude, Claude Opus 5.5: run
+  that day on FIOS-STB-01, which runs Windows 10, installed by the update steps
+  of `operating.md`; an iPhone printed through it
+  ([finding](2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)).)*
 - **That the signing job cannot run without approval.** An approval is recorded
   for this run, as for the two before it. The setting that requires it belongs
   to the GitHub environment and has not been read.

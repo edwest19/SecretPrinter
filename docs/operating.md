@@ -201,6 +201,22 @@ given that fact and the results of checking a downloaded copy, by Claude
 ([finding](findings/2026-10-08-the-first-release-was-published.md)).
 Reviewed by a human before merge.*
 
+*Corrected by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+Edwin West, 2026-10-09, after release 0.1.0 was downloaded on FIOS-STB-01,
+checked there, and installed in place of a build from source by the steps
+under "Updating an installed service", "From a release"
+([finding](findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)).
+"Updating an installed service" now says that those steps also move an
+installation built from source to a release. Step 1 gains commands for
+downloading with `curl.exe` in an SSH session, step 4 the stamp read on 0.1.0,
+and "To go back" what to do when the version you had was built from source.
+The paragraph on who has followed the steps is corrected, and that day's run
+added. Under "From source", the framework-dependent build is now a reading.
+Under "What you will see on an iPhone", where the list put the proxy that day
+and what the time in its note means. That day's results added under "Where the
+program comes from" and "Checking a release before you install it".
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -251,6 +267,10 @@ On 2026-10-08 the published pre-release `0.1.0-rc.3` was downloaded with a
 browser on that machine, checked, configured by hand, installed as a service and
 printed through, every step from this document, and then uninstalled
 ([the finding](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
+On 2026-10-09 release 0.1.0 was downloaded on FIOS-STB-01, which runs Windows
+10, checked there, and installed in place of a build from source by the steps
+under [Updating an installed service](#updating-an-installed-service); an
+iPhone printed through it ([the finding](findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)).
 
 **From source, today.** Clone the repository and install the .NET 10 SDK.
 
@@ -298,7 +318,10 @@ A browser marks a file it downloads as coming from the internet. On 2026-10-08
 Microsoft Edge marked both files and showed no warning. `Expand-Archive` passed
 the mark to none of the 216 files it unpacked, and nothing asked about it at
 any later step. Unpacking with File Explorer has not been tried. (Until
-2026-10-08 this step gave no command for unpacking.)
+2026-10-08 this step gave no command for unpacking.) On 2026-10-09 the two
+files were downloaded with `curl.exe` instead, in an SSH session to a machine
+with no one at its screen, and carried no such mark; the commands are under
+[Updating an installed service](#updating-an-installed-service).
 
 Then, with `<folder>` the new folder:
 
@@ -353,6 +376,10 @@ Later that day both were run again, the same way and on the same machine, on
 release 0.1.0, with the same results: the two values the same, and the same
 four lines, every one `Valid` and timestamped
 ([the finding](findings/2026-10-08-the-first-release-was-published.md)).
+On 2026-10-09 both were run, as printed, on release 0.1.0 on FIOS-STB-01, the
+first time on Windows 10, with the same results: the two values the same, and
+the same four lines, every one `Valid`. Check 2 was run again there on the
+installed folder, with the same four lines ([the finding](findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)).
 
 ---
 
@@ -872,7 +899,12 @@ an install puts on the machine.
 ### Updating an installed service
 
 There are two procedures: one for an installation made from a release folder,
-and one for an installation built from source.
+and one for an installation built from source. To move an installation built
+from source to a release, follow the first. That was done once, on 2026-10-09,
+on FIOS-STB-01, which had run builds from source as a service since
+2026-09-18: the steps below replaced its build with release 0.1.0 as printed,
+and nothing else needed changing ([the finding](findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)). (Until 2026-10-09 this
+paragraph ended after its first sentence.)
 
 #### From a release
 
@@ -884,6 +916,23 @@ same paths afterwards, so none of them is touched.
 checks under
 [Checking a release before you install it](#checking-a-release-before-you-install-it),
 and unpack the zip into a new folder.
+
+On a machine you reach only by SSH, with no browser at hand, `curl.exe` can
+download them. Microsoft added it to Windows 10 in build 17063
+([Microsoft's announcement](https://techcommunity.microsoft.com/t5/containers/-/ba-p/382409)).
+In Windows PowerShell, `curl` without `.exe` is a different command. With
+`<version>` filled in, these put both files in your Downloads folder:
+
+```powershell
+$d = "$env:USERPROFILE\Downloads"; $u = 'https://github.com/edwest19/SecretPrinter/releases/download/v<version>/SecretPrinter-<version>-win-x64.zip'
+curl.exe --fail --location --silent --show-error --output "$d\SecretPrinter-<version>-win-x64.zip" $u
+curl.exe --fail --location --silent --show-error --output "$d\SecretPrinter-<version>-win-x64.zip.sha256" "$u.sha256"
+```
+
+Each prints nothing when it succeeds. On 2026-10-09 these downloaded release
+0.1.0 on FIOS-STB-01, in an SSH session, and neither file carried the mark a
+browser adds ([the finding](findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)). (Added 2026-10-09; until then this step gave
+no command.)
 
 **2. Stop the service and remove the old program folder.**
 
@@ -920,7 +969,9 @@ It prints the version, a `+`, and the commit the files were built from. The
 part before the `+` must be the version of the release you downloaded. The
 trial build this was measured on printed
 `0.1.0-rc.2+3bcdd4c7784aef0355a1d2d93860039e93f69278`, and `3bcdd4c` is the
-commit its tag names.
+commit its tag names. On 2026-10-09 release 0.1.0 printed
+`0.1.0+27b5f5c98368bbc1fde2ff7ece4aaa870dcb961d`, and `27b5f5c` is the commit
+`v0.1.0` names.
 
 **5. Start the service, wait about fifteen seconds, and read the end of its
 log.**
@@ -941,8 +992,15 @@ service is waiting for its printer side; see
 [When the printer-side network drops](#when-the-printer-side-network-drops).
 
 **To go back** to the version you had, follow the same steps with that
-release's zip. Keep it until the new version has printed. Going back has not
-been tried.
+release's zip. Keep it until the new version has printed. If the version you
+had was built from source, there is no zip. Stop the service and remove the
+program folder as in step 2; then publish from your clone at the commit you
+had built, as under [From source](#from-source) but without the pull, and
+start the service. Remove the folder first: a publish over a folder never
+removes anything, so the release's files would stay beside the rebuilt ones.
+Keep the clone at that commit until the new version has printed. Going back
+has not been tried, either way. (The sentences on a version built from source
+were added on 2026-10-09.)
 
 These steps were followed on 2026-10-06, on Windows 11, and an iPhone printed
 through the updated service
@@ -950,10 +1008,22 @@ through the updated service
 Three limits, all in that finding. Neither folder was a release: the old one
 was an unsigned folder built by hand, and the new one a trial build the release
 workflow had signed. The steps were run before this text was written, from
-commands Claude gave Edwin West one at a time, so nobody has yet followed them
+commands Claude gave Edwin West one at a time, so that day nobody followed them
 from this document. And that service started in the waiting state described
 under step 5, because the machine's printer-side network had not been
 connected; it offered the printer by itself once it was.
+
+On 2026-10-09 they were followed from this document, on FIOS-STB-01, which runs
+Windows 10, to replace a build from source with release 0.1.0. Every command
+was the document's, run as printed with its placeholders filled in, except
+that the files were downloaded with the `curl.exe` commands under step 1, and
+the log was read from the start rather than its last five lines. The printer
+was not offered for 10 minutes 12 seconds, most of it time between the steps
+rather than in them. The service found the printer at once, and an iPhone
+printed through it. The commands were again given one at a time by Claude, so
+a person working from the document alone is still not shown
+([the finding](findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)). (Until 2026-10-09 the paragraph before this one said "so
+nobody has yet followed them from this document".)
 
 #### From source
 
@@ -1007,7 +1077,11 @@ Two honest limitations of this procedure:
 - **This installs a framework-dependent build**, which needs a matching .NET
   runtime already on the machine. REQ-DIST-011 requires releases to be
   self-contained, so this is a development convenience and not the shape a
-  release takes.
+  release takes. Read on FIOS-STB-01 on 2026-10-09, before the build it had
+  installed this way was replaced: 26 files, and a `runtimeconfig.json` naming
+  `Microsoft.NETCore.App` `10.0.0` under `framework`, with no
+  `includedFrameworks`, where a release names the runtime it carries
+  ([the finding](findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)).
 
 Verified on FIOS-STB-01, 2026-09-19.
 
@@ -1024,7 +1098,17 @@ time. Where its list puts the proxy has differed. On 2026-09-21, 2026-09-22,
 Printers**. On 2026-10-08, with an installation whose UUID was generated that
 day, the proxy was under **Other Printers** and the printer's own name under
 **Known Printers**. Why is not established. (Until 2026-10-08 this said "In its
-list of known printers".)
+list of known printers".) On 2026-10-09, through FIOS-STB-01's installation,
+which kept its UUID when it was updated to release 0.1.0, both rows were under
+**Known Printers** again.
+
+The time in the note is when the service read the printer's capabilities as it
+last started; it does not change when the printer is lost and found again. On
+2026-10-09 the note gave 16:11:08Z, when the previous build had last started,
+and not 17:39:26Z, when release 0.1.0 had started, two minutes before the list
+was opened. Why is
+not established, so the time is not, on its own, a sign of which installation
+is answering ([the finding](findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)). (Added 2026-10-09.)
 
 **On an iPhone that has printed to the printer directly, the name may change
 when you pick it.** This has been seen on one iPhone, which had printed to the
@@ -1048,11 +1132,12 @@ Model, with the printer's ink levels. That fits iOS taking the name from what
 the printer says about itself, which the proxy passes on. Why iOS does it is
 not established, and a device that has never been on the printer's network was
 not tested. Seen on 2026-09-21, 2026-09-29, 2026-10-06, the last time through
-two different installations, and 2026-10-08
+two different installations, 2026-10-08 and 2026-10-09
 ([2026-09-21](findings/2026-09-21-a-second-printer-entry-on-the-iphone.md),
 [2026-09-29](findings/2026-09-29-the-printers-host-name-did-not-come-through-secretprinter.md),
 [2026-10-06](findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md),
-[2026-10-08](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
+[2026-10-08](findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md),
+[2026-10-09](findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md)).
 
 **A print attempt can send no job while the proxy is answering.** Three
 attempts on record did that, on 2026-10-01 and 2026-10-02, and in two of them

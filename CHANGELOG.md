@@ -105,6 +105,15 @@ between the two networks. `README.md` in the repository is its specification.
   [the finding](docs/findings/2026-10-08-the-first-release-was-published.md).
   (Added 2026-10-08 by Claude, Claude Opus 5.5, after the run. It is not in the
   release notes GitHub shows, which were taken from this file at the tag.)
+  (Added 2026-10-09 by Claude, Claude Opus 5.5: on 2026-10-09 it was downloaded
+  on FIOS-STB-01, which runs Windows 10, passed both checks there, and was
+  installed in place of a build from source by the update steps of
+  `docs/operating.md`. It started, offered the printer, and an iPhone printed
+  through it: the first run of this build, and by the record the first run of
+  a release folder on Windows 10. Of the things listed above as not shown, this
+  build itself was run that day; updating from one release to the next still
+  has not been;
+  see [the finding](docs/findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md).)
 
 ## [0.1.0-rc.3] - 2026-10-07
 
