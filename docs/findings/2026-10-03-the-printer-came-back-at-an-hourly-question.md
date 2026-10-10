@@ -12,6 +12,16 @@ decided that the schedule of `REQ-RES-008`, with its cap of one question an
 hour, stays as it is for a release. Why the printer side was lost is not
 established. No code changes here.**
 
+*(Status note, 2026-10-10, by Claude, Claude Opus 5.5: release 0.1.0 shipped
+with the schedule as it was. On 2026-10-10, after 0.1.0's first 22 hours on
+FIOS-STB-01 were read, Edwin West chose the second of the four courses under
+"Decided": the questions start over when Windows reports the printer-side
+adapter usable again, as README `REQ-RES-010` states. The hourly cap is
+unchanged, and so is the rule that only an answer makes the printer reachable.
+Worked out from the code, a start over does not make every loss shorter. See
+[the finding of 2026-10-10](2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md).
+Logging each question, raised below, has not been built.)*
+
 All times are UTC and on 2026-10-03 unless a date is given. In US Eastern time,
 where the machines are, they fall on the evening of 2026-10-02.
 

@@ -12,6 +12,18 @@
 // docs/findings/2026-09-25-two-clauses-of-req-res-008-were-never-built.md.
 // Reviewed by a human before merge.
 //
+// RestartContinuousQuerying added, and the REQ-RES-008 note on this type
+// reworded to match, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-10, for REQ-RES-010. The service calls it
+// when the printer-side adapter is usable again, so that a printer held
+// unreachable is asked at once rather than at the next of questions that by
+// then may be an hour apart. It takes no argument: the adapter's state still
+// cannot reach this type, and the verdict still rests on answers alone. The
+// note said no schedule here could rest on adapter state; the questions can
+// now be started over because of it. See
+// docs/findings/2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Holds the service's belief about whether the printer can be reached, and
 //   says when the next query is due.
@@ -34,7 +46,10 @@
 //
 //   Unreachable - continuous querying. The first two queries are at least one
 //                 second apart, each interval is at least double the last, and
-//                 the interval is capped at 60 minutes.
+//                 the interval is capped at 60 minutes. The service can start
+//                 this run of questions over (RestartContinuousQuerying), and
+//                 does when the printer-side adapter is usable again
+//                 (REQ-RES-010).
 //
 //   Known-Answer Suppression does not interfere. Section 7.1 has a responder
 //   answer anyway when the TTL in a query's Answer Section is less than half
@@ -81,9 +96,11 @@ public enum ReachabilityTransition
 /// alone, and schedules the next query per RFC 6762 section 5.2.
 /// </summary>
 [Requirement("REQ-RES-008",
-    "Its only inputs are the outcomes of mDNS resolution on the printer-side interface. There is no "
+    "Its verdict rests only on the outcomes of mDNS resolution on the printer-side interface. There is no "
     + "parameter, field or constructor argument by which adapter state, address state or multicast "
-    + "membership could reach this type, so no schedule or verdict here can rest on one.")]
+    + "membership could reach this type, so no verdict here can rest on one. The service may start the "
+    + "questions over when the adapter is usable again (REQ-RES-010), through a call that takes nothing "
+    + "and moves only when the next question is asked.")]
 public sealed class PrinterReachability
 {
     /// <summary>How many reconfirmations the RFC sends before the record dies.</summary>
@@ -261,6 +278,45 @@ public sealed class PrinterReachability
         }
 
         return FallUnreachable(now);
+    }
+
+    /// <summary>
+    /// Starts the run of questions over while the printer is held unreachable:
+    /// the next question is due now, and the interval after it is one second
+    /// again, doubling from there. While the printer is held reachable nothing
+    /// changes.
+    /// </summary>
+    /// <remarks>
+    /// The service calls this when the printer-side adapter has become usable
+    /// again (README REQ-RES-010). RFC 6762 s5.4 speaks of a querier's
+    /// "initial batch of questions immediately on wake from sleep or interface
+    /// activation", and s10.3 has a host take a change of connectivity that the
+    /// hardware reports into account in its cache management. Neither requires
+    /// this. The doubling and the hourly cap of s5.2 apply to one run of
+    /// questions; this begins a new one.
+    ///
+    /// It takes no argument, so adapter state still cannot reach this type, and
+    /// it never changes the verdict: the printer is held reachable again only
+    /// when it answers.
+    /// </remarks>
+    /// <returns>
+    /// True when the questions were started over; false when the printer is
+    /// held reachable and nothing changed.
+    /// </returns>
+    [Requirement("REQ-RES-010",
+        "Starts the questions over while the printer is held unreachable: the next is due at once and the "
+        + "interval after it is one second again. While the printer is held reachable nothing changes, and "
+        + "the verdict is never changed: only an answer makes the printer reachable.")]
+    public bool RestartContinuousQuerying()
+    {
+        if (_reachable)
+        {
+            return false;
+        }
+
+        _retryInterval = TimeSpan.Zero;
+        _nextQueryDue = _clock.GetUtcNow();
+        return true;
     }
 
     private void AcceptAnswer(ResolvedPrinter answer)

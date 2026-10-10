@@ -13,6 +13,11 @@
 // model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-29. Reviewed
 // by a human before merge.
 //
+// Tests of RestartContinuousQuerying, the service starting its questions over
+// when the printer-side adapter is usable again, added by Claude (Anthropic
+// model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-10, for
+// REQ-RES-010. Reviewed by a human before merge.
+//
 // Purpose:
 //   Pins the reachability schedule to RFC 6762 section 5.2 rather than to
 //   whatever the implementation happens to do.
@@ -387,5 +392,76 @@ internal static class PrinterReachabilityTests
             reachability.RecordDemandAnswer(Answer(answeredAt)),
             "a record already dead must not report the printer reachable for one tick");
         Assert.False(reachability.IsReachable, "the printer is still held unreachable");
+    }
+
+    // ---- Starting the questions over (REQ-RES-010) ------------------------------
+
+    [TestCase("Starting over while the printer is held unreachable makes the next question due at once, and the interval after it one second again")]
+    [Requirement("REQ-RES-010")]
+    public static void Starting_over_while_unreachable_asks_now_and_from_one_second()
+    {
+        var clock = new TestClock(Start);
+        PrinterReachability reachability = Fresh(clock);
+
+        clock.MoveTo(Start + TimeSpan.FromSeconds(120));
+        reachability.Tick();
+
+        // Silences at 1, 2, 4, 8 and 16 s: the next interval would be 32 s.
+        for (int i = 0; i < 5; i++)
+        {
+            reachability.RecordSilence();
+            clock.MoveTo(reachability.NextQueryDue);
+        }
+
+        clock.Advance(TimeSpan.FromSeconds(7));
+        DateTimeOffset usableAgain = clock.GetUtcNow();
+
+        Assert.True(reachability.RestartContinuousQuerying(), "the printer is held unreachable, so the questions start over");
+        Assert.Equal(usableAgain, reachability.NextQueryDue, "the next question is due at once");
+        Assert.False(reachability.IsReachable, "starting over says nothing about the printer: only an answer does");
+
+        reachability.RecordSilence();
+        Assert.Equal(usableAgain + TimeSpan.FromSeconds(1), reachability.NextQueryDue,
+            "the interval after the first question of the new run is one second, where 32 s was next before");
+
+        clock.MoveTo(reachability.NextQueryDue);
+        DateTimeOffset second = clock.GetUtcNow();
+        reachability.RecordSilence();
+        Assert.Equal(second + TimeSpan.FromSeconds(2), reachability.NextQueryDue, "and it doubles from there");
+    }
+
+    [TestCase("Starting over while the printer is held reachable changes nothing")]
+    [Requirement("REQ-RES-010")]
+    public static void Starting_over_while_reachable_changes_nothing()
+    {
+        var clock = new TestClock(Start);
+        PrinterReachability reachability = Fresh(clock);
+        clock.MoveTo(Start + TimeSpan.FromSeconds(30));
+        DateTimeOffset before = reachability.NextQueryDue;
+
+        Assert.False(reachability.RestartContinuousQuerying(), "nothing is started over while the printer is reachable");
+        Assert.Equal(before, reachability.NextQueryDue, "the reconfirmation stays at 80% of the record's lifetime");
+        Assert.True(reachability.IsReachable, "and the printer is still held reachable");
+        Assert.Equal(0, reachability.UnansweredQueries, "nothing counts as unanswered");
+    }
+
+    [TestCase("After starting over, the printer is reachable again only when it answers")]
+    [Requirement("REQ-RES-010")]
+    public static void Only_an_answer_ends_the_run_started_over()
+    {
+        var clock = new TestClock(Start);
+        PrinterReachability reachability = Fresh(clock);
+
+        clock.MoveTo(Start + TimeSpan.FromSeconds(120));
+        reachability.Tick();
+        reachability.RecordSilence();
+
+        clock.Advance(TimeSpan.FromSeconds(10));
+        reachability.RestartContinuousQuerying();
+        Assert.Equal(ReachabilityTransition.None, reachability.Tick(), "a tick after starting over reports no change");
+        Assert.False(reachability.IsReachable, "still unreachable");
+
+        Assert.Equal(ReachabilityTransition.BecameReachable, reachability.RecordAnswer(Answer(clock.GetUtcNow())),
+            "the printer answering is what brings it back");
     }
 }

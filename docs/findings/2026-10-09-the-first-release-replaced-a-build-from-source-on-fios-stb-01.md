@@ -21,6 +21,16 @@ such an installation goes back, nor how to download on a machine reached only
 by SSH; those are corrected in the commit that carries this finding. No code
 changed.**
 
+*(Status note, 2026-10-10, by Claude, Claude Opus 5.5: 0.1.0 has since been
+seen losing the printer and finding it again on FIOS-STB-01, which this
+finding listed as not seen. In its first 22 hours 14 minutes it lost the
+printer 14 times and found it again each time without a restart. In four of
+those losses a script of Edwin's, not part of SecretPrinter, had reconnected
+the printer-side Wi-Fi. See
+[the finding of 2026-10-10](2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md),
+which also records what came of it: the questions now start over when the
+adapter is usable again.)*
+
 No IPv6 address, MAC address or device name appears in this finding, and
 neither do the network names. The printer's host name is written
 `EPSON000000`. The folder the release was unpacked into is written `<walk

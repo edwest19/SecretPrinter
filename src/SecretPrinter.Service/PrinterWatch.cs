@@ -10,13 +10,22 @@
 // Edwin West, 2026-09-25, for REQ-RES-008. See "Answers that jobs obtain"
 // below. Reviewed by a human before merge.
 //
+// Told when the printer-side interface is usable again, and the questions then
+// started over while the printer is held unreachable, by Claude (Anthropic
+// model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-10, for
+// REQ-RES-010. See "When the interface is usable again" below. Reviewed by a
+// human before merge.
+//
 // Purpose:
 //   Keeps PrinterReachability fed. It waits until a query is due, asks, reports
 //   the outcome, and logs the two moments that matter: the printer going quiet,
 //   and the printer coming back.
 //
 //   PrinterReachability holds the schedule and the verdict. This class holds the
-//   clock and the loop. Neither knows anything about adapters.
+//   clock and the loop. Neither reads an adapter. (Since 2026-10-10 this class
+//   is told, by AdapterWatch, when the printer-side interface is usable again,
+//   and it then starts the questions over; see below. It still never reads an
+//   adapter, and the verdict still rests on answers alone.)
 //
 // What it logs, and what it does not:
 //   Transitions only. On 2026-09-20 the printer-side WLAN was down for nine
@@ -80,6 +89,17 @@
 //
 //   A job's lookup that goes unanswered is not handed over. See the note on
 //   demand-driven queries in PrinterReachability.cs.
+//
+// When the interface is usable again:
+//   AdapterWatch calls StartQuestionsOver when the printer-side adapter has
+//   become usable after being seen not usable, or has a new address (README
+//   REQ-RES-010). Like a job's answer, the call only queues, and the loop's
+//   wait ends early for it. On the loop, if the printer is held unreachable,
+//   the questions start over: the printer is asked at once and the intervals
+//   begin again at one second. That is logged once, as information, with the
+//   interface as found. While the printer is held reachable nothing happens and
+//   nothing is logged. Several calls queued before the loop reads them start
+//   the questions over once.
 // -----------------------------------------------------------------------------
 
 using System.Threading.Channels;
@@ -106,6 +126,10 @@ public sealed class PrinterWatch
     // variant supports fewer operations, and an unsupported one would throw on
     // the watch's loop.
     private readonly Channel<ResolvedPrinter> _jobAnswers = Channel.CreateUnbounded<ResolvedPrinter>();
+
+    // The printer-side interface as found each time it became usable again,
+    // waiting for the loop to start the questions over. Only the loop reads it.
+    private readonly Channel<string> _usableAgain = Channel.CreateUnbounded<string>();
 
     /// <param name="reachability">The state and schedule this loop drives.</param>
     /// <param name="lookup">
@@ -180,8 +204,10 @@ public sealed class PrinterWatch
         while (!cancellationToken.IsCancellationRequested)
         {
             // Answers that jobs obtained come first: each can move the schedule,
-            // and the wait below is computed from it.
+            // and the wait below is computed from it. So can the interface being
+            // usable again (REQ-RES-010).
             await RecordJobAnswersAsync(cancellationToken).ConfigureAwait(false);
+            StartOverIfUsableAgain();
 
             // While the printer is reachable the record can reach the end of its
             // lifetime with no query outstanding, and that moment is itself a
@@ -207,8 +233,9 @@ public sealed class PrinterWatch
 
                 if (answerArrived && !cancellationToken.IsCancellationRequested)
                 {
-                    // A job's answer arrived during the wait. Record it and work
-                    // the wait out again from the schedule it leaves.
+                    // A job's answer arrived during the wait, or word that the
+                    // interface is usable again. Take it in and work the wait
+                    // out again from the schedule it leaves.
                     continue;
                 }
             }
@@ -235,15 +262,19 @@ public sealed class PrinterWatch
     /// Waits for <paramref name="wait"/>, or until a job hands over an answer,
     /// whichever comes first.
     /// </summary>
-    /// <returns>True when a job's answer is waiting to be recorded.</returns>
+    /// <returns>
+    /// True when a job's answer, or word that the interface is usable again, is
+    /// waiting to be taken in.
+    /// </returns>
     private async Task<bool> WaitAsync(TimeSpan wait, CancellationToken cancellationToken)
     {
         using var woken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         Task elapsed = _delay(wait, woken.Token);
         Task<bool> arrived = _jobAnswers.Reader.WaitToReadAsync(woken.Token).AsTask();
+        Task<bool> usableAgain = _usableAgain.Reader.WaitToReadAsync(woken.Token).AsTask();
 
-        await Task.WhenAny(elapsed, arrived).ConfigureAwait(false);
+        await Task.WhenAny(elapsed, arrived, usableAgain).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
         if (elapsed.IsCompleted)
@@ -253,12 +284,57 @@ public sealed class PrinterWatch
             await elapsed.ConfigureAwait(false);
         }
 
-        bool answerArrived = arrived.IsCompletedSuccessfully && await arrived.ConfigureAwait(false);
+        bool answerArrived = (arrived.IsCompletedSuccessfully && await arrived.ConfigureAwait(false))
+                             || (usableAgain.IsCompletedSuccessfully && await usableAgain.ConfigureAwait(false));
 
         // Ends whichever of the two is still waiting.
         await woken.CancelAsync().ConfigureAwait(false);
 
         return answerArrived;
+    }
+
+    /// <summary>
+    /// Tells the watch that the printer-side interface is usable again, as
+    /// found. If the printer is held unreachable when the loop takes this in,
+    /// the questions start over: the printer is asked at once and the
+    /// intervals begin again at one second. Never blocks.
+    /// </summary>
+    /// <param name="usableInterface">The interface as found, for the log line.</param>
+    [Requirement("REQ-RES-010",
+        "Takes word that the printer-side interface is usable again and wakes the watch for it, so that a "
+        + "printer held unreachable is asked at once.")]
+    public void StartQuestionsOver(string usableInterface)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(usableInterface);
+
+        // Unbounded and never completed, so this always succeeds.
+        _usableAgain.Writer.TryWrite(usableInterface);
+    }
+
+    /// <summary>
+    /// On the loop: takes in every word that the interface is usable again and,
+    /// if the printer is held unreachable, starts the questions over once and
+    /// says so.
+    /// </summary>
+    [Requirement("REQ-RES-010",
+        "While the printer is held unreachable, starts the questions over and logs one line, as information, "
+        + "naming the interface as found; while it is held reachable, does nothing and logs nothing.")]
+    private void StartOverIfUsableAgain()
+    {
+        string? found = null;
+        while (_usableAgain.Reader.TryRead(out string? usable))
+        {
+            found = usable;
+        }
+
+        if (found is null || !_reachability.RestartContinuousQuerying())
+        {
+            return;
+        }
+
+        _log.Info(
+            $"The printer-side interface is usable again: {found}. Asking the printer now, and starting the "
+            + "RFC 6762 questions again from one second.");
     }
 
     /// <summary>Records every answer that jobs have handed over, in order.</summary>

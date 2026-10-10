@@ -110,6 +110,16 @@
 // docs/findings/2026-10-10-a-question-that-carries-its-answer-is-no-longer-answered.md.
 // Reviewed by a human before merge.
 //
+// An AdapterWatch started next to the printer watch, by Claude (Anthropic
+// model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-10, for
+// REQ-RES-010. It examines the printer-side adapter every five seconds and
+// tells the watch when the adapter is usable again, so that a printer held
+// unreachable is asked at once rather than at the next of questions that by
+// then may be an hour apart. No test runs this wiring, as no test runs
+// RunAsync. See
+// docs/findings/2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -432,6 +442,21 @@ public sealed class ServiceHost
                     responder, offering, _log, reachable, delay: null, Offering.AnnouncementInterval, token));
 
             running.Add(watch.WatchAsync(stopping.Token));
+
+            // The printer-side adapter examined every five seconds, by the
+            // startup wait's rule, for as long as the service runs. When it
+            // is usable again after being seen not usable, or usable on
+            // another address or index, the watch is told; if it holds the
+            // printer unreachable, it asks at once and starts the RFC 6762
+            // questions over from one second (REQ-RES-010). The adapter's
+            // state never makes the printer reachable: only an answer does.
+            var adapterWatch = new AdapterWatch(
+                printerInterface,
+                () => StartupWait.Examine(_configuration.PrinterInterfaceName, SystemInterfaceInventory.Instance),
+                usable => watch.StartQuestionsOver(usable.ToString()),
+                _log);
+
+            running.Add(adapterWatch.WatchAsync(stopping.Token));
 
             foreach (AdvertisedInterface entry in advertised)
             {

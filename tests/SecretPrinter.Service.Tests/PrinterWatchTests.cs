@@ -23,6 +23,13 @@
 // model, Claude Opus 5.5) at the direction of Edwin West, 2026-09-29. Reviewed
 // by a human before merge.
 //
+// Tests that the watch, told the printer-side interface is usable again,
+// starts its questions over while the printer is held unreachable and does
+// nothing while it is reachable, added by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, 2026-10-10, for REQ-RES-010. They wait on
+// the watch's own loop as the two cases about a job's answer do. Reviewed by a
+// human before merge.
+//
 // Purpose:
 //   Holds the watch to two things: that it actually asks, and that it only
 //   speaks when something changed.
@@ -460,5 +467,96 @@ internal static class PrinterWatchTests
         Assert.Equal(1,
             log.Lines.FindAll(line => line.Contains("reachable again", StringComparison.Ordinal)).Count,
             "the recovery is logged once, as when the watch's own query is answered");
+    }
+
+    [TestCase("Told the printer-side interface is usable again while the printer is held unreachable, the watch asks at once, starts from one second again, and says so once")]
+    [Requirement("REQ-RES-010")]
+    public static async Task Usable_again_while_unreachable_asks_at_once()
+    {
+        // The startup answer's 120s lifetime has already run out, so the watch's
+        // first pass finds the printer unreachable and asks once, unanswered.
+        var clock = new TestClock(Start + TimeSpan.FromSeconds(200));
+        var log = new RecordingLog();
+        var reachability = new PrinterReachability(Answer(Start), clock, () => 0.0);
+        var waits = new ConcurrentQueue<TimeSpan>();
+        int asked = 0;
+        using var stop = new CancellationTokenSource();
+
+        var watch = new PrinterWatch(
+            reachability,
+            _ =>
+            {
+                Interlocked.Increment(ref asked);
+                throw new PrinterResolutionException("silent, for the test");
+            },
+            log,
+            clock,
+
+            // A wait that never ends by itself, so the clock never moves: only
+            // the interface being usable again, or the stop, can end it.
+            (wait, token) =>
+            {
+                waits.Enqueue(wait);
+                return Task.Delay(Timeout.Infinite, token);
+            });
+
+        Task watching = watch.WatchAsync(stop.Token);
+        await WaitUntilAsync(() => waits.Count == 1, "asking once, unanswered, and waiting").ConfigureAwait(false);
+
+        watch.StartQuestionsOver("Wi-Fi (192.0.2.42, IPv4 index 7)");
+
+        await WaitUntilAsync(() => waits.Count == 2, "asking again at once and waiting").ConfigureAwait(false);
+        await stop.CancelAsync().ConfigureAwait(false);
+        await watching.ConfigureAwait(false);
+
+        TimeSpan[] recorded = [.. waits];
+        List<string> said = log.Lines.FindAll(line => line.Contains("usable again", StringComparison.Ordinal));
+
+        Assert.Equal(2, Volatile.Read(ref asked), "asked at the loss, and again as soon as the interface was usable again");
+        Assert.Equal(TimeSpan.FromSeconds(1), recorded[0], "the first interval after the loss is one second");
+        Assert.Equal(TimeSpan.FromSeconds(1), recorded[1],
+            "after the question asked at once, the next is one second away again, where two seconds came next before");
+        Assert.Equal(1, said.Count, "the start over is logged once");
+        Assert.True(said[0].StartsWith("Information: ", StringComparison.Ordinal), "as information, not as a warning");
+        Assert.True(said[0].Contains("Wi-Fi (192.0.2.42, IPv4 index 7)", StringComparison.Ordinal),
+            "naming the interface as it was found");
+        Assert.False(reachability.IsReachable, "and the printer is still held unreachable: only an answer changes that");
+    }
+
+    [TestCase("Told the printer-side interface is usable again while the printer is held reachable, the watch changes nothing and says nothing")]
+    [Requirement("REQ-RES-010")]
+    public static async Task Usable_again_while_reachable_changes_nothing()
+    {
+        var clock = new TestClock(Start);
+        var log = new RecordingLog();
+        var reachability = new PrinterReachability(Answer(Start), clock, () => 0.0);
+        var waits = new ConcurrentQueue<TimeSpan>();
+        using var stop = new CancellationTokenSource();
+
+        var watch = new PrinterWatch(
+            reachability,
+            _ => throw new InvalidOperationException("the watch must not ask before its schedule says"),
+            log,
+            clock,
+            (wait, token) =>
+            {
+                waits.Enqueue(wait);
+                return Task.Delay(Timeout.Infinite, token);
+            });
+
+        Task watching = watch.WatchAsync(stop.Token);
+        await WaitUntilAsync(() => waits.Count == 1, "waiting for the first reconfirmation").ConfigureAwait(false);
+
+        watch.StartQuestionsOver("Wi-Fi (192.0.2.42, IPv4 index 7)");
+
+        await WaitUntilAsync(() => waits.Count == 2, "waking, and waiting again").ConfigureAwait(false);
+        await stop.CancelAsync().ConfigureAwait(false);
+        await watching.ConfigureAwait(false);
+
+        TimeSpan[] recorded = [.. waits];
+
+        Assert.Equal(TimeSpan.FromSeconds(96), recorded[1], "the reconfirmation is still due at 80% of the 120s lifetime");
+        Assert.Equal(Start + TimeSpan.FromSeconds(96), reachability.NextQueryDue, "the schedule did not move");
+        Assert.Equal(0, log.Lines.Count, "nothing is said about a printer that is answering");
     }
 }

@@ -217,6 +217,16 @@ and what the time in its note means. That day's results added under "Where the
 program comes from" and "Checking a release before you install it".
 Reviewed by a human before merge.*
 
+*Under "When the printer-side network drops", the first bullet rewritten by
+Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+2026-10-10, when the service began starting its questions to the printer over
+once the printer-side adapter is usable again (`REQ-RES-010`;
+[finding](findings/2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md)).
+It said only that, after a long outage, the printer might not reappear for up
+to an hour after the link returned. What it now describes has not been run on
+a network.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -1246,9 +1256,20 @@ and the listener closed — and resume when the printer answers again
 know:
 
 - **Coming back can be slow.** While the printer is away the service asks again
-  after 1, 2, 4, 8… seconds, up to once an hour. After a long outage, the printer
-  may not reappear for up to an hour after the link returns. Restarting the
-  service after reconnecting brings it back at once.
+  after 1, 2, 4, 8… seconds, up to once an hour. The service examines the
+  printer-side adapter every 5 seconds, and when Windows reports it usable
+  again after it was not, or usable on another address, the service asks the
+  printer at once and starts again from one second (`REQ-RES-010`). It logs
+  that in a line beginning `The printer-side interface is usable again:`. So a
+  printer that answers soon after its network comes back reappears within
+  seconds. A printer that itself stays away longer may not reappear for up to
+  an hour after it starts answering, and the start over moves when each later
+  question falls, so it can be found later than it would have been without
+  one ([the finding](findings/2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md)).
+  A drop shorter than 5 seconds may not be seen. Restarting the service brings
+  the printer back at once. Versions before this change, 0.1.0 among them, do
+  not start over: after a long outage the printer may not reappear for up to
+  an hour after the link returns. Not yet run on a network.
 - **Before each of those questions the service reopens its printer-side socket**
   (`REQ-RES-009`), on the adapter's address as it is then. On 2026-09-25 the old
   socket's membership of `224.0.0.251` was found gone after a long outage, and
