@@ -106,6 +106,20 @@
 // See docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
 // Reviewed by a human before merge.
 //
+// A query's Answer section read, and a record the query already carries left
+// out of the answer, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-10, for REQ-ADV-026 (RFC 6762 s7.1,
+// known-answer suppression). Before, a query's Answer section was never read,
+// and every question was answered whatever the querier said it already held. A
+// query whose every answer is left out sends nothing and is counted in
+// ResponderActivity.SuppressedByKnownAnswers, not under IgnoredNotOurs, and the
+// first line of the service's stop summary, written until then in
+// ServiceHost.cs, moved here as ResponderActivity.DescribeServed so that the
+// count it now gives can be tested. The REQ-SEC-001 note on HandleAsync now
+// says the Answer section is read. See
+// docs/findings/2026-10-10-a-question-that-carries-its-answer-is-no-longer-answered.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -184,6 +198,12 @@ public sealed record AdvertisedInterface(
 /// settle - whether anything was actually served over IPv6 - because a client
 /// that discovers the proxy over IPv4 produces an identical count. The totals
 /// remain available below, computed from the parts, so they cannot drift.
+///
+/// SuppressedByKnownAnswers counts queries that would have been answered and
+/// were not, because the query already carried every answer (RFC 6762 s7.1;
+/// README REQ-ADV-026). They are counted as seen and not as answered, and not
+/// under IgnoredNotOurs either, which is for queries about names this
+/// responder does not hold. (Added 2026-10-10 by Claude, Claude Opus 5.5.)
 /// </remarks>
 public sealed record ResponderActivity(
     int AnnouncementsSent,
@@ -194,13 +214,32 @@ public sealed record ResponderActivity(
     int IgnoredWrongInterface,
     int IgnoredNotOurs,
     int Unparseable,
-    int GoodbyesSent)
+    int GoodbyesSent,
+    int SuppressedByKnownAnswers)
 {
     /// <summary>Queries seen over either transport.</summary>
     public int QueriesSeen => QueriesSeenOverIPv4 + QueriesSeenOverIPv6;
 
     /// <summary>Queries answered over either transport.</summary>
     public int QueriesAnswered => QueriesAnsweredOverIPv4 + QueriesAnsweredOverIPv6;
+
+    /// <summary>
+    /// The first line of the service's stop summary: queries answered and seen,
+    /// those about names this responder does not hold, and those left
+    /// unanswered because they carried every answer already.
+    /// </summary>
+    /// <remarks>
+    /// Written in ServiceHost.cs until 2026-10-10, without the last count. It
+    /// moved here, beside <see cref="DescribeByTransport"/>, so that a test can
+    /// read it: no test runs the service's stop path. The count is always
+    /// given, zero included, for the reason given for the transports below.
+    /// </remarks>
+    [Requirement("REQ-ADV-026",
+        "Says at shutdown how many queries were left unanswered because they carried every answer already, apart from those about other names, zero included.")]
+    public string DescribeServed() =>
+        $"Served {QueriesAnswered} quer(ies) of {QueriesSeen} seen; "
+        + $"{IgnoredNotOurs} were for other services and were ignored; "
+        + $"{SuppressedByKnownAnswers} carried every answer already and were not answered (RFC 6762 s7.1).";
 
     /// <summary>
     /// One line naming both transports and their counts, for the operator.
@@ -283,6 +322,7 @@ public sealed partial class MdnsResponder
     private int _ignoredNotOurs;
     private int _unparseable;
     private int _goodbyes;
+    private int _suppressedByKnownAnswers;
 
     // Told of a socket error in the receive loop, and the error last told of,
     // so that one error repeating is reported once. Touched only by ServeAsync.
@@ -544,7 +584,7 @@ public sealed partial class MdnsResponder
         _announcements,
         _queriesSeenOverIPv4, _queriesSeenOverIPv6,
         _queriesAnsweredOverIPv4, _queriesAnsweredOverIPv6,
-        _ignoredWrongInterface, _ignoredNotOurs, _unparseable, _goodbyes);
+        _ignoredWrongInterface, _ignoredNotOurs, _unparseable, _goodbyes, _suppressedByKnownAnswers);
 
     /// <summary>
     /// Sends unsolicited announcements on every advertised interface, so clients
@@ -607,7 +647,7 @@ public sealed partial class MdnsResponder
     [Requirement("REQ-ADV-017",
         "Answers a legacy unicast querier by unicast, echoing its query identifier and capping TTLs.")]
     [Requirement("REQ-SEC-001",
-        "Every record sent comes from this responder's own Advertisement, or is an NSEC record built from that Advertisement when the responder is constructed, listing the types of the records it claims at one of its own names. Received datagrams are read for their questions and, to detect conflicts with the names this responder claims, for records about those names. No record from a received packet is ever sent on, so nothing is forwarded or reflected between networks. Two things from a query are repeated, to the device that sent it and on the network it came from: a legacy unicast answer carries that query's identifier and its question, written again from the parsed values, as RFC 6762 s6.7 requires.")]
+        "Every record sent comes from this responder's own Advertisement, or is an NSEC record built from that Advertisement when the responder is constructed, listing the types of the records it claims at one of its own names. Received datagrams are read for their questions; for records about the names this responder claims, to detect conflicts; and, in a query's Answer section, for the records the querier says it already holds, which can only keep a record out of an answer (REQ-ADV-026). No record from a received packet is ever sent on, so nothing is forwarded or reflected between networks. Two things from a query are repeated, to the device that sent it and on the network it came from: a legacy unicast answer carries that query's identifier and its question, written again from the parsed values, as RFC 6762 s6.7 requires.")]
     [Requirement("REQ-ADV-018",
         "Answers over the transport the query arrived on: the advertisement is looked up by the arrival interface's address family as well as its index, and the answer is sent through the entry for that family. The receiving half of this requirement is MdnsSocket.ReceiveAsync.")]
     [Requirement("REQ-SEC-002",
@@ -625,6 +665,8 @@ public sealed partial class MdnsResponder
         "Answers a question only when its class, read without the unicast-response bit, is IN or ANY, because every record it sends is in class IN; a legacy unicast answer repeats each question in the class it was asked in.")]
     [Requirement("REQ-ADV-022",
         "A question in class IN or ANY for a type that a claimed name has no record of is answered with that name's NSEC record, in the Answer section. A question for type ANY gets the records at the name and no NSEC. A shared name, or any name this responder does not claim, gets no negative answer. Nothing is answered while probing, while nothing is offered, or after a conflict.")]
+    [Requirement("REQ-ADV-026",
+        "Leaves out of the answer every record the query's Answer section already holds with a TTL of at least half the record's own (RFC 6762 s7.1), for multicast and legacy unicast queriers alike, and sends nothing when every answer is left out, counting that query apart from queries about other names. Additionals are chosen from the answers sent, so a record left out brings none.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
@@ -720,6 +762,12 @@ public sealed partial class MdnsResponder
         var answered = new List<OutgoingRecord>();
         var answeredKeys = new HashSet<string>(StringComparer.Ordinal);
 
+        // Set when a record that would have been an answer is left out because
+        // the query already carries it (RFC 6762 s7.1, REQ-ADV-026). If that
+        // leaves nothing to send, the query is counted as suppressed, and not
+        // as a query about a name this responder does not hold.
+        bool leftOutAsKnown = false;
+
         foreach ((DnsName name, DnsRecordType type, ushort rawClass) in query.Questions)
         {
             // A question in a class other than IN or ANY asks about records this
@@ -755,6 +803,14 @@ public sealed partial class MdnsResponder
 
             foreach (OutgoingRecord record in answers)
             {
+                // The querier already holds this record, and holds it for long
+                // enough (REQ-ADV-026).
+                if (IsKnownAnswer(query, record))
+                {
+                    leftOutAsKnown = true;
+                    continue;
+                }
+
                 if (answeredKeys.Add(Key(record)))
                 {
                     answered.Add(record);
@@ -763,6 +819,10 @@ public sealed partial class MdnsResponder
             }
         }
 
+        // Chosen from the answers actually sent: a record left out as known
+        // brings no additionals of its own (REQ-ADV-026). Known answers are
+        // not looked for among the additionals; RFC 6762 s7.1 asks this of
+        // answers.
         var addedAdditionals = new HashSet<string>(StringComparer.Ordinal);
         foreach (OutgoingRecord extra in AdditionalsFor(entry.Advertisement, entry.Nsecs, answered))
         {
@@ -774,7 +834,15 @@ public sealed partial class MdnsResponder
 
         if (builder.AnswerCount == 0)
         {
-            _ignoredNotOurs++;
+            if (leftOutAsKnown)
+            {
+                _suppressedByKnownAnswers++;
+            }
+            else
+            {
+                _ignoredNotOurs++;
+            }
+
             return false;
         }
 
@@ -906,6 +974,98 @@ public sealed partial class MdnsResponder
 
             _goodbyes++;
         }
+    }
+
+    /// <summary>
+    /// True when the query's Answer section already holds this record with a
+    /// TTL at least half the record's own: a known answer, which RFC 6762 s7.1
+    /// says a responder MUST NOT send.
+    /// </summary>
+    /// <remarks>
+    /// The same record means the same name, the same type, class IN, and the
+    /// same data, compared as the bytes this responder's writer produces, which
+    /// is how conflict detection compares data (<see cref="RdataOf"/>). The
+    /// cache-flush bit is not part of the class: RFC 6762 s10.2 says it MUST
+    /// NOT be set in a known answer, and a known answer that has it set still
+    /// names a record in class IN. A known answer in any other class is
+    /// another record.
+    ///
+    /// Half the correct value is taken as half the TTL the record is published
+    /// with. For a multicast answer that is the TTL sent. A legacy unicast
+    /// answer goes with its TTL capped (REQ-ADV-017); the comparison still uses
+    /// the published TTL, the one s7.1 calls "the true RR TTL as known by the
+    /// Multicast DNS responder". At less than half, the record is sent, as
+    /// s7.1 says it MUST be.
+    ///
+    /// Data whose names differ only in the case of a letter are not the same
+    /// bytes, so such a known answer does not keep the record out: it is sent,
+    /// as every record was before this rule existed.
+    ///
+    /// A query marked truncated, whose known answers go on in packets after it
+    /// (RFC 6762 s7.2), is judged on the known answers in its own packet. Its
+    /// answer is not held back to wait for the rest.
+    /// </remarks>
+    [Requirement("REQ-ADV-026",
+        "Defines a known answer: a record in the query's Answer section with the same name, the same type, class IN read without the cache-flush bit, and the same data, whose TTL is at least half the TTL the record is published with. At less than half it is not one, and the record is sent.")]
+    private static bool IsKnownAnswer(DnsMessage query, OutgoingRecord ours)
+    {
+        byte[]? ourData = null;
+
+        foreach (DnsRecord known in query.Answers)
+        {
+            if ((known.RawClass & 0x7FFF) != ClassIn
+                || known.Type != ours.Type
+                || !known.Name.Equals(ours.Name))
+            {
+                continue;
+            }
+
+            // At least half: twice the TTL the querier holds, in a type that
+            // cannot overflow, is no less than the record's own.
+            if ((ulong)known.Ttl * 2 < ours.Ttl)
+            {
+                continue;
+            }
+
+            ourData ??= DnsRecordWriter.EncodeRdata(ours.Type, ours.Payload);
+            if (KnownAnswerData(known) is { } theirData && theirData.AsSpan().SequenceEqual(ourData))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A known answer's data, uncompressed, as this responder's writer would
+    /// write it; or null when it cannot be written back out.
+    /// </summary>
+    /// <remarks>
+    /// An NSEC record in the restricted form is written again from what the
+    /// reader decoded, so that a querier listing this responder's own NSEC is
+    /// recognised. Every other record is read as conflict detection reads it
+    /// (<see cref="RdataOf"/>), which is left as it is.
+    /// </remarks>
+    private static byte[]? KnownAnswerData(DnsRecord known)
+    {
+        if (known.Type == DnsRecordType.Nsec
+            && known.NsecNextDomainName is { } next
+            && known.NsecTypes is { } types)
+        {
+            try
+            {
+                return DnsRecordWriter.EncodeRdata(DnsRecordType.Nsec, new NsecPayload(next, types));
+            }
+            catch (ArgumentException)
+            {
+                // Something decoded that the writer refuses. It came from the
+                // network, so it must not end the receive loop.
+                return null;
+            }
+        }
+
+        return RdataOf(known);
     }
 
     /// <summary>

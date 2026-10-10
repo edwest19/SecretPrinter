@@ -17,6 +17,16 @@ decided. Edwin West chose that release 0.1.0 ships with the four stated as
 known problems and that they are built afterwards. See "Not decided" at the
 end.)*
 
+*(Status note, 2026-10-10, by Claude, Claude Opus 5.5: item 1 is built. The
+responder now reads a query's Answer section and leaves out of its answer a
+record the query already carries with at least half its TTL, as README
+`REQ-ADV-026` states; see
+[the finding of 2026-10-10](2026-10-10-a-question-that-carries-its-answer-is-no-longer-answered.md).
+It is measured against the code by tests and has not yet been run on a network.
+Items 2, 3 and 4 are not built. The order chosen is item 2, then item 4, then
+item 3: item 2 keeps the send times that item 4's choice depends on, and item 3
+changes the timing of every answer to a browse, so it comes last.)*
+
 This is not a review of the service against the whole of RFC 6762. See "What
 this does not show".
 

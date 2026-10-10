@@ -155,7 +155,9 @@ record in the finding or the requirement named beside it. (Section added
 its first line to its last; [the finding](docs/findings/2026-10-07-the-readme-was-read-against-the-code.md) lists what that reading
 changed. Date changed 2026-10-08, when every entry was read again after the
 published pre-release was installed from nothing, and one entry was rewritten
-([finding](docs/findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).)
+([finding](docs/findings/2026-10-08-the-published-pre-release-was-installed-from-nothing-by-the-document.md)).
+On 2026-10-10 the entry on RFC 6762 was rewritten when the first of its four
+items was built; the other entries were not read again that day.)
 
 - **A print attempt can reach the printer and send no job.** On 2026-10-01 and
   2026-10-02, in three attempts, an iPhone connected through the proxy, had
@@ -211,17 +213,22 @@ published pre-release was installed from nothing, and one entry was rewritten
   interface's addresses are read once, at startup (REQ-ADV-021).
 - **A connection that is open when the service stops, or when it withdraws the
   printer, is cut, and the log has no line for its end** (REQ-PXY-009).
-- **Four things RFC 6762 asks of a responder are not done.** The service
-  answers a question that already carries the answer (§7.1); it will send the
-  same record by multicast more than once in a second (§6); it does not wait
-  the random 20 to 120 milliseconds before answering for a name it shares
-  with other devices (§6); and it answers by multicast when a question from
-  port 5353 asks for a unicast answer (§5.4). The first two are requirements
-  of the standard and the last two are recommendations. All four were
-  measured against the code on 2026-10-07, and the first two were seen on a
-  network on 2026-10-02 ([finding](docs/findings/2026-10-07-four-things-rfc-6762-asks-of-a-responder-are-not-done.md)). The places where the service
-  departs from the standard on purpose are in the rows that make the
-  decision: REQ-ADV-021, REQ-ADV-023 and REQ-ADV-024.
+- **Three things RFC 6762 asks of a responder are not done.** The service
+  will send the same record by multicast more than once in a second (§6); it
+  does not wait the random 20 to 120 milliseconds before answering for a name
+  it shares with other devices (§6); and it answers by multicast when a
+  question from port 5353 asks for a unicast answer (§5.4). The first is a
+  requirement of the standard and the other two are recommendations. All
+  three were measured against the code on 2026-10-07, and the first was seen
+  on a network on 2026-10-02 ([finding](docs/findings/2026-10-07-four-things-rfc-6762-asks-of-a-responder-are-not-done.md)).
+  A fourth, answering a question that already carries the answer (§7.1), is
+  done since 2026-10-10 (REQ-ADV-026); that has been measured against the code
+  by tests and has not yet been run on a network
+  ([finding](docs/findings/2026-10-10-a-question-that-carries-its-answer-is-no-longer-answered.md)).
+  The places where the service departs from the standard on purpose are in
+  the rows that make the decision: REQ-ADV-021, REQ-ADV-023 and REQ-ADV-024.
+  (Rewritten 2026-10-10 by Claude, Claude Opus 5.5. It was headed "Four
+  things RFC 6762 asks of a responder are not done" and listed §7.1 first.)
 - **Whether an IPv4 answer sent by unicast leaves with TTL 255 is not
   established** (REQ-ADV-013).
 - **The permitted client network is worked out from the client interface's
@@ -407,6 +414,7 @@ What the service publishes on the client network.
 | REQ-ADV-023 | MUST | Before announcing on a client interface, at startup and again before restoring an advertisement after any withdrawal, the service probes for the names it advertises as unique (the service instance name and the host name), as RFC 6762 §8.1 describes. It sends three queries for type `ANY`, 250 ms apart, each carrying in its Authority Section the records it proposes to publish, over both IPv4 and IPv6. It announces only if no conflict (REQ-ADV-024) arrives within 250 ms of the third. Both transports are used because on the network this was built on, IPv4 mDNS from part of the client network did not reach the service's machine. A simultaneous probe from another device is resolved as RFC 6762 §8.2 describes. The probes ask for multicast answers, although RFC 6762 §8.1 says they should ask for unicast ones: the service shares port 5353 with the Windows DNS Client (REQ-ADV-014), and which of two sockets sharing a port receives a unicast answer has not been established, so a unicast answer could be missed. |
 | REQ-ADV-024 | MUST | A conflict is any response from another device that carries a record for one of those names that the service would not itself publish: a different type, or the same type with different data. Identical records are not a conflict (RFC 6762 §9). An `NSEC` record for one of those names is judged by the types it lists. One that lists exactly the types the service publishes at that name is not a conflict, whoever sent it; that is also how the service's own `NSEC` (REQ-ADV-022), heard back, is recognised. One that lists anything else, or that is not in the restricted form of RFC 6762 §6.1, is a conflict. Its next domain name is not compared, because §6.1 says a receiver should ignore that field. On a conflict, found while probing or at any time after announcing, the service offers nothing, as REQ-LIF-006 describes. It stays that way until restarted, even while the printer is reachable, and does not pick another name. The log gives the name, the record type and the address of the device that answered, so the operator can choose a different name. Any device on the client network can cause this by answering for the service's names. mDNS has no authentication, and this is accepted for a home network. (Added 2026-10-01 by Claude, Claude Opus 5.5: the four sentences about `NSEC` records. Until commit `838e877` the code treated any `NSEC` for one of those names as a conflict, and this row did not mention them.) |
 | REQ-ADV-025 | MUST | The service answers a question only when its class, read without the unicast-response bit (RFC 6762 §5.4), is IN (1) or ANY (255). Every record the service sends is in class IN, and RFC 6762 §6 lets a record answer a question only when their classes agree or the question's class is ANY. A question in any other class is ignored, as a question for a name the service does not hold is (REQ-ADV-012), and it is not taken for a competing probe (REQ-ADV-023). A legacy unicast answer (REQ-ADV-017) repeats each question in the class it was asked in, as RFC 6762 §6.7 requires. Until 2026-10-01 the class was not read; see [the finding](docs/findings/2026-10-01-the-responder-ignored-the-question-class.md). |
+| REQ-ADV-026 | MUST | The service does not answer with a record that the query already carries. RFC 6762 §7.1 says a responder "MUST NOT answer a Multicast DNS query if the answer it would give is already included in the Answer Section with an RR TTL at least half the correct value". A record that the query's Answer section holds with the same name, the same type, class IN and the same data, at a TTL of at least half the TTL the service publishes it with, is left out of the answer. The class is read without the cache-flush bit, which RFC 6762 §10.2 says a querier must not set there. At less than half the record is sent, with its own TTL, as §7.1 requires. When every answer to a query is left out, nothing is sent, and the first line of the stop summary counts such queries apart from queries about other names. The Additional section is chosen from the answers that are sent; known answers are not looked for among the additionals, which §7.1 does not ask for. The rule applies to a legacy unicast querier (REQ-ADV-017) as to any other. A query marked truncated, whose known answers go on in the packets after it (§7.2), is judged on its own packet and answered at once, not held back for the rest. (Added 2026-10-10 by Claude, Claude Opus 5.5. Until then the service answered such a query; on a network on 2026-10-02 it did so 8, 1 and 11 times in three runs. Measured against the code by tests; not yet run on a network. See [the finding](docs/findings/2026-10-10-a-question-that-carries-its-answer-is-no-longer-answered.md).) |
 
 ## 5. Requirements: resolution (RES)
 

@@ -100,6 +100,16 @@
 // docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
 // Reviewed by a human before merge.
 //
+// The first line of the stop summary now written by
+// ResponderActivity.DescribeServed, which adds the count of queries left
+// unanswered because they carried every answer (REQ-ADV-026), by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-10. Without that count those queries would be among the ones seen
+// and not served, with nothing to say why; before the responder left them out
+// they were answered. The line moved so that a test can read it. See
+// docs/findings/2026-10-10-a-question-that-carries-its-answer-is-no-longer-answered.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -464,8 +474,7 @@ public sealed class ServiceHost
             }
 
             ResponderActivity activity = responder.Activity;
-            _log.Info($"Served {activity.QueriesAnswered} quer(ies) of {activity.QueriesSeen} seen; "
-                      + $"{activity.IgnoredNotOurs} were for other services and were ignored.");
+            _log.Info(activity.DescribeServed());
             _log.Info(activity.DescribeByTransport());
             _log.Info("SecretPrinter stopped.");
         }
