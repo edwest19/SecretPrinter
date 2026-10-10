@@ -31,6 +31,14 @@ the printer-side Wi-Fi. See
 which also records what came of it: the questions now start over when the
 adapter is usable again.)*
 
+*(Status note, 2026-10-10, later the same day, by Claude, Claude Opus 5.5:
+FIOS-STB-01 no longer runs 0.1.0. At 21:52:55Z a build of `5db9063`, made on
+FIOS-STB-01 by `publish-release.ps1`, carrying .NET 10.0.12 and not signed, was
+installed in its place by the steps this finding followed, without the
+signature check, to run overnight before a release. An iPhone printed through
+it. See
+[the finding of the install](2026-10-10-the-start-over-build-was-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, MAC address or device name appears in this finding, and
 neither do the network names. The printer's host name is written
 `EPSON000000`. The folder the release was unpacked into is written `<walk
