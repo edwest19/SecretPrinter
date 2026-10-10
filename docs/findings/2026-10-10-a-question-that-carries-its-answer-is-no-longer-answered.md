@@ -14,6 +14,13 @@ Claude's workspace, with the test kit's fake transport in place of a network.
 It has not been run on a network, and what an iPhone does with it is not
 known.**
 
+*(Status note, 2026-10-10, later the same day, by Claude, Claude Opus 5.5: run on
+a network once, on the test machine, with FIOS-STB-01's service stopped. In 9
+minutes 41 seconds an iPhone's 26 queries that carried every answer were not
+answered, 8 others were, and a page printed. The stop summary's line was
+written by `ServiceHost.RunAsync`, which no test runs. See
+[the finding of the run](2026-10-10-questions-carrying-their-answers-went-unanswered-on-a-network.md).)*
+
 No address of a real device appears in this finding. The addresses in the
 tests are made up.
 
