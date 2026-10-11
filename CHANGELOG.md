@@ -11,8 +11,10 @@ this file has exactly one heading of the form `## [version] - YYYY-MM-DD` for
 it, and unless `<Version>` in `Directory.Build.props` says the same version.
 Everything under that heading, up to the next one, becomes the release notes.
 
-**`0.1.0` is the first release.** It was published on 2026-10-08. Every
-version below it is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
+**`0.1.0` is the first release.** It was published on 2026-10-08. `0.2.0` is
+the second version meant as a release. (Sentence added 2026-10-11 by Claude,
+Claude Opus 5.5, in the commit that sets the version to 0.2.0.) Every version
+below `0.1.0` is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
 2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
 `0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
 that sets the version to 0.1.0. It said "No release has been published yet.",
@@ -20,6 +22,79 @@ that `0.1.0-rc.3` was a pre-release for testing and not a release, and that it
 was published on 2026-10-07. Later the same day, once 0.1.0 had been
 published, "is the first version meant as a release" became "is the first
 release", and the sentence saying when it was published was added.)
+
+## [0.2.0] - 2026-10-11
+
+The second version of SecretPrinter meant as a release. It changes two things
+in how the service behaves on the network, and nothing in how it is installed
+or configured.
+
+- **Before you install it,** read two sections of `README.md`: "Read this
+  before installing" and, under it, "Known problems". This software was written
+  by an AI, Claude, directed by one person, and has had no outside security
+  review. Every measurement of it on a network was made in one household, with
+  one printer model, an Epson ET-3760, and almost always an iPhone as the
+  client.
+- **What changed since `0.1.0`:**
+  - **The printer is asked again as soon as its network comes back**
+    (`REQ-RES-010`). When the service cannot reach the printer it stops
+    offering it and asks for it less and less often, down to once an hour
+    (`REQ-RES-008`). Now it also examines the printer-side network adapter
+    every 5 seconds, and when Windows reports the adapter usable again, or
+    usable on a new address, while the printer is away, it asks at once and
+    starts that sequence over from one second. It logs one line beginning `The printer-side interface is
+    usable again:`. This helps when the printer answers soon after its network
+    is back. It does not make every outage shorter: when the printer itself
+    stays away for an hour or more after its network returns, it can be found
+    later than it would have been before. The service still does not reconnect
+    a dropped Wi-Fi link; something else has to.
+  - **A question that already carries the answer is not answered**
+    (`REQ-ADV-026`; RFC 6762, section 7.1, known-answer suppression). The line
+    the service logs when it stops now also counts these questions.
+  - Nothing else in the programs changed. The configuration file, the service
+    registration, the firewall rules and the data folder are the same as for
+    `0.1.0`.
+- **Updating from `0.1.0`:** `docs/operating.md`, "Updating an installed
+  service", "From a release". Check the new release first, as below.
+- **Check it before you install it.** `docs/operating.md`, "Checking a release
+  before you install it", gives two checks that need only PowerShell: the zip's
+  SHA-256 against the `.sha256` file published beside it, and the signature on
+  every program file. SecretPrinter's own files are signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`. A SecretPrinter file
+  that is unsigned, or signed under any other name, is not from this project.
+- **The .NET runtime inside it** is the one the build machine's SDK supplied,
+  and a fix to it arrives only in a new release. Its version is in
+  `SecretPrinter.Service.runtimeconfig.json` in the folder. It is not known when
+  this entry is written. Microsoft's latest .NET 10 release on 2026-10-11 was
+  10.0.12, of 2026-09-08, which `0.1.0` also carries.
+- **Where it has run.** Its programs are compiled from the same source code as
+  a build that has run as the household's proxy on FIOS-STB-01, on Windows 10
+  22H2, since 2026-10-10. In its first 21 hours 31 minutes it lost the printer
+  10 times and found it again each time without a restart. The start over
+  above acted three times, each within 3 seconds of the Wi-Fi being
+  reconnected, and the printer was on offer again within 6 seconds of the
+  reconnect. An iPhone printed through it. That build was made on FIOS-STB-01
+  and was not signed. The known-answer change also ran once on Windows 11, on
+  one machine, for under ten minutes, and a page printed. Microsoft's list of
+  the systems .NET 10 supports includes Windows 11 and not Windows 10 22H2;
+  `README.md`, open question 10, says more.
+- **What has not been shown,** at the time this entry is written:
+  - This build itself. When this is written nobody has downloaded it, checked
+    it or run it.
+  - Updating an installation from one release to the next by the document's
+    steps.
+  - On a network, that the service says nothing when the printer-side adapter
+    comes back while the printer is still being offered. Tests show it.
+  - The start over on a machine where nothing reconnects the Wi-Fi. On
+    FIOS-STB-01 Windows did not reconnect it by itself; a script of Edwin
+    West's, not part of SecretPrinter, did each time.
+  - Three things RFC 6762 asks of a responder are still not done. `README.md`,
+    "Known problems", lists them.
+  - Any printer but the one model, any household but one, and any client but
+    one iPhone and, once, a second device.
+- **Reporting a problem.** Security problems go to the repository's private
+  vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
+  response-time commitment is offered.
 
 ## [0.1.0] - 2026-10-08
 

@@ -68,8 +68,13 @@
          Set to 0.1.0 on 2026-10-08 by Claude (Anthropic model, Claude Opus
          5.5) at the direction of Edwin West, the version he chose on
          2026-10-04 for the first release, after both of those had been tried
-         on 0.1.0-rc.3. -->
-    <Version>0.1.0</Version>
+         on 0.1.0-rc.3.
+
+         Set to 0.2.0 on 2026-10-11 by Claude (Anthropic model, Claude Opus
+         5.5) at the direction of Edwin West, the number he chose that day for
+         the second release, after the build it is compiled from had run
+         overnight on FIOS-STB-01. -->
+    <Version>0.2.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>

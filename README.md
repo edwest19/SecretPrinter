@@ -882,7 +882,9 @@ current count is whatever `run-tests.ps1` reports; the findings are the files in
 `publish-release.ps1` produces the folder a release will be made from: the
 service and the probe, published for 64-bit Windows with the .NET runtime
 beside them, into one folder outside the repository. `0.1.0`, published on
-2026-10-08, is the first release; see `CHANGELOG.md`.
+2026-10-08, is the first release; see `CHANGELOG.md`. `0.2.0` is the second
+version meant as a release. (Sentence added 2026-10-11 by Claude, Claude Opus
+5.5, in the commit that sets the version to 0.2.0.)
 (Note, 2026-10-07, by Claude, Claude Opus 5.5: `0.1.0-rc.3` is a pre-release for testing, not a release; see
 `CHANGELOG.md`. It was published that day.) (Corrected 2026-10-08 by Claude,
 Claude Opus 5.5, in the commit that sets the version to 0.1.0: the sentence

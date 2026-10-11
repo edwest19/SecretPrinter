@@ -94,12 +94,14 @@ demands of people doing it a favour.
 
 ## Supported versions
 
-**`0.1.0`, published on 2026-10-08, is the first release.** Releases are published by
+**`0.1.0`, published on 2026-10-08, is the first release, and `0.2.0` is the
+second version meant as one.** Releases are published by
 the release workflow, from a tag, on this repository's Releases page and
 nowhere else, signed under the name given below.
 
 | Version | What it is | Reports about it |
 | --- | --- | --- |
+| `0.2.0` | The second version meant as a release. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.1.0` | The first release, published on 2026-10-08. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.1.0-rc.1`, `0.1.0-rc.2`, `0.1.0-rc.3` | Trials of the release workflow, and a pre-release for testing. Only `0.1.0-rc.3` was published. | Not covered. `0.1.0` is compiled from the same source code as `0.1.0-rc.3`; see whether the problem happens on `0.1.0`. |
 | `main` | The source as it stands. | No support promise of any kind. A gap between the specification and the code is in scope, as above. |
@@ -118,6 +120,11 @@ carried no support promise, and that neither did `main`; and the section ended
 release." Later the same day, once 0.1.0 had been published, "is the first
 version meant as a release" became "published on 2026-10-08, is the first
 release", in the first sentence and in the table.)
+
+(The row for `0.2.0` added, and "and `0.2.0` is the second version meant as
+one" added to the first sentence, 2026-10-11 by Claude, Anthropic model,
+Claude Opus 5.5, at the direction of Edwin West, in the commit that sets the
+version to 0.2.0. The row for `0.1.0` is unchanged.)
 
 (The first two paragraphs replaced 2026-10-07 by Claude, Anthropic model,
 Claude Opus 5.5, at the direction of Edwin West, who decided that day to
@@ -163,11 +170,14 @@ an official release.
 **The tags before `v0.1.0` are not releases.** `v0.1.0-rc.1` and
 `v0.1.0-rc.2` were trials of the workflow, and nothing was published for
 either. `v0.1.0-rc.3` is the tag of a pre-release for testing. `v0.1.0` is the
-tag of the first version meant as a release; see "Supported versions" above.
+tag of the first version meant as a release, and `v0.2.0` of the second; see
+"Supported versions" above.
 (Sentence about `v0.1.0-rc.3` added, and "The two tags that exist" reworded,
 2026-10-07 by Claude, Claude Opus 5.5. Reworded again 2026-10-08, in the commit
 that sets the version to 0.1.0: this paragraph began "There is still no
-release.", and the sentence about `v0.1.0` is new.)
+release.", and the sentence about `v0.1.0` is new. "and `v0.2.0` of the
+second" added 2026-10-11 by Claude, Claude Opus 5.5, in the commit that sets
+the version to 0.2.0.)
 
 (This section replaced 2026-10-04 by Claude, Anthropic model, Claude Opus 5.5,
 at the direction of Edwin West. From here down it had said that all three
