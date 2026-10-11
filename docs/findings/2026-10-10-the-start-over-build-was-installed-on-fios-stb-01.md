@@ -17,6 +17,13 @@ build was made again with 10.0.12. The start over itself has not yet happened
 on a network: the printer was not lost between the install and 22:00Z, when
 the log was last read. No code changed.**
 
+*(Status note, 2026-10-11, by Claude, Claude Opus 5.5: the overnight run was
+read at 2026-10-11 19:24:22Z, with the service still running this build and
+never restarted. The start over acted three times, each after the printer-side
+Wi-Fi was reconnected, and the printer was offered again within seconds each
+time. No page was printed through it after the one recorded here. See
+[the finding of 2026-10-11](2026-10-11-the-start-over-ran-overnight-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name, user name or device name
 appears in this finding, and neither does the printer's host name. Folders in
 Edwin's user folder on FIOS-STB-01 are written `<user folder>`.

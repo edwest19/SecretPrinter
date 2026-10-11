@@ -227,6 +227,12 @@ to an hour after the link returned. What it now describes has not been run on
 a network.
 Reviewed by a human before merge.*
 
+*In the same bullet, the sentence "Not yet run on a network." replaced by
+Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+2026-10-11, after the start over ran overnight on FIOS-STB-01
+([finding](findings/2026-10-11-the-start-over-ran-overnight-on-fios-stb-01.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -1269,7 +1275,12 @@ know:
   A drop shorter than 5 seconds may not be seen. Restarting the service brings
   the printer back at once. Versions before this change, 0.1.0 among them, do
   not start over: after a long outage the printer may not reappear for up to
-  an hour after the link returns. Not yet run on a network.
+  an hour after the link returns. Run overnight on FIOS-STB-01 on 2026-10-10
+  and 2026-10-11: three times the Wi-Fi was disconnected, and Windows did not
+  reconnect it; a script of Edwin West's did, 3 min 37 s to 7 min 44 s later.
+  Each time the line above came 1 to 3 seconds after the reconnect, and the
+  printer was offered again within 6 seconds of it
+  ([the finding](findings/2026-10-11-the-start-over-ran-overnight-on-fios-stb-01.md)).
 - **Before each of those questions the service reopens its printer-side socket**
   (`REQ-RES-009`), on the adapter's address as it is then. On 2026-09-25 the old
   socket's membership of `224.0.0.251` was found gone after a long outage, and

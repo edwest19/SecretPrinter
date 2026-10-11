@@ -14,6 +14,17 @@ loss it could have brought the printer back about 37 minutes sooner, if the
 printer was answering mDNS then; in another it would have brought it back 26 to
 35 minutes later than 0.1.0 did.**
 
+*(Status note, 2026-10-11, by Claude, Claude Opus 5.5: run on a network. A
+build of `5db9063` ran overnight on FIOS-STB-01 and lost the printer 10 times
+in 21 hours 31 minutes. In three losses the printer-side Wi-Fi had been
+disconnected; each time the service started over 1 to 3 seconds after Windows
+reported it connected again, the printer answered at once, and it was offered
+again within 6 seconds of the reconnect. Edwin West's script made each
+reconnect; Windows did not. No loss was made longer. That nothing is logged
+when the adapter comes back while the printer is held reachable did not come
+up on the network. See
+[the finding of 2026-10-11](2026-10-11-the-start-over-ran-overnight-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding. Neither does an address in `169.254.0.0/16` that the service's log
 records for the printer-side adapter. The addresses in the tests are made up.
