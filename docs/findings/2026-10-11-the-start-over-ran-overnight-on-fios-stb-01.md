@@ -16,6 +16,14 @@ and not by SecretPrinter. The longest loss, 2 hours 9 minutes, was not a loss
 of the link, and the start over did not act in it. Before that loss 12
 connections failed while the printer was still offered. No code changed.**
 
+*(Status note, 2026-10-11, later the same day, by Claude, Claude Opus 5.5:
+FIOS-STB-01 no longer runs this build. At 20:39:54Z release 0.2.0, compiled
+from the same source code and signed, was installed in its place, after 22
+hours 46 minutes 56 seconds. Its stop summary counted 64 questions that
+carried every answer and were not answered (`REQ-ADV-026`). What it logged
+between the reading at 19:24:22Z and the stop was not read. See
+[the finding of the release](2026-10-11-the-second-release-was-published-and-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does the printer's host name. Addresses on the
 printer-side network are FIOS-STB-01's own (192.168.12.136) and the printer's
