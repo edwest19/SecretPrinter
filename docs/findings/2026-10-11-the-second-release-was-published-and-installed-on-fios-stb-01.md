@@ -14,6 +14,39 @@ check. The household had no printer for 10 seconds. An iPhone printed a page
 through it. Updating from one release to the next is still not shown: what
 0.2.0 replaced was a build, not 0.1.0. No code changed.**
 
+*(Status note, 2026-10-12, by Claude, Claude Opus 5.5: the start over
+(`REQ-RES-010`) has now run in this release. FIOS-STB-01's log was read at
+2026-10-12 20:12:21Z, 23 hours 32 minutes after 0.2.0 started, and nothing was
+restarted or changed. In that time the service lost the printer 11 times and
+found it again each time without a restart; it was not offered for 3 hours 3
+minutes in all. Four of the losses ended only after the printer-side Wi-Fi had
+gone down and been reconnected. Each reconnect was made by a script of Edwin
+West's, not part of SecretPrinter; Windows reported the Wi-Fi connected at
+00:30:29Z, 10:40:29Z, 13:10:29Z and 18:50:29Z on 2026-10-12. The line `The
+printer-side interface is usable again:` followed 2 to 5 seconds later, the
+printer was held reachable again in that second or the next, and it was
+offered again 5 to 8 seconds after the reconnect. Windows did not reconnect
+the Wi-Fi by itself in any of the four. Its log shows "Wireless security
+failed" and a disconnect before two of the reconnects, and before the other two
+"Wireless security stopped" and nothing more until the script connected it. In
+the third, by the code, the printer-side socket was reopened at 13:10:29Z for a
+question the schedule put, in the second Windows reported the Wi-Fi connected,
+and the start over's line came five seconds later, at 13:10:34Z; which of the
+two questions the printer answered is not in the log. The first loss lasted 2
+hours 14 minutes 30 seconds, from 22:16:03Z on 2026-10-11. The script found the
+printer's port 631 not answering from 22:21:15Z and answering again at
+00:00:45Z, and at each of its tests after that. Windows logged "Wireless
+security stopped" at 00:21:42Z, the service found the adapter not up at
+00:25:27Z, and after the reconnect it found the printer at 00:30:33Z, one
+second after the start over. So for half an hour the printer answered on its
+port and was not offered, as [`operating.md`](../operating.md) says can happen
+after a long loss; when the schedule would have asked next had the Wi-Fi stayed
+up is not worked out. The other seven losses ended at a question the schedule
+put, 23 seconds to 9 minutes 18 seconds after they began. Whether the start
+over made any loss longer or shorter is not worked out. All 93 connections
+since the start completed; none failed and none was refused. Apart from the
+page of 2026-10-11, none carried more than 9,988 bytes to the printer.)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does the printer's host name.
 
@@ -216,7 +249,8 @@ Not predicted:
 - **0.2.0 on Windows 11, or on a machine with no .NET.** FIOS-STB-01 has .NET
   SDKs installed; the release carries its own runtime.
 - **The start over in this build.** The printer had not been lost between the
-  start and the reading at 20:45:46Z.
+  start and the reading at 20:45:46Z. *(Status note, 2026-10-12, by Claude,
+  Claude Opus 5.5: shown since, four times; see the status note at the top.)*
 - **A start of 0.2.0 at boot.**
 - **Which SDK the workflow used,** or whether "84 of 101 requirements fully
   covered" counts the same thing as the development machine's "85 requirements
