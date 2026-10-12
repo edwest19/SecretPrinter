@@ -120,6 +120,25 @@
 // docs/findings/2026-10-10-a-question-that-carries-its-answer-is-no-longer-answered.md.
 // Reviewed by a human before merge.
 //
+// A record is no longer multicast on an adapter less than a second after it was
+// last multicast there, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-12, for REQ-ADV-027 (RFC 6762 s6). Before,
+// the responder kept no record of what it had sent, and answered the same
+// question as often as it was asked. Now it keeps, for each adapter, when it
+// last multicast each record there. An answer leaves out every record
+// multicast there less than a second before, and sends nothing when nothing is
+// left; such a query is counted in ResponderActivity.HeldBackWithinASecond and
+// in the stop summary's first line. An announcement and a goodbye wait until
+// the second is up, and an answer to a probe until 250 ms are, so that each
+// still carries every record. A unicast answer to a legacy querier is not a
+// multicast and is not affected. The clock and the waits are new constructor
+// parameters, so that tests need not wait real seconds; the wait between
+// announcements now goes through the same wait. The REQ-SEC-001 note on
+// HandleAsync now says that whether a query's Authority section holds a record
+// is read too. See
+// docs/findings/2026-10-12-a-record-is-multicast-at-most-once-a-second.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -204,6 +223,14 @@ public sealed record AdvertisedInterface(
 /// README REQ-ADV-026). They are counted as seen and not as answered, and not
 /// under IgnoredNotOurs either, which is for queries about names this
 /// responder does not hold. (Added 2026-10-10 by Claude, Claude Opus 5.5.)
+///
+/// HeldBackWithinASecond counts queries that would have been answered and
+/// were not, because every record the answer would have carried had been
+/// multicast on that adapter less than a second before (RFC 6762 s6; README
+/// REQ-ADV-027). A query whose every answer it already carried is counted
+/// under SuppressedByKnownAnswers instead, because it would have gone
+/// unanswered without the one-second rule. (Added 2026-10-12 by Claude, Claude
+/// Opus 5.5.)
 /// </remarks>
 public sealed record ResponderActivity(
     int AnnouncementsSent,
@@ -215,7 +242,8 @@ public sealed record ResponderActivity(
     int IgnoredNotOurs,
     int Unparseable,
     int GoodbyesSent,
-    int SuppressedByKnownAnswers)
+    int SuppressedByKnownAnswers,
+    int HeldBackWithinASecond)
 {
     /// <summary>Queries seen over either transport.</summary>
     public int QueriesSeen => QueriesSeenOverIPv4 + QueriesSeenOverIPv6;
@@ -225,21 +253,30 @@ public sealed record ResponderActivity(
 
     /// <summary>
     /// The first line of the service's stop summary: queries answered and seen,
-    /// those about names this responder does not hold, and those left
-    /// unanswered because they carried every answer already.
+    /// those about names this responder does not hold, those left unanswered
+    /// because they carried every answer already, and those left unanswered
+    /// because the answer would only have repeated records multicast less than
+    /// a second before.
     /// </summary>
     /// <remarks>
     /// Written in ServiceHost.cs until 2026-10-10, without the last count. It
     /// moved here, beside <see cref="DescribeByTransport"/>, so that a test can
     /// read it: no test runs the service's stop path. The count is always
     /// given, zero included, for the reason given for the transports below.
+    /// The last count was added on 2026-10-12 (REQ-ADV-027). The queries
+    /// answered and the three counts after them add up to the queries seen,
+    /// except a query whose answer could not be sent, which is seen and not
+    /// answered.
     /// </remarks>
     [Requirement("REQ-ADV-026",
         "Says at shutdown how many queries were left unanswered because they carried every answer already, apart from those about other names, zero included.")]
+    [Requirement("REQ-ADV-027",
+        "Says at shutdown how many queries were left unanswered because their answer would only have repeated records multicast less than a second before, apart from the other counts, zero included.")]
     public string DescribeServed() =>
         $"Served {QueriesAnswered} quer(ies) of {QueriesSeen} seen; "
         + $"{IgnoredNotOurs} were for other services and were ignored; "
-        + $"{SuppressedByKnownAnswers} carried every answer already and were not answered (RFC 6762 s7.1).";
+        + $"{SuppressedByKnownAnswers} carried every answer already and were not answered (RFC 6762 s7.1); "
+        + $"{HeldBackWithinASecond} would have repeated records multicast less than a second before and were not answered (RFC 6762 s6).";
 
     /// <summary>
     /// One line naming both transports and their counts, for the operator.
@@ -289,6 +326,19 @@ public sealed partial class MdnsResponder
     /// </summary>
     public const uint OtherNameNsecTtl = 4500;
 
+    /// <summary>
+    /// The least time between two multicasts of one record on one adapter
+    /// (RFC 6762 s6; README REQ-ADV-027).
+    /// </summary>
+    public static readonly TimeSpan MulticastSpacing = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// The least time between a multicast of a record and an answer to a probe
+    /// that carries it again: RFC 6762 s6 relaxes the second to this "when
+    /// responding via multicast to a probe".
+    /// </summary>
+    public static readonly TimeSpan ProbeAnswerSpacing = TimeSpan.FromMilliseconds(250);
+
     private readonly IMdnsTransport _transport;
     private readonly IReadOnlyList<AdvertisedInterface> _advertised;
 
@@ -323,6 +373,27 @@ public sealed partial class MdnsResponder
     private int _unparseable;
     private int _goodbyes;
     private int _suppressedByKnownAnswers;
+    private int _heldBackWithinASecond;
+
+    // When each record was last multicast on each adapter, as a timestamp of
+    // _clock (REQ-ADV-027). Keyed by the adapter's IPv4 entry, which stands for
+    // the adapter: its IPv6 companion is the same interface (see AdditionalsFor
+    // on RFC 6762 s6.2). Within an adapter, keyed by Key(record), which leaves
+    // out the TTL, so a goodbye counts as a multicast of the record it retracts.
+    // Every record this responder sends is in its advertisements or built from
+    // them, so the table holds at most that many entries for each adapter and
+    // needs no clearing. Read and written only under _multicastLock, because
+    // the receive loop, the announcements and the goodbyes run on different
+    // tasks: deciding and recording is one step, so two of them cannot both
+    // decide to send the same record.
+    private readonly object _multicastLock = new();
+    private readonly Dictionary<(AddressFamily Family, int Index), Dictionary<string, long>> _lastMulticast = [];
+
+    // Elapsed time is read from GetTimestamp, which on the system clock cannot
+    // go backwards, and not from the wall time: a wall clock set back an hour
+    // would otherwise hold every record back for an hour.
+    private readonly TimeProvider _clock;
+    private readonly Func<TimeSpan, CancellationToken, Task> _delay;
 
     // Told of a socket error in the receive loop, and the error last told of,
     // so that one error repeating is reported once. Touched only by ServeAsync.
@@ -350,15 +421,30 @@ public sealed partial class MdnsResponder
     /// receive path, so it must return promptly and must not throw. The loop
     /// goes on whether or not anything is listening here.
     /// </param>
+    /// <param name="clock">
+    /// Where elapsed time is read, from its timestamps, for the one-second rule
+    /// (README REQ-ADV-027). Defaults to the system clock.
+    /// </param>
+    /// <param name="delay">
+    /// How the responder waits: before an announcement, a goodbye or an answer
+    /// to a probe that would come too soon after the same record, and between
+    /// announcements. Defaults to Task.Delay. Injected so that tests need not
+    /// wait real seconds.
+    /// </param>
     public MdnsResponder(
         IMdnsTransport transport,
         IReadOnlyList<AdvertisedInterface> advertised,
         Func<bool>? advertising = null,
         Action<NameConflict>? conflicted = null,
-        Action<string>? socketError = null)
+        Action<string>? socketError = null,
+        TimeProvider? clock = null,
+        Func<TimeSpan, CancellationToken, Task>? delay = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(advertised);
+
+        _clock = clock ?? TimeProvider.System;
+        _delay = delay ?? (static (wait, token) => Task.Delay(wait, token));
 
         _advertising = advertising ?? (static () => true);
         _conflicted = conflicted;
@@ -431,11 +517,14 @@ public sealed partial class MdnsResponder
     }
 
     /// <summary>
-    /// What to answer with, which interface to answer through, and the NSEC
-    /// records that say which types the advertisement's claimed names have.
+    /// What to answer with, which interface to answer through, the NSEC records
+    /// that say which types the advertisement's claimed names have, and the
+    /// adapter the answer leaves by: the IPv4 entry, for the IPv4 entry and for
+    /// its IPv6 companion alike, so that the one-second rule (REQ-ADV-027)
+    /// counts both as one interface.
     /// </summary>
     private sealed record AnsweringInterface(
-        Advertisement Advertisement, MdnsInterface Via, IReadOnlyList<OutgoingRecord> Nsecs);
+        Advertisement Advertisement, MdnsInterface Via, IReadOnlyList<OutgoingRecord> Nsecs, MdnsInterface Adapter);
 
     /// <summary>
     /// Builds the family-keyed answering table: the IPv4 entry answers through
@@ -463,11 +552,11 @@ public sealed partial class MdnsResponder
         {
             IReadOnlyList<OutgoingRecord> nsecs = NsecRecordsFor(entry.Advertisement);
 
-            Add(answering, entry.Interface, entry.Advertisement, nsecs);
+            Add(answering, entry.Interface, entry.Advertisement, nsecs, entry.Interface);
 
             if (entry.IPv6Interface is { } companion)
             {
-                Add(answering, companion, entry.Advertisement, nsecs);
+                Add(answering, companion, entry.Advertisement, nsecs, entry.Interface);
             }
         }
 
@@ -477,9 +566,10 @@ public sealed partial class MdnsResponder
             Dictionary<(AddressFamily, int), AnsweringInterface> into,
             MdnsInterface via,
             Advertisement advertisement,
-            IReadOnlyList<OutgoingRecord> nsecs)
+            IReadOnlyList<OutgoingRecord> nsecs,
+            MdnsInterface adapter)
         {
-            if (!into.TryAdd((via.Transport, via.Index), new AnsweringInterface(advertisement, via, nsecs)))
+            if (!into.TryAdd((via.Transport, via.Index), new AnsweringInterface(advertisement, via, nsecs, adapter)))
             {
                 throw new ArgumentException(
                     $"Two advertised interfaces both claim {via}. An arriving query could not be "
@@ -584,7 +674,8 @@ public sealed partial class MdnsResponder
         _announcements,
         _queriesSeenOverIPv4, _queriesSeenOverIPv6,
         _queriesAnsweredOverIPv4, _queriesAnsweredOverIPv6,
-        _ignoredWrongInterface, _ignoredNotOurs, _unparseable, _goodbyes, _suppressedByKnownAnswers);
+        _ignoredWrongInterface, _ignoredNotOurs, _unparseable, _goodbyes, _suppressedByKnownAnswers,
+        _heldBackWithinASecond);
 
     /// <summary>
     /// Sends unsolicited announcements on every advertised interface, so clients
@@ -599,6 +690,8 @@ public sealed partial class MdnsResponder
         "The announcement carries every record in the advertisement, which includes the AirPrint subtype PTR that iOS queries for.")]
     [Requirement("REQ-ADV-024",
         "Announces nothing once a conflict is held, checking before every send, so a conflict heard between two announcements stops the rest.")]
+    [Requirement("REQ-ADV-027",
+        "Waits before each announcement until every record in it was last multicast on that adapter at least a second before, so that an announcement carries every record and repeats none sooner than RFC 6762 s6 allows, whatever interval it is given.")]
     public async Task AnnounceAsync(TimeSpan delayBetween, CancellationToken cancellationToken)
     {
         for (int attempt = 0; attempt < AnnouncementCount; attempt++)
@@ -612,22 +705,33 @@ public sealed partial class MdnsResponder
                     return;
                 }
 
+                // An announcement carries every record, so it waits for the
+                // second to be up rather than leave any out (REQ-ADV-027). The
+                // conflict is read again after the wait, which can be up to a
+                // second long.
+                MulticastNote note = await WaitToMulticastAsync(
+                        entry.Interface, entry.Advertisement.Records, MulticastSpacing, cancellationToken)
+                    .ConfigureAwait(false);
+                if (Conflict is not null)
+                {
+                    Unnote(note);
+                    return;
+                }
+
                 var builder = new DnsResponseBuilder();
                 foreach (OutgoingRecord record in entry.Advertisement.Records)
                 {
                     builder.AddAnswer(record);
                 }
 
-                await _transport
-                    .SendMulticastAsync(builder.Build(), entry.Interface, cancellationToken)
-                    .ConfigureAwait(false);
+                await SendNotedAsync(builder.Build(), entry.Interface, note, cancellationToken).ConfigureAwait(false);
 
                 _announcements++;
             }
 
             if (attempt < AnnouncementCount - 1 && delayBetween > TimeSpan.Zero)
             {
-                await Task.Delay(delayBetween, cancellationToken).ConfigureAwait(false);
+                await _delay(delayBetween, cancellationToken).ConfigureAwait(false);
             }
         }
     }
@@ -647,7 +751,7 @@ public sealed partial class MdnsResponder
     [Requirement("REQ-ADV-017",
         "Answers a legacy unicast querier by unicast, echoing its query identifier and capping TTLs.")]
     [Requirement("REQ-SEC-001",
-        "Every record sent comes from this responder's own Advertisement, or is an NSEC record built from that Advertisement when the responder is constructed, listing the types of the records it claims at one of its own names. Received datagrams are read for their questions; for records about the names this responder claims, to detect conflicts; and, in a query's Answer section, for the records the querier says it already holds, which can only keep a record out of an answer (REQ-ADV-026). No record from a received packet is ever sent on, so nothing is forwarded or reflected between networks. Two things from a query are repeated, to the device that sent it and on the network it came from: a legacy unicast answer carries that query's identifier and its question, written again from the parsed values, as RFC 6762 s6.7 requires.")]
+        "Every record sent comes from this responder's own Advertisement, or is an NSEC record built from that Advertisement when the responder is constructed, listing the types of the records it claims at one of its own names. Received datagrams are read for their questions; for records about the names this responder claims, to detect conflicts; and, in a query's Answer section, for the records the querier says it already holds, which can only keep a record out of an answer (REQ-ADV-026); and for whether a query's Authority section holds any record, which marks it as a probe and decides only how soon its answer may be multicast (REQ-ADV-027). No record from a received packet is ever sent on, so nothing is forwarded or reflected between networks. Two things from a query are repeated, to the device that sent it and on the network it came from: a legacy unicast answer carries that query's identifier and its question, written again from the parsed values, as RFC 6762 s6.7 requires.")]
     [Requirement("REQ-ADV-018",
         "Answers over the transport the query arrived on: the advertisement is looked up by the arrival interface's address family as well as its index, and the answer is sent through the entry for that family. The receiving half of this requirement is MdnsSocket.ReceiveAsync.")]
     [Requirement("REQ-SEC-002",
@@ -667,6 +771,8 @@ public sealed partial class MdnsResponder
         "A question in class IN or ANY for a type that a claimed name has no record of is answered with that name's NSEC record, in the Answer section. A question for type ANY gets the records at the name and no NSEC. A shared name, or any name this responder does not claim, gets no negative answer. Nothing is answered while probing, while nothing is offered, or after a conflict.")]
     [Requirement("REQ-ADV-026",
         "Leaves out of the answer every record the query's Answer section already holds with a TTL of at least half the record's own (RFC 6762 s7.1), for multicast and legacy unicast queriers alike, and sends nothing when every answer is left out, counting that query apart from queries about other names. Additionals are chosen from the answers sent, so a record left out brings none.")]
+    [Requirement("REQ-ADV-027",
+        "Leaves out of a multicast answer every record, answer or additional, multicast on that adapter less than a second before, over either transport (RFC 6762 s6), and sends nothing when no answer is left, counting that query apart from the others. An answer to a probe, a query with records in its Authority section, waits instead until 250 ms have passed since any record in it was last multicast there, and leaves nothing out. A legacy unicast answer is neither limited nor recorded.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
@@ -814,27 +920,73 @@ public sealed partial class MdnsResponder
                 if (answeredKeys.Add(Key(record)))
                 {
                     answered.Add(record);
-                    builder.AddAnswer(Adjust(record, legacyUnicast));
                 }
             }
         }
 
-        // Chosen from the answers actually sent: a record left out as known
-        // brings no additionals of its own (REQ-ADV-026). Known answers are
-        // not looked for among the additionals; RFC 6762 s7.1 asks this of
-        // answers.
-        var addedAdditionals = new HashSet<string>(StringComparer.Ordinal);
-        foreach (OutgoingRecord extra in AdditionalsFor(entry.Advertisement, entry.Nsecs, answered))
+        // RFC 6762 s6 (REQ-ADV-027). A record multicast on this adapter less
+        // than a second before is not multicast again: it is left out of the
+        // answer, and an answer left with nothing is not sent. "A querier that
+        // did not receive and cache the previous transmission will retry its
+        // request and receive a subsequent response." Additionals are chosen
+        // from the answers left, and are left out by the same rule. An answer
+        // to a probe is the exception s6 makes: it waits instead, until 250 ms
+        // have passed, and carries every record, so that a device about to
+        // take one of these names hears them all. A legacy unicast answer is
+        // not a multicast, so none of this applies to it, and it is not
+        // recorded as one.
+        bool heldBack = false;
+        List<OutgoingRecord> additionals;
+        MulticastNote? note = null;
+
+        if (legacyUnicast)
         {
-            if (!answeredKeys.Contains(Key(extra)) && addedAdditionals.Add(Key(extra)))
+            additionals = AdditionalsLeft(entry, answered, answeredKeys);
+        }
+        else if (query.Authorities.Count > 0)
+        {
+            additionals = AdditionalsLeft(entry, answered, answeredKeys);
+            if (answered.Count > 0)
             {
-                builder.AddAdditional(Adjust(extra, legacyUnicast));
+                note = await WaitToMulticastAsync(
+                        entry.Adapter, [.. answered, .. additionals], ProbeAnswerSpacing, cancellationToken)
+                    .ConfigureAwait(false);
             }
+        }
+        else
+        {
+            lock (_multicastLock)
+            {
+                long now = _clock.GetTimestamp();
+                heldBack = answered.RemoveAll(record => SentWithin(entry.Adapter, record, MulticastSpacing, now)) > 0;
+                additionals = AdditionalsLeft(entry, answered, answeredKeys);
+                additionals.RemoveAll(record => SentWithin(entry.Adapter, record, MulticastSpacing, now));
+
+                if (answered.Count > 0)
+                {
+                    note = NoteMulticast(entry.Adapter, [.. answered, .. additionals], now);
+                }
+            }
+        }
+
+        foreach (OutgoingRecord record in answered)
+        {
+            builder.AddAnswer(Adjust(record, legacyUnicast));
+        }
+
+        foreach (OutgoingRecord extra in additionals)
+        {
+            builder.AddAdditional(Adjust(extra, legacyUnicast));
         }
 
         if (builder.AnswerCount == 0)
         {
-            if (leftOutAsKnown)
+            if (heldBack)
+            {
+                // Something would have been sent but for the one-second rule.
+                _heldBackWithinASecond++;
+            }
+            else if (leftOutAsKnown)
             {
                 _suppressedByKnownAnswers++;
             }
@@ -856,9 +1008,8 @@ public sealed partial class MdnsResponder
         }
         else
         {
-            await _transport
-                .SendMulticastAsync(response, entry.Via, cancellationToken)
-                .ConfigureAwait(false);
+            // Every multicast path above that leaves an answer to send notes it.
+            await SendNotedAsync(response, entry.Via, note!, cancellationToken).ConfigureAwait(false);
         }
 
         if (entry.Via.IsIPv6)
@@ -952,6 +1103,8 @@ public sealed partial class MdnsResponder
         "Sends goodbye records for everything advertised, and for the NSEC records built from it, on every advertised interface, at shutdown.")]
     [Requirement("REQ-ADV-022",
         "The goodbye retracts both NSEC records, with TTL 0.")]
+    [Requirement("REQ-ADV-027",
+        "Waits before each goodbye until every record it retracts was last multicast on that adapter at least a second before, so that the goodbye still retracts every record and repeats none sooner than RFC 6762 s6 allows.")]
     public async Task SendGoodbyeAsync(CancellationToken cancellationToken)
     {
         foreach (AdvertisedInterface entry in _advertised)
@@ -961,19 +1114,200 @@ public sealed partial class MdnsResponder
             IReadOnlyList<OutgoingRecord> nsecs =
                 _answering[(entry.Interface.Transport, entry.Interface.Index)].Nsecs;
 
+            IReadOnlyList<OutgoingRecord> goodbye =
+                AdvertisementBuilder.ToGoodbye([.. entry.Advertisement.Records, .. nsecs]);
+
+            // A goodbye sends the same records with TTL 0 (RFC 6762 s10.1), and
+            // is a multicast of them like any other, so it waits for the
+            // second to be up rather than leave any out (REQ-ADV-027).
+            MulticastNote note = await WaitToMulticastAsync(entry.Interface, goodbye, MulticastSpacing, cancellationToken)
+                .ConfigureAwait(false);
+
             var builder = new DnsResponseBuilder();
-            foreach (OutgoingRecord record in
-                     AdvertisementBuilder.ToGoodbye([.. entry.Advertisement.Records, .. nsecs]))
+            foreach (OutgoingRecord record in goodbye)
             {
                 builder.AddAnswer(record);
             }
 
-            await _transport
-                .SendMulticastAsync(builder.Build(), entry.Interface, cancellationToken)
-                .ConfigureAwait(false);
+            await SendNotedAsync(builder.Build(), entry.Interface, note, cancellationToken).ConfigureAwait(false);
 
             _goodbyes++;
         }
+    }
+
+    /// <summary>
+    /// The additionals for these answers, leaving out any that is itself an
+    /// answer or listed twice.
+    /// </summary>
+    /// <remarks>
+    /// Chosen from the answers actually sent: a record left out as known
+    /// (REQ-ADV-026), or as multicast less than a second before (REQ-ADV-027),
+    /// brings no additionals of its own. Known answers are not looked for
+    /// among the additionals; RFC 6762 s7.1 asks this of answers.
+    /// </remarks>
+    private static List<OutgoingRecord> AdditionalsLeft(
+        AnsweringInterface entry, List<OutgoingRecord> answered, HashSet<string> answeredKeys)
+    {
+        var additionals = new List<OutgoingRecord>();
+        var added = new HashSet<string>(StringComparer.Ordinal);
+        foreach (OutgoingRecord extra in AdditionalsFor(entry.Advertisement, entry.Nsecs, answered))
+        {
+            if (!answeredKeys.Contains(Key(extra)) && added.Add(Key(extra)))
+            {
+                additionals.Add(extra);
+            }
+        }
+
+        return additionals;
+    }
+
+    /// <summary>
+    /// Waits until every one of these records was last multicast on this
+    /// adapter at least <paramref name="spacing"/> before, then records them
+    /// as multicast now, for the caller to send with
+    /// <see cref="SendNotedAsync"/>.
+    /// </summary>
+    /// <remarks>
+    /// The deciding and the recording are one step under the lock, and the
+    /// wait is taken outside it and then the records looked at again, because
+    /// another task may have multicast one of them meanwhile. The records are
+    /// recorded before they are sent, so that no other task can decide to send
+    /// one of them in between; a send that fails takes the record back
+    /// (<see cref="SendNotedAsync"/>).
+    /// </remarks>
+    [Requirement("REQ-ADV-027",
+        "Decides and records under one lock, waiting outside it as long as any of the records was multicast on the adapter more recently than the spacing allows.")]
+    private async Task<MulticastNote> WaitToMulticastAsync(
+        MdnsInterface adapter, IReadOnlyList<OutgoingRecord> records, TimeSpan spacing, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            TimeSpan wait;
+            lock (_multicastLock)
+            {
+                long now = _clock.GetTimestamp();
+                wait = WaitBefore(adapter, records, spacing, now);
+                if (wait <= TimeSpan.Zero)
+                {
+                    return NoteMulticast(adapter, records, now);
+                }
+            }
+
+            await _delay(wait, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// What <see cref="NoteMulticast"/> recorded: the adapter, the time, and
+    /// for each record the time it held before, or null, so that the record can
+    /// be taken back.
+    /// </summary>
+    private sealed record MulticastNote(MdnsInterface Adapter, long At, IReadOnlyList<(string Key, long? Before)> Records);
+
+    /// <summary>
+    /// Sends a multicast whose records have been noted, and takes the note back
+    /// if the send does not complete, cancellation included.
+    /// </summary>
+    /// <remarks>
+    /// A send that throws is taken to have multicast nothing, and RFC 6762 s6
+    /// counts from "the last time that record was multicast". Without this, a
+    /// failed send would hold the same records back for a second, and a query
+    /// they held back would be counted as one, for records that were not sent.
+    /// </remarks>
+    private async Task SendNotedAsync(byte[] payload, MdnsInterface via, MulticastNote note, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _transport.SendMulticastAsync(payload, via, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            Unnote(note);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Takes a note back: each record goes back to the time it held before,
+    /// unless another multicast has recorded it since.
+    /// </summary>
+    private void Unnote(MulticastNote note)
+    {
+        lock (_multicastLock)
+        {
+            if (!_lastMulticast.TryGetValue((note.Adapter.Transport, note.Adapter.Index), out Dictionary<string, long>? sent))
+            {
+                return;
+            }
+
+            foreach ((string key, long? before) in note.Records)
+            {
+                if (sent.TryGetValue(key, out long at) && at == note.At)
+                {
+                    if (before is { } earlier)
+                    {
+                        sent[key] = earlier;
+                    }
+                    else
+                    {
+                        sent.Remove(key);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// How long until every one of these records may be multicast on this
+    /// adapter: zero when each was last multicast there at least
+    /// <paramref name="spacing"/> before <paramref name="now"/>, or never.
+    /// Called under _multicastLock.
+    /// </summary>
+    private TimeSpan WaitBefore(MdnsInterface adapter, IEnumerable<OutgoingRecord> records, TimeSpan spacing, long now)
+    {
+        TimeSpan wait = TimeSpan.Zero;
+        if (!_lastMulticast.TryGetValue((adapter.Transport, adapter.Index), out Dictionary<string, long>? sent))
+        {
+            return wait;
+        }
+
+        foreach (OutgoingRecord record in records)
+        {
+            if (sent.TryGetValue(Key(record), out long at))
+            {
+                TimeSpan left = spacing - _clock.GetElapsedTime(at, now);
+                if (left > wait)
+                {
+                    wait = left;
+                }
+            }
+        }
+
+        return wait;
+    }
+
+    /// <summary>True when this record was multicast on this adapter less than <paramref name="spacing"/> before <paramref name="now"/>. Called under _multicastLock.</summary>
+    private bool SentWithin(MdnsInterface adapter, OutgoingRecord record, TimeSpan spacing, long now) =>
+        WaitBefore(adapter, [record], spacing, now) > TimeSpan.Zero;
+
+    /// <summary>Records these records as multicast on this adapter at <paramref name="now"/>. Called under _multicastLock.</summary>
+    private MulticastNote NoteMulticast(MdnsInterface adapter, IEnumerable<OutgoingRecord> records, long now)
+    {
+        if (!_lastMulticast.TryGetValue((adapter.Transport, adapter.Index), out Dictionary<string, long>? sent))
+        {
+            sent = new Dictionary<string, long>(StringComparer.Ordinal);
+            _lastMulticast[(adapter.Transport, adapter.Index)] = sent;
+        }
+
+        var noted = new List<(string Key, long? Before)>();
+        foreach (OutgoingRecord record in records)
+        {
+            string key = Key(record);
+            noted.Add((key, sent.TryGetValue(key, out long before) ? before : null));
+            sent[key] = now;
+        }
+
+        return new MulticastNote(adapter, now, noted);
     }
 
     /// <summary>

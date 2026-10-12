@@ -54,6 +54,18 @@
 // docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
 // Reviewed by a human before merge.
 //
+// Every responder built by this file's two helpers, and the one built by hand
+// for the test of a withdrawn advertisement, takes each message as sent a
+// second after the last (ManualClock.SecondApart in
+// tests/SecretPrinter.TestKit), by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-12, when the responder began to keep a
+// record from being multicast twice within a second on one adapter (README
+// REQ-ADV-027). These tests send the same records more than once and are about
+// something else; without it some would fail, because a second answer with the
+// same records is now not sent, and others would wait real seconds. With it
+// they check what they checked before. The rule itself is tested in
+// OncePerSecondTests.cs. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies which queries get answered, which are ignored, what the answers
 //   contain, and how they are addressed.
@@ -130,8 +142,9 @@ internal static class MdnsResponderTests
     private static (MdnsResponder Responder, FakeTransport Transport) Build()
     {
         var transport = new FakeTransport(ClientNic);
+        ManualClock clock = ManualClock.SecondApart();
         var responder = new MdnsResponder(
-            transport, [new AdvertisedInterface(ClientNic, BuildAdvertisement())]);
+            transport, [new AdvertisedInterface(ClientNic, BuildAdvertisement())], clock: clock, delay: clock.Delay);
         return (responder, transport);
     }
 
@@ -139,9 +152,12 @@ internal static class MdnsResponderTests
     private static (MdnsResponder Responder, FakeTransport Transport) BuildDualStack()
     {
         var transport = new FakeTransport(ClientNic, ClientNicV6);
+        ManualClock clock = ManualClock.SecondApart();
         var responder = new MdnsResponder(
             transport,
-            [new AdvertisedInterface(ClientNic, BuildAdvertisement(), ClientNicV6)]);
+            [new AdvertisedInterface(ClientNic, BuildAdvertisement(), ClientNicV6)],
+            clock: clock,
+            delay: clock.Delay);
         return (responder, transport);
     }
 
@@ -310,9 +326,11 @@ internal static class MdnsResponderTests
     {
         var transport = new FakeTransport(ClientNic);
         bool advertising = true;
+        ManualClock clock = ManualClock.SecondApart();
 
         var responder = new MdnsResponder(
-            transport, [new AdvertisedInterface(ClientNic, BuildAdvertisement())], () => advertising);
+            transport, [new AdvertisedInterface(ClientNic, BuildAdvertisement())], () => advertising,
+            clock: clock, delay: clock.Delay);
 
         Assert.True(
             Handle(responder, Query("_ipp._tcp.local")),

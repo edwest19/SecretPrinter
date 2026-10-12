@@ -5,6 +5,18 @@
 // Edwin West, 2026-10-01, for the SecretPrinter project. Reviewed by a human
 // before merge.
 //
+// Every responder built by this file's helper, and the one built by hand for a
+// host with an AAAA record and no A record, takes each message as sent a second
+// after the last (ManualClock.SecondApart in tests/SecretPrinter.TestKit), by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-12, when the responder began to keep a record from being multicast
+// twice within a second on one adapter (README REQ-ADV-027). These tests send
+// the same records more than once and are about something else; without it
+// some would fail, because a second answer with the same records is now not
+// sent, and others would wait real seconds. With it they check what they
+// checked before. The rule itself is tested in OncePerSecondTests.cs.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Checks when the responder sends an NSEC record, where in the message it
 //   goes, and what it says (README REQ-ADV-022).
@@ -82,8 +94,10 @@ internal static class NsecAnsweringTests
     {
         Advertisement advertisement = MdnsResponderTests.BuildAdvertisement(linkLocal);
         var transport = new FakeTransport(ClientNic, ClientNicV6);
+        ManualClock clock = ManualClock.SecondApart();
         var responder = new MdnsResponder(
-            transport, [new AdvertisedInterface(ClientNic, advertisement, ClientNicV6)], advertising);
+            transport, [new AdvertisedInterface(ClientNic, advertisement, ClientNicV6)], advertising,
+            clock: clock, delay: clock.Delay);
         return (responder, transport, advertisement);
     }
 
@@ -532,7 +546,9 @@ internal static class NsecAnsweringTests
         DnsName host = aaaaOnly.Records.Single(r => r.Type == DnsRecordType.Aaaa).Name;
 
         var transport = new FakeTransport(ClientNic, ClientNicV6);
-        var responder = new MdnsResponder(transport, [new AdvertisedInterface(ClientNic, aaaaOnly, ClientNicV6)]);
+        ManualClock clock = ManualClock.SecondApart();
+        var responder = new MdnsResponder(
+            transport, [new AdvertisedInterface(ClientNic, aaaaOnly, ClientNicV6)], clock: clock, delay: clock.Delay);
 
         DnsMessage positive = Answer(responder, transport, Query((host, DnsRecordType.Aaaa))).Parsed;
         Assert.Equal(1, positive.Answers.Count(r => r.Type == DnsRecordType.Aaaa), "the AAAA record answers");

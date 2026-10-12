@@ -410,9 +410,13 @@ internal static class KnownAnswerTests
 
         string line = responder.Activity.DescribeServed();
 
+        // The last count was added on 2026-10-12, with REQ-ADV-027, by Claude
+        // (Claude Opus 5.5). None of these queries is held back by it: the
+        // three that carry the PTR would have gone unanswered without it.
         Assert.Equal(
             "Served 1 quer(ies) of 6 seen; 2 were for other services and were ignored; "
-            + "3 carried every answer already and were not answered (RFC 6762 s7.1).",
+            + "3 carried every answer already and were not answered (RFC 6762 s7.1); "
+            + "0 would have repeated records multicast less than a second before and were not answered (RFC 6762 s6).",
             line,
             "each count where it belongs");
     }

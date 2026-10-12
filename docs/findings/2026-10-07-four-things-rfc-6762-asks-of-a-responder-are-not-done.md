@@ -27,6 +27,15 @@ Items 2, 3 and 4 are not built. The order chosen is item 2, then item 4, then
 item 3: item 2 keeps the send times that item 4's choice depends on, and item 3
 changes the timing of every answer to a browse, so it comes last.)*
 
+*(Status note, 2026-10-12, by Claude, Claude Opus 5.5: item 2 is built. The
+responder now keeps, for each client adapter, the time it last multicast each
+record there, and does not multicast a record there again within a second: an
+answer leaves such a record out, an announcement and a goodbye wait, and an
+answer to a probe waits for 250 ms, as README `REQ-ADV-027` states; see
+[the finding of 2026-10-12](2026-10-12-a-record-is-multicast-at-most-once-a-second.md).
+It is measured against the code by tests and has not yet been run on a network.
+Items 3 and 4 are not built. The send times item 4 depends on are now kept.)*
+
 This is not a review of the service against the whole of RFC 6762. See "What
 this does not show".
 

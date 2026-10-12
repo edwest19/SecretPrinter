@@ -5,6 +5,17 @@
 // Edwin West, 2026-09-30, for the SecretPrinter project. Reviewed by a human
 // before merge.
 //
+// Every responder built by this file's helper takes each message as sent a
+// second after the last (ManualClock.SecondApart in
+// tests/SecretPrinter.TestKit), by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-12, when the responder began to keep a
+// record from being multicast twice within a second on one adapter (README
+// REQ-ADV-027). These tests send the same records more than once and are about
+// something else; without it some would fail, because a second answer with the
+// same records is now not sent, and others would wait real seconds. With it
+// they check what they checked before. The rule itself is tested in
+// OncePerSecondTests.cs. Reviewed by a human before merge.
+//
 // Purpose:
 //   Checks what the responder does with an advertisement that carries AAAA
 //   records: the client interface's link-local addresses, which Edwin decided
@@ -60,8 +71,9 @@ internal static class LinkLocalAnsweringTests
     {
         Advertisement advertisement = MdnsResponderTests.BuildAdvertisement(linkLocal);
         var transport = new FakeTransport(ClientNic, ClientNicV6);
+        ManualClock clock = ManualClock.SecondApart();
         var responder = new MdnsResponder(
-            transport, [new AdvertisedInterface(ClientNic, advertisement, ClientNicV6)]);
+            transport, [new AdvertisedInterface(ClientNic, advertisement, ClientNicV6)], clock: clock, delay: clock.Delay);
         return (responder, transport, advertisement);
     }
 

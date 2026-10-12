@@ -10,6 +10,15 @@
 // 2026-09-30, when Build began taking one. No test changed what it checks.
 // Reviewed by a human before merge.
 //
+// The fixture's responder takes each message as sent a second after the last
+// (ManualClock.SecondApart in tests/SecretPrinter.TestKit), by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-12, when the responder began to keep a record from being multicast
+// twice within a second on one adapter (README REQ-ADV-027). These tests
+// announce with no interval between announcements, and the responder would
+// otherwise wait a real second before each after the first. No test changed
+// what it checks. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the decisions ServiceHost hands to Offering: when the printer is
 //   offered to the client network and when it is not (README REQ-ADV-023,
@@ -69,11 +78,14 @@ internal static class OfferingTests
                 new ProxyIdentity("SecretPrinter", "secretprinter", Guid.Parse("b6f4e2a1-9c37-4d58-8e0b-7a1f3d6c5e94"), 631),
                 ClientNic.Address,
                 linkLocalAddresses: []);
+            ManualClock clock = ManualClock.SecondApart();
             Responder = new MdnsResponder(
                 Transport,
                 [new AdvertisedInterface(ClientNic, Advertisement, ClientNicV6)],
                 advertising: () => Gate.IsOpen,
-                conflicted: found => Conflicts.TrySetResult(found));
+                conflicted: found => Conflicts.TrySetResult(found),
+                clock: clock,
+                delay: clock.Delay);
         }
 
         public FakeTransport Transport { get; } = new(ClientNic, ClientNicV6);

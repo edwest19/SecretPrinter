@@ -5,6 +5,16 @@
 // Edwin West, 2026-10-01, for the SecretPrinter project. Reviewed by a human
 // before merge.
 //
+// The responder in the test that compares the log with what is sent takes each
+// message as sent a second after the last (ManualClock.SecondApart in
+// tests/SecretPrinter.TestKit), by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-12, when the responder began to keep a
+// record from being multicast twice within a second on one adapter (README
+// REQ-ADV-027). The test sends each NSEC record in the goodbye and then asks
+// for it at once; without this the answer would now be held back, as the rule
+// says it must, and the test would read the goodbye again. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Checks that the startup log lists the NSEC records the responder sends
 //   (README REQ-ADV-022), so that REQ-OBS-003 stays true: an operator can tell
@@ -118,7 +128,9 @@ internal static class AdvertisementLogTests
             List<string> logged = NsecLines(advertisement);
 
             var transport = new FakeTransport(Client);
-            var responder = new MdnsResponder(transport, [new AdvertisedInterface(Client, advertisement)]);
+            ManualClock clock = ManualClock.SecondApart();
+            var responder = new MdnsResponder(
+                transport, [new AdvertisedInterface(Client, advertisement)], clock: clock, delay: clock.Delay);
 
             // The goodbye carries every NSEC the responder holds, with TTL 0.
             // The negative answers carry them with their real TTLs.
