@@ -16,6 +16,13 @@ Claude's workspace, with the test kit's fake transport in place of a network.
 It has not been run on a network, and what an iPhone does with it is not
 known.**
 
+*(Status note, 2026-10-12, later the same day, by Claude, Claude Opus 5.5: run on
+a network once, on the test machine, with FIOS-STB-01's service stopped. In 9
+minutes 59 seconds 4 of the 116 queries seen were not answered because their
+answer would have repeated records multicast less than a second before, and an
+iPhone printed a page. Which questions they were is not known. See
+[the finding of the run](2026-10-12-four-answers-were-held-back-within-a-second-on-a-network.md).)*
+
 No address of a real device appears in this finding. The addresses in the
 tests are made up, from the ranges set aside for documentation.
 
