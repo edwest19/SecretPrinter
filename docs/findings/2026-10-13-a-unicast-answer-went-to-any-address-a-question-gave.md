@@ -18,6 +18,14 @@ on the network the query arrived from, as README `REQ-SEC-017` states. Eighteen
 new tests show it in Claude's workspace, with the test kit's fake transport in
 place of a network.**
 
+*(Status note, later on 2026-10-13, by Claude, Claude Opus 5.5: run on a network
+once, with the change that answers by unicast a question asking for it
+(`REQ-ADV-028`). 29 answers went by unicast, each to an address the check
+allowed, and none was refused. No legacy querier is known to have asked, and
+whether the IPv6 source address of a received datagram carries its scope on
+Windows is still not established. See
+[the finding of the run](2026-10-13-twenty-nine-answers-went-by-unicast-on-a-network.md).)*
+
 No address of a real device appears in this finding. The addresses below are
 made up or from the ranges set aside for documentation.
 

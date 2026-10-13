@@ -16,6 +16,14 @@ Claude's workspace, with the test kit's fake transport in place of a network.
 It has not been run on a network, and how often an iPhone asks such a question
 is not known.**
 
+*(Status note, later on 2026-10-13, by Claude, Claude Opus 5.5: run on a network
+once, on the test machine in place of FIOS-STB-01, for about 13 minutes 26
+seconds in all. Of 1,324 queries seen, 31 were answered, and 29 of those by
+unicast because they asked for it; none was held back within a second, none was
+refused for its address, and an iPhone printed a page. Which devices asked for
+unicast, and over which transport, is not known: nothing was captured. See
+[the finding of the run](2026-10-13-twenty-nine-answers-went-by-unicast-on-a-network.md).)*
+
 No address of a real device appears in this finding. The addresses in the
 tests are made up, or from the ranges set aside for documentation.
 
