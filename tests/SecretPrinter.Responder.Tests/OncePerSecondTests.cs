@@ -57,6 +57,12 @@
 // and since that day a legacy querier off the network is not answered. The
 // test of the stop summary expects the line's new last count. Reviewed by a
 // human before merge.
+//
+// Changed again later on 2026-10-13 by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, for REQ-ADV-028: the test of the stop
+// summary expects the count added at the end of the line, of the queries
+// answered by unicast because they asked for it. Reviewed by a human before
+// merge.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -367,7 +373,8 @@ internal static class OncePerSecondTests
             "Served 1 quer(ies) of 6 seen; 3 were for other services and were ignored; "
             + "0 carried every answer already and were not answered (RFC 6762 s7.1); "
             + "2 would have repeated records multicast less than a second before and were not answered (RFC 6762 s6); "
-            + "0 would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5).",
+            + "0 would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5); "
+            + "0 of those served were answered by unicast because they asked for it (RFC 6762 s5.4).",
             s.Responder.Activity.DescribeServed(),
             "each count where it belongs");
     }

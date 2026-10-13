@@ -154,6 +154,22 @@
 // docs/findings/2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md.
 // Reviewed by a human before merge.
 //
+// A question that asks for a unicast answer is answered by unicast, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West, later on
+// 2026-10-13, for REQ-ADV-028 (RFC 6762 s5.4). Before, the unicast-response
+// bit was read only to be set aside from the class, and such a question, from
+// port 5353, was answered by multicast. Now a record that only questions with
+// the bit ask for goes to the querier by unicast when this adapter multicast it
+// less than a quarter of its TTL before, and by multicast otherwise; a probe's
+// such records go by unicast at once. The unicast answer is made as the
+// multicast one would be, goes only to an address on the network the query
+// arrived from (REQ-SEC-017), is neither limited by the one-second rule nor
+// recorded as a multicast, and is counted in
+// ResponderActivity.AnsweredByUnicastOnRequest and in the stop summary's
+// first line. The REQ-SEC-001 note on HandleAsync now says the bit is read.
+// See docs/findings/2026-10-13-a-question-asking-for-a-unicast-answer-gets-one.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -253,6 +269,12 @@ public sealed record AdvertisedInterface(
 /// counted here only when there was an answer to refuse; one about a name this
 /// responder does not hold is counted under IgnoredNotOurs whatever its
 /// address. (Added 2026-10-13 by Claude, Claude Opus 5.5.)
+///
+/// AnsweredByUnicastOnRequest counts queries from port 5353 that were sent an
+/// answer by unicast because a question in them asked for one (RFC 6762 s5.4;
+/// README REQ-ADV-028). Each is also counted as answered. A legacy querier's
+/// answer is not counted here: it goes by unicast for another reason
+/// (REQ-ADV-017). (Added later on 2026-10-13 by Claude, Claude Opus 5.5.)
 /// </remarks>
 public sealed record ResponderActivity(
     int AnnouncementsSent,
@@ -266,7 +288,8 @@ public sealed record ResponderActivity(
     int GoodbyesSent,
     int SuppressedByKnownAnswers,
     int HeldBackWithinASecond,
-    int RefusedOffNetwork)
+    int RefusedOffNetwork,
+    int AnsweredByUnicastOnRequest)
 {
     /// <summary>Queries seen over either transport.</summary>
     public int QueriesSeen => QueriesSeenOverIPv4 + QueriesSeenOverIPv6;
@@ -280,7 +303,9 @@ public sealed record ResponderActivity(
     /// because they carried every answer already, those left unanswered
     /// because the answer would only have repeated records multicast less than
     /// a second before, and those left unanswered because the answer would have
-    /// gone by unicast to an address off the network they arrived from.
+    /// gone by unicast to an address off the network they arrived from; and,
+    /// of the queries served, how many were answered by unicast because they
+    /// asked for it.
     /// </summary>
     /// <remarks>
     /// Written in ServiceHost.cs until 2026-10-10, without the count of
@@ -295,7 +320,9 @@ public sealed record ResponderActivity(
     /// could not be sent, which is seen and not answered. (Corrected
     /// 2026-10-13 by Claude, Claude Opus 5.5: this said "without the last
     /// count", "The last count was added on 2026-10-12" and "the three counts
-    /// after them", which a fourth count would have made ambiguous.)
+    /// after them", which a fourth count would have made ambiguous.) The count
+    /// at the end, added later on 2026-10-13 (REQ-ADV-028), is not one of the
+    /// four: it is a part of the queries served.
     /// </remarks>
     [Requirement("REQ-ADV-026",
         "Says at shutdown how many queries were left unanswered because they carried every answer already, apart from those about other names, zero included.")]
@@ -303,12 +330,15 @@ public sealed record ResponderActivity(
         "Says at shutdown how many queries were left unanswered because their answer would only have repeated records multicast less than a second before, apart from the other counts, zero included.")]
     [Requirement("REQ-SEC-017",
         "Says at shutdown how many queries were left unanswered because their answer would have gone by unicast to an address off the network they arrived from, apart from the other counts, zero included.")]
+    [Requirement("REQ-ADV-028",
+        "Says at shutdown how many of the queries served were answered by unicast because a question asked for it, zero included.")]
     public string DescribeServed() =>
         $"Served {QueriesAnswered} quer(ies) of {QueriesSeen} seen; "
         + $"{IgnoredNotOurs} were for other services and were ignored; "
         + $"{SuppressedByKnownAnswers} carried every answer already and were not answered (RFC 6762 s7.1); "
         + $"{HeldBackWithinASecond} would have repeated records multicast less than a second before and were not answered (RFC 6762 s6); "
-        + $"{RefusedOffNetwork} would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5).";
+        + $"{RefusedOffNetwork} would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5); "
+        + $"{AnsweredByUnicastOnRequest} of those served were answered by unicast because they asked for it (RFC 6762 s5.4).";
 
     /// <summary>
     /// One line naming both transports and their counts, for the operator.
@@ -407,6 +437,7 @@ public sealed partial class MdnsResponder
     private int _suppressedByKnownAnswers;
     private int _heldBackWithinASecond;
     private int _refusedOffNetwork;
+    private int _answeredByUnicastOnRequest;
 
     // When each record was last multicast on each adapter, as a timestamp of
     // _clock (REQ-ADV-027). Keyed by the adapter's IPv4 entry, which stands for
@@ -708,7 +739,7 @@ public sealed partial class MdnsResponder
         _queriesSeenOverIPv4, _queriesSeenOverIPv6,
         _queriesAnsweredOverIPv4, _queriesAnsweredOverIPv6,
         _ignoredWrongInterface, _ignoredNotOurs, _unparseable, _goodbyes, _suppressedByKnownAnswers,
-        _heldBackWithinASecond, _refusedOffNetwork);
+        _heldBackWithinASecond, _refusedOffNetwork, _answeredByUnicastOnRequest);
 
     /// <summary>
     /// Sends unsolicited announcements on every advertised interface, so clients
@@ -784,7 +815,7 @@ public sealed partial class MdnsResponder
     [Requirement("REQ-ADV-017",
         "Answers a legacy unicast querier by unicast, echoing its query identifier and capping TTLs, when its address is on the network the query arrived from (REQ-SEC-017).")]
     [Requirement("REQ-SEC-001",
-        "Every record sent comes from this responder's own Advertisement, or is an NSEC record built from that Advertisement when the responder is constructed, listing the types of the records it claims at one of its own names. Received datagrams are read for their questions; for records about the names this responder claims, to detect conflicts; and, in a query's Answer section, for the records the querier says it already holds, which can only keep a record out of an answer (REQ-ADV-026); and for whether a query's Authority section holds any record, which marks it as a probe and decides only how soon its answer may be multicast (REQ-ADV-027). No record from a received packet is ever sent on, so nothing is forwarded or reflected between networks. Two things from a query are repeated, to the device that sent it and on the network it came from: a legacy unicast answer carries that query's identifier and its question, written again from the parsed values, as RFC 6762 s6.7 requires.")]
+        "Every record sent comes from this responder's own Advertisement, or is an NSEC record built from that Advertisement when the responder is constructed, listing the types of the records it claims at one of its own names. Received datagrams are read for their questions; for records about the names this responder claims, to detect conflicts; and, in a query's Answer section, for the records the querier says it already holds, which can only keep a record out of an answer (REQ-ADV-026); and for whether a query's Authority section holds any record, which marks it as a probe and decides only how soon its answer may be multicast (REQ-ADV-027); and for whether each question's unicast-response bit is set, which decides only whether an answer goes by unicast to the querier (REQ-ADV-028). No record from a received packet is ever sent on, so nothing is forwarded or reflected between networks. Two things from a query are repeated, to the device that sent it and on the network it came from: a legacy unicast answer carries that query's identifier and its question, written again from the parsed values, as RFC 6762 s6.7 requires.")]
     [Requirement("REQ-ADV-018",
         "Answers over the transport the query arrived on: the advertisement is looked up by the arrival interface's address family as well as its index, and the answer is sent through the entry for that family. The receiving half of this requirement is MdnsSocket.ReceiveAsync.")]
     [Requirement("REQ-SEC-002",
@@ -805,9 +836,11 @@ public sealed partial class MdnsResponder
     [Requirement("REQ-ADV-026",
         "Leaves out of the answer every record the query's Answer section already holds with a TTL of at least half the record's own (RFC 6762 s7.1), for multicast and legacy unicast queriers alike, and sends nothing when every answer is left out, counting that query apart from queries about other names. Additionals are chosen from the answers sent, so a record left out brings none.")]
     [Requirement("REQ-ADV-027",
-        "Leaves out of a multicast answer every record, answer or additional, multicast on that adapter less than a second before, over either transport (RFC 6762 s6), and sends nothing when no answer is left, counting that query apart from the others. An answer to a probe, a query with records in its Authority section, waits instead until 250 ms have passed since any record in it was last multicast there, and leaves nothing out. A legacy unicast answer is neither limited nor recorded.")]
+        "Leaves out of a multicast answer every record, answer or additional, multicast on that adapter less than a second before, over either transport (RFC 6762 s6), and sends nothing when no answer is left, counting that query apart from the others. An answer to a probe, a query with records in its Authority section, waits instead until 250 ms have passed since any record in it was last multicast there, and leaves nothing out. An answer sent by unicast, to a legacy querier or because a question asked for one (REQ-ADV-028), is neither limited nor recorded.")]
     [Requirement("REQ-SEC-017",
-        "Sends an answer by unicast only to an address on the network the query arrived from, and sends a legacy querier at any other address nothing, counting that query apart from the others.")]
+        "Sends an answer by unicast only to an address on the network the query arrived from. A legacy querier at any other address is sent nothing, and that query is counted apart from the others; the records a question from any other address asks for by unicast go by multicast instead.")]
+    [Requirement("REQ-ADV-028",
+        "Sends by unicast, to the querier's address and port through the interface the query arrived on, each record that only questions with the unicast-response bit ask for and that was multicast on that adapter, over either transport, less than a quarter of its TTL before; every other record goes by multicast. The unicast answer is made as the multicast one: identifier 0, no question, TTLs and cache-flush bits as published, its own additionals less what the multicast carries. It is neither limited by the one-second rule nor recorded as a multicast. A probe's records asked for by unicast go by unicast at once. Not for legacy queriers.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
@@ -909,6 +942,11 @@ public sealed partial class MdnsResponder
         // as a query about a name this responder does not hold.
         bool leftOutAsKnown = false;
 
+        // The records that some question without the unicast-response bit
+        // asks for (RFC 6762 s5.4, REQ-ADV-028). Such a record goes by
+        // multicast whatever another question in the same query asks.
+        var askedForByMulticast = new HashSet<string>(StringComparer.Ordinal);
+
         foreach ((DnsName name, DnsRecordType type, ushort rawClass) in query.Questions)
         {
             // A question in a class other than IN or ANY asks about records this
@@ -942,6 +980,8 @@ public sealed partial class MdnsResponder
                 builder.AddQuestion(name, type, rawClass);
             }
 
+            bool asksForUnicast = AsksForUnicast(rawClass);
+
             foreach (OutgoingRecord record in answers)
             {
                 // The querier already holds this record, and holds it for long
@@ -952,12 +992,30 @@ public sealed partial class MdnsResponder
                     continue;
                 }
 
-                if (answeredKeys.Add(Key(record)))
+                string key = Key(record);
+                if (!asksForUnicast)
+                {
+                    askedForByMulticast.Add(key);
+                }
+
+                if (answeredKeys.Add(key))
                 {
                     answered.Add(record);
                 }
             }
         }
+
+        // RFC 6762 s5.4 (REQ-ADV-028). Records that only questions asking for
+        // a unicast answer ask for may go to the querier by unicast, and only
+        // when its address is on the network the query arrived from
+        // (REQ-SEC-017); from anywhere else they go by multicast, like any
+        // other record. Which of them do go by unicast is decided below, with
+        // the one-second rule. None of this is for a legacy querier, whose
+        // whole answer goes by unicast for another reason (REQ-ADV-017): the
+        // path for it below does not read this.
+        bool mayAnswerByUnicast = answered.Any(record => !askedForByMulticast.Contains(Key(record)))
+                                  && IsOnArrivalNetwork(datagram.Source, entry);
+        List<OutgoingRecord> unicastAnswers = [];
 
         // RFC 6762 s6 (REQ-ADV-027). A record multicast on this adapter less
         // than a second before is not multicast again: it is left out of the
@@ -967,32 +1025,54 @@ public sealed partial class MdnsResponder
         // from the answers left, and are left out by the same rule. An answer
         // to a probe is the exception s6 makes: it waits instead, until 250 ms
         // have passed, and carries every record, so that a device about to
-        // take one of these names hears them all. A legacy unicast answer is
-        // not a multicast, so none of this applies to it, and it is not
-        // recorded as one.
+        // take one of these names hears them all. An answer sent by unicast, to
+        // a legacy querier or because a question asked for one, is not a
+        // multicast, so none of this applies to it, and it is not recorded as
+        // one.
+        //
+        // RFC 6762 s5.4 (REQ-ADV-028). A record a question asks for by unicast
+        // alone goes by unicast when this adapter multicast it less than a
+        // quarter of its TTL before, and by multicast otherwise, "so as to keep
+        // all the peer caches up to date". Every record this responder
+        // publishes has a TTL of at least 120 s, a quarter of which is longer
+        // than a second, so such a record is never held back by the
+        // one-second rule: if it was multicast within the second, it goes by
+        // unicast. An answer to a probe that asks for a unicast answer gets
+        // one, at once and whatever was multicast when: s5.4, "the responder
+        // should always generate the requested unicast response".
         bool heldBack = false;
         List<OutgoingRecord> additionals;
         MulticastNote? note = null;
+        bool probe = query.Authorities.Count > 0;
 
         if (legacyUnicast)
         {
             additionals = AdditionalsLeft(entry, answered, answeredKeys);
         }
-        else if (query.Authorities.Count > 0)
+        else if (probe)
         {
-            additionals = AdditionalsLeft(entry, answered, answeredKeys);
-            if (answered.Count > 0)
+            if (mayAnswerByUnicast)
             {
-                note = await WaitToMulticastAsync(
-                        entry.Adapter, [.. answered, .. additionals], ProbeAnswerSpacing, cancellationToken)
-                    .ConfigureAwait(false);
+                unicastAnswers = TakeAll(answered, record => !askedForByMulticast.Contains(Key(record)));
             }
+
+            // The wait for the multicast comes after the unicast answer is
+            // sent, below, so that the unicast answer is not kept waiting.
+            additionals = AdditionalsLeft(entry, answered, answeredKeys);
         }
         else
         {
             lock (_multicastLock)
             {
                 long now = _clock.GetTimestamp();
+                if (mayAnswerByUnicast)
+                {
+                    unicastAnswers = TakeAll(
+                        answered,
+                        record => !askedForByMulticast.Contains(Key(record))
+                                  && SentWithin(entry.Adapter, record, QuarterOfTtl(record), now));
+                }
+
                 heldBack = answered.RemoveAll(record => SentWithin(entry.Adapter, record, MulticastSpacing, now)) > 0;
                 additionals = AdditionalsLeft(entry, answered, answeredKeys);
                 additionals.RemoveAll(record => SentWithin(entry.Adapter, record, MulticastSpacing, now));
@@ -1014,7 +1094,31 @@ public sealed partial class MdnsResponder
             builder.AddAdditional(Adjust(extra, legacyUnicast));
         }
 
-        if (builder.AnswerCount == 0)
+        // The unicast answer is made as the multicast one is (s5.4: "Unicast
+        // replies are subject to all the same packet generation rules as
+        // multicast replies"): identifier 0, no question, TTLs and cache-flush
+        // bits as published. Its additionals are chosen from its own answers,
+        // and leave out anything the multicast answer carries, which the
+        // querier receives as well.
+        var unicastBuilder = new DnsResponseBuilder(0);
+        if (unicastAnswers.Count > 0)
+        {
+            var inMulticast = new HashSet<string>(answered.Concat(additionals).Select(Key), StringComparer.Ordinal);
+            foreach (OutgoingRecord record in unicastAnswers)
+            {
+                unicastBuilder.AddAnswer(record);
+            }
+
+            foreach (OutgoingRecord extra in AdditionalsLeft(entry, unicastAnswers, answeredKeys))
+            {
+                if (!inMulticast.Contains(Key(extra)))
+                {
+                    unicastBuilder.AddAdditional(extra);
+                }
+            }
+        }
+
+        if (builder.AnswerCount == 0 && unicastBuilder.AnswerCount == 0)
         {
             if (heldBack)
             {
@@ -1046,18 +1150,57 @@ public sealed partial class MdnsResponder
             return false;
         }
 
-        byte[] response = builder.Build();
+        // The unicast answer first: an answer to a probe is not kept waiting
+        // for the multicast's wait. Its address passed IsOnArrivalNetwork above
+        // (REQ-SEC-017). Should it fail, the multicast it would have gone with
+        // is not sent, and what was noted for that multicast is taken back.
+        bool answeredByUnicastOnRequest = unicastBuilder.AnswerCount > 0;
+        if (answeredByUnicastOnRequest)
+        {
+            try
+            {
+                await _transport
+                    .SendUnicastAsync(unicastBuilder.Build(), datagram.Source, entry.Via, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                if (note is not null)
+                {
+                    Unnote(note);
+                }
 
-        if (legacyUnicast)
-        {
-            await _transport
-                .SendUnicastAsync(response, datagram.Source, entry.Via, cancellationToken)
-                .ConfigureAwait(false);
+                throw;
+            }
         }
-        else
+
+        if (builder.AnswerCount > 0)
         {
-            // Every multicast path above that leaves an answer to send notes it.
-            await SendNotedAsync(response, entry.Via, note!, cancellationToken).ConfigureAwait(false);
+            byte[] response = builder.Build();
+
+            if (legacyUnicast)
+            {
+                await _transport
+                    .SendUnicastAsync(response, datagram.Source, entry.Via, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                if (probe)
+                {
+                    note = await WaitToMulticastAsync(
+                            entry.Adapter, [.. answered, .. additionals], ProbeAnswerSpacing, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                // Every multicast path above that leaves an answer to send notes it.
+                await SendNotedAsync(response, entry.Via, note!, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        if (answeredByUnicastOnRequest)
+        {
+            _answeredByUnicastOnRequest++;
         }
 
         if (entry.Via.IsIPv6)
@@ -1223,6 +1366,21 @@ public sealed partial class MdnsResponder
         }
 
         return ClientNetwork.Of(entry.Adapter.Address).Contains(address);
+    }
+
+    /// <summary>
+    /// A quarter of the record's TTL: within it, RFC 6762 s5.4 counts the
+    /// record as multicast "recently" (README REQ-ADV-028).
+    /// </summary>
+    private static TimeSpan QuarterOfTtl(OutgoingRecord record) =>
+        TimeSpan.FromTicks(record.Ttl * TimeSpan.TicksPerSecond / 4);
+
+    /// <summary>Removes from the list every record that matches, and returns them, in order.</summary>
+    private static List<OutgoingRecord> TakeAll(List<OutgoingRecord> records, Predicate<OutgoingRecord> match)
+    {
+        List<OutgoingRecord> taken = records.FindAll(match);
+        records.RemoveAll(match);
+        return taken;
     }
 
     /// <summary>
@@ -1623,6 +1781,13 @@ public sealed partial class MdnsResponder
     /// </summary>
     private static bool AsksAboutClassIn(ushort rawClass) =>
         (rawClass & 0x7FFF) is ClassIn or ClassAny;
+
+    /// <summary>
+    /// True when the question's unicast-response bit, the top bit of its class
+    /// field, is set: the querier is willing to take its answer by unicast
+    /// (RFC 6762 s5.4; README REQ-ADV-028).
+    /// </summary>
+    private static bool AsksForUnicast(ushort rawClass) => (rawClass & 0x8000) != 0;
 
     /// <summary>Caps TTLs for legacy unicast answers; leaves multicast answers as built.</summary>
     private static OutgoingRecord Adjust(OutgoingRecord record, bool legacyUnicast) =>

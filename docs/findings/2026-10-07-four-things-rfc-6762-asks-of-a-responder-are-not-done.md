@@ -36,6 +36,18 @@ answer to a probe waits for 250 ms, as README `REQ-ADV-027` states; see
 It is measured against the code by tests and has not yet been run on a network.
 Items 3 and 4 are not built. The send times item 4 depends on are now kept.)*
 
+*(Status note, 2026-10-13, by Claude, Claude Opus 5.5: item 4 is built. A record
+that only questions asking for a unicast answer ask for now goes to the querier
+by unicast when the service multicast it on that adapter less than a quarter of
+its TTL before, and by multicast otherwise, as README `REQ-ADV-028` states; see
+[the finding of 2026-10-13](2026-10-13-a-question-asking-for-a-unicast-answer-gets-one.md).
+It is measured against the code by tests and has not yet been run on a network.
+Item 3 is not built. Reading §5.4 again for it, the quotation under item 4
+below was found to misquote its first words; it is corrected there. And reading
+§5.5 for it, a fault was found in what the service already did with unicast
+answers, recorded and corrected the same day:
+[the finding](2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md).)*
+
 This is not a review of the service against the whole of RFC 6762. See "What
 this does not show".
 
@@ -105,12 +117,18 @@ which is what is asked.
 
 ### 4. A question that asks for a unicast answer is answered by multicast (§5.4)
 
-> When a question is received with the unicast-response bit set, a responder
+> When receiving a question with the unicast-response bit set, a responder
 > SHOULD usually respond with a unicast packet directed back to the querier.
 > However, if the responder has not multicast that record recently (within one
 > quarter of its TTL), then the responder SHOULD instead multicast the response
 > so as to keep all the peer caches up to date, and to permit passive conflict
 > detection.
+
+*(Corrected 2026-10-13 by Claude, Claude Opus 5.5: the first words of this
+quotation read "When a question is received with the unicast-response bit
+set,". The RFC reads "When receiving a question with the unicast-response bit
+set,", as it is now, at rfc-editor.org and at datatracker.ietf.org alike, read
+through the same tool. The rest of the quotation agreed.)*
 
 - **The code.** The responder reads the unicast-response bit only to set it
   aside when it reads the question's class (`REQ-ADV-025`). It sends by unicast

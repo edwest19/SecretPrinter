@@ -40,6 +40,12 @@
 //   second adapter, 10.20.30.40, and its querier, 10.200.1.2, are made up, for
 //   the /8 rule. The IPv6 addresses are made up: fe80::41, and 2001:db8::41
 //   from RFC 3849's documentation prefix.
+//
+// Changed later on 2026-10-13 by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, for REQ-ADV-028: the test of the stop summary
+// expects the count added at the end of the line, of the queries answered by
+// unicast because they asked for it. What the check does for those answers is
+// tested in UnicastResponseTests. Reviewed by a human before merge.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -325,7 +331,8 @@ internal static class UnicastAddressTests
             "Served 1 quer(ies) of 6 seen; 2 were for other services and were ignored; "
             + "0 carried every answer already and were not answered (RFC 6762 s7.1); "
             + "0 would have repeated records multicast less than a second before and were not answered (RFC 6762 s6); "
-            + "3 would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5).",
+            + "3 would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5); "
+            + "0 of those served were answered by unicast because they asked for it (RFC 6762 s5.4).",
             responder.Activity.DescribeServed(),
             "each count where it belongs");
     }
