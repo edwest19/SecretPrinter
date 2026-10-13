@@ -4,6 +4,13 @@
 // Written by Claude (Anthropic model, Claude Opus 4.5) at the direction of
 // Edwin West, for the SecretPrinter project. Reviewed by a human before merge.
 //
+// The summary of SendUnicastAsync corrected by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-10-13. It said a unicast is
+// sent "out of one specific interface"; on the real socket, Windows chooses
+// the adapter a unicast datagram leaves by from its routing table. See
+// docs/findings/2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md.
+// Comment only. Reviewed by a human before merge.
+//
 // Purpose:
 //   The narrowest possible view of the network, so that everything above it can
 //   be tested without one.
@@ -45,7 +52,12 @@ public interface IMdnsTransport
     /// <exception cref="ArgumentException">The interface is not one this transport holds.</exception>
     Task SendMulticastAsync(ReadOnlyMemory<byte> payload, MdnsInterface via, CancellationToken cancellationToken);
 
-    /// <summary>Sends directly to one endpoint, out of one specific interface.</summary>
+    /// <summary>
+    /// Sends directly to one endpoint, through one specific interface's socket.
+    /// The adapter the datagram leaves by is the operating system's choice, by
+    /// its routing table, and not the interface named; the caller decides what
+    /// may be sent where.
+    /// </summary>
     /// <exception cref="ArgumentException">The interface is not one this transport holds.</exception>
     Task SendUnicastAsync(
         ReadOnlyMemory<byte> payload,

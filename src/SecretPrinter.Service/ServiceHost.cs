@@ -120,6 +120,14 @@
 // docs/findings/2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md.
 // Reviewed by a human before merge.
 //
+// The relay's IPv4 client network now worked out by ClientNetwork.Of in
+// SecretPrinter.Mdns, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-13. The rule is the one PrefixLengthFor
+// held here, moved unchanged, because the responder now needs it too, to send
+// an answer by unicast only to an address on that network (REQ-SEC-017). See
+// docs/findings/2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -613,8 +621,9 @@ public sealed class ServiceHost
         // The permitted IPv4 network is derived from the interface itself rather
         // than configured separately, so the two cannot drift apart. What to
         // listen on is read out of what is published, for the same reason
-        // (REQ-ADV-021).
-        var ipv4Network = new IPNetwork(client.Address, PrefixLengthFor(client.Address));
+        // (REQ-ADV-021). The responder works out the same network the same way
+        // for its unicast answers (REQ-SEC-017).
+        IPNetwork ipv4Network = ClientNetwork.Of(client.Address);
         IReadOnlyList<ListenEntry> plan = ListenPlan.From(advertised, ipv4Network);
 
         while (!cancellationToken.IsCancellationRequested)
@@ -992,17 +1001,6 @@ public sealed class ServiceHost
 
         return $"Job: located {printer.Instance} at {printer.Address}:{printer.Port} "
                + $"({source}, {elapsed.TotalSeconds:0.###}s).";
-    }
-
-    /// <summary>
-    /// Prefix length for a private address range. Home networks are /24 in
-    /// practice; this is deliberately conservative, since a wider guess would
-    /// permit clients the operator did not intend.
-    /// </summary>
-    private static int PrefixLengthFor(IPAddress address)
-    {
-        byte[] octets = address.GetAddressBytes();
-        return octets[0] == 10 ? 8 : 24;
     }
 }
 

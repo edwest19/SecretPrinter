@@ -35,6 +35,10 @@
 // the direction of Edwin West, 2026-10-12, for REQ-ADV-027. Reviewed by a human
 // before merge.
 //
+// UnicastAddressTests registered by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-13, for REQ-SEC-017. Reviewed by a human
+// before merge.
+//
 // Pass --results <path> to record which requirements had a test that executed
 // and passed, for SecretPrinter.SpecCheck to read.
 // -----------------------------------------------------------------------------
@@ -79,6 +83,7 @@ internal static class Program
             typeof(NsecConflictTests),
             typeof(NsecAnsweringTests),
             typeof(KnownAnswerTests),
-            typeof(OncePerSecondTests));
+            typeof(OncePerSecondTests),
+            typeof(UnicastAddressTests));
     }
 }

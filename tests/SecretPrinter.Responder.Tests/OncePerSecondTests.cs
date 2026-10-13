@@ -49,6 +49,14 @@
 //   reads elapsed time from GetTimestamp, which on the real clock cannot go
 //   backwards; the clock's wall time is kept apart so that one test can move it
 //   backwards and show that it is not what decides.
+//
+// Changed 2026-10-13 by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, for REQ-SEC-017: the two tests of a legacy unicast
+// answer now ask from 192.168.1.41, on the client adapter's network, through a
+// new source parameter of Ask. They asked from 192.0.2.41, which is not on it,
+// and since that day a legacy querier off the network is not answered. The
+// test of the stop summary expects the line's new last count. Reviewed by a
+// human before merge.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -97,12 +105,13 @@ internal static class OncePerSecondTests
     }
 
     /// <summary>A multicast query (source port 5353), or a legacy one from another port.</summary>
-    private static MdnsDatagram Ask(DnsName name, DnsRecordType type, MdnsInterface arrivedOn, int sourcePort = 5353)
+    private static MdnsDatagram Ask(
+        DnsName name, DnsRecordType type, MdnsInterface arrivedOn, int sourcePort = 5353, string source = "192.0.2.41")
     {
         byte[] payload = new DnsQueryBuilder(0x2A2A)
             .AddQuestion(name, type, requestUnicastResponse: false)
             .Build();
-        return new MdnsDatagram(payload, new IPEndPoint(IPAddress.Parse("192.0.2.41"), sourcePort), arrivedOn.Index, arrivedOn);
+        return new MdnsDatagram(payload, new IPEndPoint(IPAddress.Parse(source), sourcePort), arrivedOn.Index, arrivedOn);
     }
 
     /// <summary>A probe from another device for this name, proposing its own address for it.</summary>
@@ -256,7 +265,7 @@ internal static class OncePerSecondTests
         Handle(s, Ask(Subtype, DnsRecordType.Ptr, ClientNic));
         s.Clock.Advance(TimeSpan.FromMilliseconds(100));
 
-        Assert.True(Handle(s, Ask(Subtype, DnsRecordType.Ptr, ClientNic, sourcePort: 50000)),
+        Assert.True(Handle(s, Ask(Subtype, DnsRecordType.Ptr, ClientNic, sourcePort: 50000, source: "192.168.1.41")),
             "a legacy querier is answered by unicast, which is not a multicast");
         Assert.False(s.Transport.Sent[1].WasMulticast, "by unicast");
         Assert.Equal(Names(s.Transport.Sent[0]), Names(s.Transport.Sent[1]), "with every record");
@@ -267,7 +276,7 @@ internal static class OncePerSecondTests
     {
         Setup s = Build();
 
-        Handle(s, Ask(Subtype, DnsRecordType.Ptr, ClientNic, sourcePort: 50000));
+        Handle(s, Ask(Subtype, DnsRecordType.Ptr, ClientNic, sourcePort: 50000, source: "192.168.1.41"));
         s.Clock.Advance(TimeSpan.FromMilliseconds(100));
 
         Assert.True(Handle(s, Ask(Subtype, DnsRecordType.Ptr, ClientNic)),
@@ -357,7 +366,8 @@ internal static class OncePerSecondTests
         Assert.Equal(
             "Served 1 quer(ies) of 6 seen; 3 were for other services and were ignored; "
             + "0 carried every answer already and were not answered (RFC 6762 s7.1); "
-            + "2 would have repeated records multicast less than a second before and were not answered (RFC 6762 s6).",
+            + "2 would have repeated records multicast less than a second before and were not answered (RFC 6762 s6); "
+            + "0 would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5).",
             s.Responder.Activity.DescribeServed(),
             "each count where it belongs");
     }

@@ -47,6 +47,19 @@
 // West's decision of the same day. Comments only; no behaviour changed.
 // Reviewed by a human before merge.
 //
+// The summary of SendUnicastAsync and the text of its REQ-ADV-011 marker
+// corrected by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+// Edwin West, 2026-10-13. They said a unicast datagram is sent "out of one
+// specific interface" and that the method refuses "to send out any interface
+// the socket was not opened for". It refuses an interface it was not opened
+// for, but the options it sets name the outgoing interface for multicast
+// only; Windows chooses the adapter a unicast datagram leaves by from its
+// routing table. What keeps an answer sent by unicast on the client network is
+// now the address it goes to (MdnsResponder.HandleAsync, REQ-SEC-017). See
+// docs/findings/2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md.
+// Comments and the marker's text only; no behaviour changed. Reviewed by a
+// human before merge.
+//
 // Purpose:
 //   The service's single point of contact with the network for mDNS. It binds
 //   UDP 5353, joins the multicast group on configured interfaces, receives
@@ -758,11 +771,25 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
     }
 
     /// <summary>
-    /// Sends a datagram directly to one endpoint, out of one specific
-    /// interface. Used for legacy unicast queriers (RFC 6762 §6.7).
+    /// Sends a datagram directly to one endpoint, through the socket of an
+    /// interface this socket was opened for. Used for legacy unicast queriers
+    /// (RFC 6762 §6.7).
     /// </summary>
+    /// <remarks>
+    /// The interface is checked as it is for a multicast, and an IPv6 send
+    /// sets both hop limits. Which adapter the datagram leaves by is not set
+    /// here. The outgoing interface this socket sets, IP_MULTICAST_IF and
+    /// IPV6_MULTICAST_IF, is for multicast only, and Windows chooses the
+    /// adapter for a unicast datagram from its routing table; a link-local
+    /// IPv6 destination carries its own scope. What keeps an answer sent by
+    /// unicast on the client network is the address it is sent to, which the
+    /// responder allows only on the network the query arrived from
+    /// (MdnsResponder.HandleAsync, README REQ-SEC-017). (Corrected 2026-10-13
+    /// by Claude, Claude Opus 5.5: this said the datagram is sent "out of one
+    /// specific interface".)
+    /// </remarks>
     [Requirement("REQ-ADV-011",
-        "Refuses to send out any interface the socket was not opened for.")]
+        "Refuses a send through any interface the socket was not opened for. The adapter a unicast datagram leaves by is chosen by Windows from its routing table; the responder sends one only to an address on the network the query came from (REQ-SEC-017).")]
     public Task SendUnicastAsync(
         ReadOnlyMemory<byte> payload,
         IPEndPoint destination,

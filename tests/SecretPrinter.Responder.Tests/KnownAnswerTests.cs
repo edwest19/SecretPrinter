@@ -38,6 +38,12 @@
 // Known answers are written without the cache-flush bit, which RFC 6762
 // section 10.2 says MUST NOT be set in a Known-Answer list, except in the one
 // test about that bit.
+//
+// Changed 2026-10-13 by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, for REQ-SEC-017: the test of the stop summary
+// expects the line's new last count, of queries that would have been answered
+// by unicast to an address off the network they arrived from. Reviewed by a
+// human before merge.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -416,7 +422,8 @@ internal static class KnownAnswerTests
         Assert.Equal(
             "Served 1 quer(ies) of 6 seen; 2 were for other services and were ignored; "
             + "3 carried every answer already and were not answered (RFC 6762 s7.1); "
-            + "0 would have repeated records multicast less than a second before and were not answered (RFC 6762 s6).",
+            + "0 would have repeated records multicast less than a second before and were not answered (RFC 6762 s6); "
+            + "0 would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5).",
             line,
             "each count where it belongs");
     }

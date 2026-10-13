@@ -139,6 +139,21 @@
 // docs/findings/2026-10-12-a-record-is-multicast-at-most-once-a-second.md.
 // Reviewed by a human before merge.
 //
+// An answer by unicast sent only to an address on the network the query
+// arrived from, by Claude (Anthropic model, Claude Opus 5.5) at the direction
+// of Edwin West, 2026-10-13, for REQ-SEC-017. Before, an answer to a legacy
+// querier went to whatever source address the query gave. The socket sets the
+// interface a multicast leaves by and not the one a unicast leaves by, which
+// Windows chooses from its routing table, so a forged source address on the
+// printer network, or on no local network, would have had the answer sent
+// there. Over IPv4 the network is the relay's (ClientNetwork.Of, REQ-SEC-012);
+// over IPv6 the address must be link-local with the arrival interface's scope.
+// A legacy query from anywhere else is not answered, and is counted in
+// ResponderActivity.RefusedOffNetwork and in the stop summary's first line.
+// Measured against the code with a fake transport; not seen on a network. See
+// docs/findings/2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -231,6 +246,13 @@ public sealed record AdvertisedInterface(
 /// under SuppressedByKnownAnswers instead, because it would have gone
 /// unanswered without the one-second rule. (Added 2026-10-12 by Claude, Claude
 /// Opus 5.5.)
+///
+/// RefusedOffNetwork counts queries that would have been answered by unicast
+/// and were not, because the address the answer would have gone to is not on
+/// the network the query arrived from (README REQ-SEC-017). A query is
+/// counted here only when there was an answer to refuse; one about a name this
+/// responder does not hold is counted under IgnoredNotOurs whatever its
+/// address. (Added 2026-10-13 by Claude, Claude Opus 5.5.)
 /// </remarks>
 public sealed record ResponderActivity(
     int AnnouncementsSent,
@@ -243,7 +265,8 @@ public sealed record ResponderActivity(
     int Unparseable,
     int GoodbyesSent,
     int SuppressedByKnownAnswers,
-    int HeldBackWithinASecond)
+    int HeldBackWithinASecond,
+    int RefusedOffNetwork)
 {
     /// <summary>Queries seen over either transport.</summary>
     public int QueriesSeen => QueriesSeenOverIPv4 + QueriesSeenOverIPv6;
@@ -254,29 +277,38 @@ public sealed record ResponderActivity(
     /// <summary>
     /// The first line of the service's stop summary: queries answered and seen,
     /// those about names this responder does not hold, those left unanswered
-    /// because they carried every answer already, and those left unanswered
+    /// because they carried every answer already, those left unanswered
     /// because the answer would only have repeated records multicast less than
-    /// a second before.
+    /// a second before, and those left unanswered because the answer would have
+    /// gone by unicast to an address off the network they arrived from.
     /// </summary>
     /// <remarks>
-    /// Written in ServiceHost.cs until 2026-10-10, without the last count. It
-    /// moved here, beside <see cref="DescribeByTransport"/>, so that a test can
-    /// read it: no test runs the service's stop path. The count is always
+    /// Written in ServiceHost.cs until 2026-10-10, without the count of
+    /// queries that carried every answer, which was added then (REQ-ADV-026).
+    /// It moved here, beside <see cref="DescribeByTransport"/>, so that a test
+    /// can read it: no test runs the service's stop path. Each count is always
     /// given, zero included, for the reason given for the transports below.
-    /// The last count was added on 2026-10-12 (REQ-ADV-027). The queries
-    /// answered and the three counts after them add up to the queries seen,
-    /// except a query whose answer could not be sent, which is seen and not
-    /// answered.
+    /// The count of queries held back within a second was added on 2026-10-12
+    /// (REQ-ADV-027), and the count of queries refused for their address on
+    /// 2026-10-13 (REQ-SEC-017). The queries answered and the four counts
+    /// after them add up to the queries seen, except a query whose answer
+    /// could not be sent, which is seen and not answered. (Corrected
+    /// 2026-10-13 by Claude, Claude Opus 5.5: this said "without the last
+    /// count", "The last count was added on 2026-10-12" and "the three counts
+    /// after them", which a fourth count would have made ambiguous.)
     /// </remarks>
     [Requirement("REQ-ADV-026",
         "Says at shutdown how many queries were left unanswered because they carried every answer already, apart from those about other names, zero included.")]
     [Requirement("REQ-ADV-027",
         "Says at shutdown how many queries were left unanswered because their answer would only have repeated records multicast less than a second before, apart from the other counts, zero included.")]
+    [Requirement("REQ-SEC-017",
+        "Says at shutdown how many queries were left unanswered because their answer would have gone by unicast to an address off the network they arrived from, apart from the other counts, zero included.")]
     public string DescribeServed() =>
         $"Served {QueriesAnswered} quer(ies) of {QueriesSeen} seen; "
         + $"{IgnoredNotOurs} were for other services and were ignored; "
         + $"{SuppressedByKnownAnswers} carried every answer already and were not answered (RFC 6762 s7.1); "
-        + $"{HeldBackWithinASecond} would have repeated records multicast less than a second before and were not answered (RFC 6762 s6).";
+        + $"{HeldBackWithinASecond} would have repeated records multicast less than a second before and were not answered (RFC 6762 s6); "
+        + $"{RefusedOffNetwork} would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5).";
 
     /// <summary>
     /// One line naming both transports and their counts, for the operator.
@@ -374,6 +406,7 @@ public sealed partial class MdnsResponder
     private int _goodbyes;
     private int _suppressedByKnownAnswers;
     private int _heldBackWithinASecond;
+    private int _refusedOffNetwork;
 
     // When each record was last multicast on each adapter, as a timestamp of
     // _clock (REQ-ADV-027). Keyed by the adapter's IPv4 entry, which stands for
@@ -675,7 +708,7 @@ public sealed partial class MdnsResponder
         _queriesSeenOverIPv4, _queriesSeenOverIPv6,
         _queriesAnsweredOverIPv4, _queriesAnsweredOverIPv6,
         _ignoredWrongInterface, _ignoredNotOurs, _unparseable, _goodbyes, _suppressedByKnownAnswers,
-        _heldBackWithinASecond);
+        _heldBackWithinASecond, _refusedOffNetwork);
 
     /// <summary>
     /// Sends unsolicited announcements on every advertised interface, so clients
@@ -749,7 +782,7 @@ public sealed partial class MdnsResponder
     [Requirement("REQ-ADV-011",
         "Ignores any datagram that arrived on an interface the service is not configured for.")]
     [Requirement("REQ-ADV-017",
-        "Answers a legacy unicast querier by unicast, echoing its query identifier and capping TTLs.")]
+        "Answers a legacy unicast querier by unicast, echoing its query identifier and capping TTLs, when its address is on the network the query arrived from (REQ-SEC-017).")]
     [Requirement("REQ-SEC-001",
         "Every record sent comes from this responder's own Advertisement, or is an NSEC record built from that Advertisement when the responder is constructed, listing the types of the records it claims at one of its own names. Received datagrams are read for their questions; for records about the names this responder claims, to detect conflicts; and, in a query's Answer section, for the records the querier says it already holds, which can only keep a record out of an answer (REQ-ADV-026); and for whether a query's Authority section holds any record, which marks it as a probe and decides only how soon its answer may be multicast (REQ-ADV-027). No record from a received packet is ever sent on, so nothing is forwarded or reflected between networks. Two things from a query are repeated, to the device that sent it and on the network it came from: a legacy unicast answer carries that query's identifier and its question, written again from the parsed values, as RFC 6762 s6.7 requires.")]
     [Requirement("REQ-ADV-018",
@@ -773,6 +806,8 @@ public sealed partial class MdnsResponder
         "Leaves out of the answer every record the query's Answer section already holds with a TTL of at least half the record's own (RFC 6762 s7.1), for multicast and legacy unicast queriers alike, and sends nothing when every answer is left out, counting that query apart from queries about other names. Additionals are chosen from the answers sent, so a record left out brings none.")]
     [Requirement("REQ-ADV-027",
         "Leaves out of a multicast answer every record, answer or additional, multicast on that adapter less than a second before, over either transport (RFC 6762 s6), and sends nothing when no answer is left, counting that query apart from the others. An answer to a probe, a query with records in its Authority section, waits instead until 250 ms have passed since any record in it was last multicast there, and leaves nothing out. A legacy unicast answer is neither limited nor recorded.")]
+    [Requirement("REQ-SEC-017",
+        "Sends an answer by unicast only to an address on the network the query arrived from, and sends a legacy querier at any other address nothing, counting that query apart from the others.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
@@ -998,6 +1033,19 @@ public sealed partial class MdnsResponder
             return false;
         }
 
+        // An answer by unicast goes only to an address on the network the
+        // query arrived from (REQ-SEC-017). Windows chooses the adapter a
+        // unicast datagram leaves by from its routing table, so an answer to
+        // a forged source address could otherwise leave by the printer-side
+        // adapter, or through a router off both networks. Such a query is
+        // counted, apart from the others, only when there was an answer to
+        // refuse.
+        if (legacyUnicast && !IsOnArrivalNetwork(datagram.Source, entry))
+        {
+            _refusedOffNetwork++;
+            return false;
+        }
+
         byte[] response = builder.Build();
 
         if (legacyUnicast)
@@ -1133,6 +1181,48 @@ public sealed partial class MdnsResponder
 
             _goodbyes++;
         }
+    }
+
+    /// <summary>
+    /// True when an answer may be sent by unicast to this address: when it is
+    /// on the network of the interface the query arrived on.
+    /// </summary>
+    /// <remarks>
+    /// Over IPv4, the address must be on the client network as the relay works
+    /// it out (<see cref="ClientNetwork.Of"/>; README REQ-SEC-012), worked out
+    /// from the adapter's IPv4 address. Over IPv6, it must be a link-local
+    /// address whose scope is the index of the interface the query arrived on:
+    /// a link-local address names a host only together with its scope, and the
+    /// service deals in no other IPv6 address (REQ-ADV-021). A link-local
+    /// address with no scope is refused, because which link it is on cannot be
+    /// told.
+    ///
+    /// Why this is needed: the socket sets the interface a multicast leaves
+    /// by, and not the one a unicast datagram leaves by, which Windows chooses
+    /// from its routing table. Until 2026-10-13 an answer to a legacy querier
+    /// went to whatever address the query gave, so a query arriving on the
+    /// client adapter with a forged source address on the printer network, or
+    /// on no local network, would have had its answer sent there. See
+    /// docs/findings/2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md.
+    /// RFC 6762 s5.5 asks the same check of a query sent by unicast.
+    /// </remarks>
+    [Requirement("REQ-SEC-017",
+        "Decides whether an address may be sent an answer by unicast: over IPv4, only an address on the client network as the relay works it out from the arrival adapter's address; over IPv6, only a link-local address whose scope is the arrival interface's index.")]
+    private static bool IsOnArrivalNetwork(IPEndPoint source, AnsweringInterface entry)
+    {
+        IPAddress address = source.Address;
+
+        // The address family needs no test of its own. IsIPv6LinkLocal is false
+        // for every IPv4 address, and an IPv4 network contains no IPv6 address
+        // (read in Claude's workspace on 2026-10-13, runtime 10.0.12).
+        if (entry.Via.IsIPv6)
+        {
+            // The IPv6 entry's own index: the platform numbers interfaces per
+            // address family (docs/findings/2026-09-13-interface-index-parity.md).
+            return address.IsIPv6LinkLocal && address.ScopeId == entry.Via.Index;
+        }
+
+        return ClientNetwork.Of(entry.Adapter.Address).Contains(address);
     }
 
     /// <summary>
