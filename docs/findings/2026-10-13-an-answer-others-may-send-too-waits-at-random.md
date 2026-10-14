@@ -19,6 +19,15 @@ what the service did since 2026-10-12, in no release, and it is closed here:
 after an answer to a probe had waited for its 250 ms, nothing was read again
 before it was sent.**
 
+*(Status note, 2026-10-14, by Claude, Claude Opus 5.5: run on a network once, on
+FIOS-STB-01, in a build made there and installed as the service in place of
+release 0.2.0, from 16:08:29Z to 16:40:48Z. Of 831 queries seen, 17 were
+answered, and every one of the 17 after a random wait. A capture on the client
+adapter timed three of them at 62.5, 103.0 and 114.6 milliseconds after their
+questions, each time including the time to receive, decide and send. No two
+queries that each took the wait arrived together. An iPhone printed a page.
+See [the finding of the run](2026-10-14-seventeen-answers-waited-at-random-on-a-network.md).)*
+
 No address of a real device appears in this finding. The addresses in the
 tests are made up, or from the ranges set aside for documentation.
 
