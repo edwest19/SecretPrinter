@@ -50,6 +50,12 @@
 // summary expects the count added at the end of the line, of the queries
 // answered by unicast because they asked for it. Reviewed by a human before
 // merge.
+//
+// Changed later still on 2026-10-13 by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, for REQ-ADV-029: the test of the stop
+// summary expects the count added at the end of the line, of the queries
+// answered after a random wait. The one answered here, a PTR, is one. Reviewed
+// by a human before merge.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -430,7 +436,8 @@ internal static class KnownAnswerTests
             + "3 carried every answer already and were not answered (RFC 6762 s7.1); "
             + "0 would have repeated records multicast less than a second before and were not answered (RFC 6762 s6); "
             + "0 would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5); "
-            + "0 of those served were answered by unicast because they asked for it (RFC 6762 s5.4).",
+            + "0 of those served were answered by unicast because they asked for it (RFC 6762 s5.4); "
+            + "1 of those served were answered after a random wait of 20 to 120 ms, because the answer held a shared record or the query asked more than one question (RFC 6762 s6, s6.3).",
             line,
             "each count where it belongs");
     }

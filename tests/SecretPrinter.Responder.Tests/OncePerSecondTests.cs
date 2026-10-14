@@ -63,6 +63,18 @@
 // summary expects the count added at the end of the line, of the queries
 // answered by unicast because they asked for it. Reviewed by a human before
 // merge.
+//
+// Changed later still on 2026-10-13 by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, for REQ-ADV-029: every responder here
+// is given a random wait of none before an answer that holds a shared record
+// or answers more than one question. With the default wait, a random 20 to
+// 120 ms, two tests failed: at 999 ms the PTR was no longer held back, the
+// second answer's own wait having taken it past the second, and the
+// conflict that the test of announcements hears during a wait was heard
+// during the wait before the answer instead, so that answer was not sent. The
+// test of the stop summary expects the count added at the end of the line,
+// of the queries answered after a random wait: none here. Reviewed by a human
+// before merge.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -87,6 +99,13 @@ internal static class OncePerSecondTests
     private static readonly DnsName ServiceType = DnsName.Parse("_ipp._tcp.local");
     private static readonly DnsName Subtype = DnsName.Parse("_universal._sub._ipp._tcp.local");
 
+    /// <summary>
+    /// The random wait of README REQ-ADV-029, fixed at none, so that each test's
+    /// times are the times it gives. How that wait and the one-second rule work
+    /// together is tested in RandomAnswerDelayTests.
+    /// </summary>
+    private static TimeSpan NoRandomWait() => TimeSpan.Zero;
+
     private sealed record Setup(
         MdnsResponder Responder, FakeTransport Transport, ManualClock Clock, Advertisement Advertisement,
         List<long> SentAt);
@@ -106,7 +125,8 @@ internal static class OncePerSecondTests
                 new AdvertisedInterface(OtherNic, advertisement),
             ],
             clock: clock,
-            delay: clock.Delay);
+            delay: clock.Delay,
+            randomAnswerDelay: NoRandomWait);
         return new Setup(responder, transport, clock, advertisement, sentAt);
     }
 
@@ -374,7 +394,8 @@ internal static class OncePerSecondTests
             + "0 carried every answer already and were not answered (RFC 6762 s7.1); "
             + "2 would have repeated records multicast less than a second before and were not answered (RFC 6762 s6); "
             + "0 would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5); "
-            + "0 of those served were answered by unicast because they asked for it (RFC 6762 s5.4).",
+            + "0 of those served were answered by unicast because they asked for it (RFC 6762 s5.4); "
+            + "0 of those served were answered after a random wait of 20 to 120 ms, because the answer held a shared record or the query asked more than one question (RFC 6762 s6, s6.3).",
             s.Responder.Activity.DescribeServed(),
             "each count where it belongs");
     }
@@ -492,7 +513,8 @@ internal static class OncePerSecondTests
         }
 
         responder = new MdnsResponder(
-            transport, [new AdvertisedInterface(ClientNic, advertisement, ClientNicV6)], clock: clock, delay: Delay);
+            transport, [new AdvertisedInterface(ClientNic, advertisement, ClientNicV6)], clock: clock, delay: Delay,
+            randomAnswerDelay: NoRandomWait);
 
         responder.HandleAsync(Ask(Subtype, DnsRecordType.Ptr, ClientNic), CancellationToken.None).GetAwaiter().GetResult();
         responder.AnnounceAsync(TimeSpan.Zero, CancellationToken.None).GetAwaiter().GetResult();

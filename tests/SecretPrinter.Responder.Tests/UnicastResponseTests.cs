@@ -56,6 +56,15 @@
 //   tests, or fe80::41 over IPv6, made up. A second adapter, 192.0.2.10, and a
 //   querier off every local network, 203.0.113.9, are from RFC 5737's
 //   documentation ranges. The probing device is 192.168.1.77, made up.
+//
+// Changed later still on 2026-10-13 by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, for REQ-ADV-029: the test of the stop
+// summary expects the count added at the end of the line, of the queries
+// answered after a random wait. All three answered here are for a PTR, so all
+// three are counted. The responders here take the default random wait, which
+// moves the clock by 20 to 120 ms before each such answer; every test in this
+// file passed with that wait fixed at 20 ms, at 120 ms, and alternating
+// between the two either way round. Reviewed by a human before merge.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -495,7 +504,8 @@ internal static class UnicastResponseTests
             + "0 carried every answer already and were not answered (RFC 6762 s7.1); "
             + "0 would have repeated records multicast less than a second before and were not answered (RFC 6762 s6); "
             + "0 would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5); "
-            + "2 of those served were answered by unicast because they asked for it (RFC 6762 s5.4).",
+            + "2 of those served were answered by unicast because they asked for it (RFC 6762 s5.4); "
+            + "3 of those served were answered after a random wait of 20 to 120 ms, because the answer held a shared record or the query asked more than one question (RFC 6762 s6, s6.3).",
             s.Responder.Activity.DescribeServed(),
             "each count where it belongs");
     }

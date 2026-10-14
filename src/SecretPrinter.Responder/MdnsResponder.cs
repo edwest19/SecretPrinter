@@ -170,6 +170,23 @@
 // See docs/findings/2026-10-13-a-question-asking-for-a-unicast-answer-gets-one.md.
 // Reviewed by a human before merge.
 //
+// An answer that other responders may be sending too waits a random 20 to 120
+// ms first, by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+// Edwin West, later still on 2026-10-13, for REQ-ADV-029 (RFC 6762 s6 and
+// s6.3). Before, every answer was sent as soon as it was made. Now an answer
+// that holds a shared record (one published without the cache-flush bit: the
+// PTR records of the service types), or that answers a query of more than one
+// question, waits a random time drawn by the new constructor parameter
+// randomAnswerDelay, before the rest of it is decided; an answer to a probe
+// does not. After that wait, and after the 250 ms wait of an answer to a probe
+// (REQ-ADV-027), the gate, the conflict and the probing are read again,
+// through the new method AnswersNothing, which the arrival check now uses too;
+// before, none of them was read again after a wait. Such answers are counted in
+// ResponderActivity.WaitedAtRandom and in the stop summary's first line. The
+// receive loop waits with each answer. See
+// docs/findings/2026-10-13-an-answer-others-may-send-too-waits-at-random.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -202,6 +219,7 @@
 
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using SecretPrinter.Advertising;
 using SecretPrinter.Dns;
 using SecretPrinter.Mdns;
@@ -275,6 +293,16 @@ public sealed record AdvertisedInterface(
 /// README REQ-ADV-028). Each is also counted as answered. A legacy querier's
 /// answer is not counted here: it goes by unicast for another reason
 /// (REQ-ADV-017). (Added later on 2026-10-13 by Claude, Claude Opus 5.5.)
+///
+/// WaitedAtRandom counts queries answered after a random wait of 20 to 120
+/// ms, taken because the answer held a shared record or the query asked more
+/// than one question (RFC 6762 s6 and s6.3; README REQ-ADV-029). Each is also
+/// counted as answered. A query that waited and was then not answered is not
+/// counted here: one whose every record had been multicast within the second
+/// by then is counted under HeldBackWithinASecond, and one not answered
+/// because the printer was withdrawn, a conflict heard or a probe begun while
+/// it waited is counted only as seen. (Added later still on 2026-10-13 by Claude, Claude
+/// Opus 5.5.)
 /// </remarks>
 public sealed record ResponderActivity(
     int AnnouncementsSent,
@@ -289,7 +317,8 @@ public sealed record ResponderActivity(
     int SuppressedByKnownAnswers,
     int HeldBackWithinASecond,
     int RefusedOffNetwork,
-    int AnsweredByUnicastOnRequest)
+    int AnsweredByUnicastOnRequest,
+    int WaitedAtRandom)
 {
     /// <summary>Queries seen over either transport.</summary>
     public int QueriesSeen => QueriesSeenOverIPv4 + QueriesSeenOverIPv6;
@@ -305,7 +334,7 @@ public sealed record ResponderActivity(
     /// a second before, and those left unanswered because the answer would have
     /// gone by unicast to an address off the network they arrived from; and,
     /// of the queries served, how many were answered by unicast because they
-    /// asked for it.
+    /// asked for it, and how many after a random wait.
     /// </summary>
     /// <remarks>
     /// Written in ServiceHost.cs until 2026-10-10, without the count of
@@ -323,6 +352,13 @@ public sealed record ResponderActivity(
     /// after them", which a fourth count would have made ambiguous.) The count
     /// at the end, added later on 2026-10-13 (REQ-ADV-028), is not one of the
     /// four: it is a part of the queries served.
+    ///
+    /// (Updated later still on 2026-10-13 by Claude, Claude Opus 5.5: a second
+    /// count at the end, of the queries served after a random wait
+    /// (REQ-ADV-029), is a part of the queries served too, and not one of the
+    /// four. And there is a second exception to the sum: a query whose answer
+    /// was not sent because the printer was withdrawn, a conflict heard or a
+    /// probe begun while it waited is seen and counted nowhere else.)
     /// </remarks>
     [Requirement("REQ-ADV-026",
         "Says at shutdown how many queries were left unanswered because they carried every answer already, apart from those about other names, zero included.")]
@@ -332,13 +368,16 @@ public sealed record ResponderActivity(
         "Says at shutdown how many queries were left unanswered because their answer would have gone by unicast to an address off the network they arrived from, apart from the other counts, zero included.")]
     [Requirement("REQ-ADV-028",
         "Says at shutdown how many of the queries served were answered by unicast because a question asked for it, zero included.")]
+    [Requirement("REQ-ADV-029",
+        "Says at shutdown how many of the queries served were answered after a random wait, zero included.")]
     public string DescribeServed() =>
         $"Served {QueriesAnswered} quer(ies) of {QueriesSeen} seen; "
         + $"{IgnoredNotOurs} were for other services and were ignored; "
         + $"{SuppressedByKnownAnswers} carried every answer already and were not answered (RFC 6762 s7.1); "
         + $"{HeldBackWithinASecond} would have repeated records multicast less than a second before and were not answered (RFC 6762 s6); "
         + $"{RefusedOffNetwork} would have been answered by unicast to an address off the network they arrived from and were not answered (RFC 6762 s5.5); "
-        + $"{AnsweredByUnicastOnRequest} of those served were answered by unicast because they asked for it (RFC 6762 s5.4).";
+        + $"{AnsweredByUnicastOnRequest} of those served were answered by unicast because they asked for it (RFC 6762 s5.4); "
+        + $"{WaitedAtRandom} of those served were answered after a random wait of 20 to 120 ms, because the answer held a shared record or the query asked more than one question (RFC 6762 s6, s6.3).";
 
     /// <summary>
     /// One line naming both transports and their counts, for the operator.
@@ -401,6 +440,29 @@ public sealed partial class MdnsResponder
     /// </summary>
     public static readonly TimeSpan ProbeAnswerSpacing = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>
+    /// The shortest random wait before an answer that other responders may be
+    /// sending too (RFC 6762 s6 and s6.3; README REQ-ADV-029): "a random amount
+    /// of time selected with uniform random distribution in the range 20-120
+    /// ms."
+    /// </summary>
+    public static readonly TimeSpan MinRandomAnswerDelay = TimeSpan.FromMilliseconds(20);
+
+    /// <summary>The longest such wait; see <see cref="MinRandomAnswerDelay"/>.</summary>
+    public static readonly TimeSpan MaxRandomAnswerDelay = TimeSpan.FromMilliseconds(120);
+
+    /// <summary>
+    /// The default draw of that wait: a whole number of milliseconds, each from
+    /// <see cref="MinRandomAnswerDelay"/> to <see cref="MaxRandomAnswerDelay"/>,
+    /// both included, as likely as any other. Drawn as the random start of a
+    /// probe is (MdnsResponder.Probing.cs).
+    /// </summary>
+    [Requirement("REQ-ADV-029",
+        "Draws the default random wait: a whole number of milliseconds from 20 to 120, both included, each as likely as any other.")]
+    private static TimeSpan DrawRandomAnswerDelay() =>
+        TimeSpan.FromMilliseconds(RandomNumberGenerator.GetInt32(
+            (int)MinRandomAnswerDelay.TotalMilliseconds, (int)MaxRandomAnswerDelay.TotalMilliseconds + 1));
+
     private readonly IMdnsTransport _transport;
     private readonly IReadOnlyList<AdvertisedInterface> _advertised;
 
@@ -438,6 +500,7 @@ public sealed partial class MdnsResponder
     private int _heldBackWithinASecond;
     private int _refusedOffNetwork;
     private int _answeredByUnicastOnRequest;
+    private int _waitedAtRandom;
 
     // When each record was last multicast on each adapter, as a timestamp of
     // _clock (REQ-ADV-027). Keyed by the adapter's IPv4 entry, which stands for
@@ -458,6 +521,7 @@ public sealed partial class MdnsResponder
     // would otherwise hold every record back for an hour.
     private readonly TimeProvider _clock;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
+    private readonly Func<TimeSpan> _randomAnswerDelay;
 
     // Told of a socket error in the receive loop, and the error last told of,
     // so that one error repeating is reported once. Touched only by ServeAsync.
@@ -491,9 +555,18 @@ public sealed partial class MdnsResponder
     /// </param>
     /// <param name="delay">
     /// How the responder waits: before an announcement, a goodbye or an answer
-    /// to a probe that would come too soon after the same record, and between
+    /// to a probe that would come too soon after the same record, before an
+    /// answer that takes a random wait (README REQ-ADV-029), and between
     /// announcements. Defaults to Task.Delay. Injected so that tests need not
     /// wait real seconds.
+    /// </param>
+    /// <param name="randomAnswerDelay">
+    /// Draws the random wait before an answer that other responders may be
+    /// sending too (README REQ-ADV-029), once for each such answer. Defaults
+    /// to a draw of whole milliseconds from 20 to 120, each as likely as any
+    /// other. A draw of zero or less waits for nothing, and the answer is not
+    /// counted as having waited. Injected so that a test can know the wait it
+    /// should see.
     /// </param>
     public MdnsResponder(
         IMdnsTransport transport,
@@ -502,13 +575,15 @@ public sealed partial class MdnsResponder
         Action<NameConflict>? conflicted = null,
         Action<string>? socketError = null,
         TimeProvider? clock = null,
-        Func<TimeSpan, CancellationToken, Task>? delay = null)
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        Func<TimeSpan>? randomAnswerDelay = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(advertised);
 
         _clock = clock ?? TimeProvider.System;
         _delay = delay ?? (static (wait, token) => Task.Delay(wait, token));
+        _randomAnswerDelay = randomAnswerDelay ?? DrawRandomAnswerDelay;
 
         _advertising = advertising ?? (static () => true);
         _conflicted = conflicted;
@@ -739,7 +814,7 @@ public sealed partial class MdnsResponder
         _queriesSeenOverIPv4, _queriesSeenOverIPv6,
         _queriesAnsweredOverIPv4, _queriesAnsweredOverIPv6,
         _ignoredWrongInterface, _ignoredNotOurs, _unparseable, _goodbyes, _suppressedByKnownAnswers,
-        _heldBackWithinASecond, _refusedOffNetwork, _answeredByUnicastOnRequest);
+        _heldBackWithinASecond, _refusedOffNetwork, _answeredByUnicastOnRequest, _waitedAtRandom);
 
     /// <summary>
     /// Sends unsolicited announcements on every advertised interface, so clients
@@ -841,11 +916,15 @@ public sealed partial class MdnsResponder
         "Sends an answer by unicast only to an address on the network the query arrived from. A legacy querier at any other address is sent nothing, and that query is counted apart from the others; the records a question from any other address asks for by unicast go by multicast instead.")]
     [Requirement("REQ-ADV-028",
         "Sends by unicast, to the querier's address and port through the interface the query arrived on, each record that only questions with the unicast-response bit ask for and that was multicast on that adapter, over either transport, less than a quarter of its TTL before; every other record goes by multicast. The unicast answer is made as the multicast one: identifier 0, no question, TTLs and cache-flush bits as published, its own additionals less what the multicast carries. It is neither limited by the one-second rule nor recorded as a multicast. A probe's records asked for by unicast go by unicast at once. Not for legacy queriers.")]
+    [Requirement("REQ-ADV-029",
+        "Waits a random time, drawn anew for each answer, before an answer that holds a record published without the cache-flush bit or that answers a query of more than one question, whether it goes by multicast, by unicast because a question asked for it, or to a legacy querier; not before an answer to a probe, nor when there is nothing to answer. The wait comes before the rest of the answer is decided. After it, and after an answer to a probe has waited for 250 ms to pass, nothing more is sent if the printer has been withdrawn, a conflict is held or a probe is under way.")]
     public async Task<bool> HandleAsync(MdnsDatagram datagram, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datagram);
 
-        // Read once, so everything below sees the same answer. What is heard
+        // Read once, so everything below sees the same answer, until a wait
+        // before the answer is sent: after a wait the gate is read again
+        // (REQ-ADV-029), because it may have closed meanwhile. What is heard
         // must be read even while nothing is on offer: probing happens exactly
         // then, before the first announcement and before a restore, and a
         // conflict heard then is the one that matters most (REQ-ADV-023,
@@ -903,7 +982,7 @@ public sealed partial class MdnsResponder
         // that contradict that device's (REQ-ADV-024). So does probing: the
         // names are not this responder's until the probe comes back clear
         // (REQ-ADV-023), and the gate alone should not be what ensures that.
-        if (!advertising || Conflict is not null || Volatile.Read(ref _probing))
+        if (AnswersNothing(advertising))
         {
             // Not counted as ignored-not-ours: the query was ours to answer, and
             // we chose not to. The withdrawal itself is logged once, by the
@@ -1005,6 +1084,65 @@ public sealed partial class MdnsResponder
             }
         }
 
+        // A query with records in its Authority section is a probe (RFC 6762
+        // s6, s8.1): another device proposing to take a name.
+        bool probe = query.Authorities.Count > 0;
+
+        // RFC 6762 s6 and s6.3 (REQ-ADV-029). An answer that other responders
+        // may be sending too waits a random 20 to 120 ms, so that their
+        // answers and this one do not collide: s6, "In any case where there
+        // may be multiple responses, such as queries where the answer is a
+        // member of a shared resource record set, each responder SHOULD delay
+        // its response by a random amount of time selected with uniform random
+        // distribution in the range 20-120 ms"; and s6.3, "for query messages
+        // containing more than one question, all (non-defensive) answers
+        // SHOULD be randomly delayed in the range 20-120 ms". The shared
+        // records are those published without the cache-flush bit: the PTR
+        // records of the service types. The questions are counted as the
+        // query holds them, answered or not. An answer of records this
+        // responder holds alone, to a query of one question, goes at once:
+        // it is the only responder for them, and s6 says it "SHOULD NOT
+        // impose any random delay". So does an answer to a probe: "In the
+        // special case of answering probe queries ... a Multicast DNS
+        // responder MUST respond quickly." A query with nothing to answer
+        // here, whatever its questions, does not wait: there is no answer to
+        // delay, and most queries seen are about other services.
+        //
+        // The wait applies however the answer goes: by multicast, by unicast
+        // because a question asked for it (s5.4, "Unicast replies are subject
+        // to all the same packet generation rules as multicast replies,
+        // including ... randomized delays"), or to a legacy querier. It comes
+        // before the rest of the answer is decided, so that the one-second
+        // rule (REQ-ADV-027) and the choice of unicast (REQ-ADV-028) judge the
+        // moment the answer is sent. The receive loop waits with it: a query
+        // that arrives meanwhile is read afterwards.
+        //
+        // The printer may be withdrawn, a conflict heard or a probe begun
+        // during the wait. All three are read again after it, as when the
+        // query arrived, and nothing is sent if any has happened: an answer
+        // after the goodbye would offer again a printer just withdrawn
+        // (REQ-LIF-006), one after a conflict would publish records that
+        // contradict another device's (REQ-ADV-024), and one during a probe
+        // would claim names not yet this responder's (REQ-ADV-023). Such a
+        // query is counted as seen and nowhere else.
+        bool waitedAtRandom = false;
+        if (!probe
+            && answered.Count > 0
+            && (query.Questions.Count > 1 || answered.Any(record => !record.CacheFlush)))
+        {
+            TimeSpan wait = _randomAnswerDelay();
+            if (wait > TimeSpan.Zero)
+            {
+                await _delay(wait, cancellationToken).ConfigureAwait(false);
+                waitedAtRandom = true;
+            }
+
+            if (AnswersNothing(_advertising()))
+            {
+                return false;
+            }
+        }
+
         // RFC 6762 s5.4 (REQ-ADV-028). Records that only questions asking for
         // a unicast answer ask for may go to the querier by unicast, and only
         // when its address is on the network the query arrived from
@@ -1043,7 +1181,6 @@ public sealed partial class MdnsResponder
         bool heldBack = false;
         List<OutgoingRecord> additionals;
         MulticastNote? note = null;
-        bool probe = query.Authorities.Count > 0;
 
         if (legacyUnicast)
         {
@@ -1186,21 +1323,48 @@ public sealed partial class MdnsResponder
             }
             else
             {
+                bool multicastTakenBack = false;
                 if (probe)
                 {
                     note = await WaitToMulticastAsync(
                             entry.Adapter, [.. answered, .. additionals], ProbeAnswerSpacing, cancellationToken)
                         .ConfigureAwait(false);
+
+                    // The wait can last up to 250 ms, and the printer may be
+                    // withdrawn, a conflict heard or a probe begun during it,
+                    // as during the random wait above. All three are read
+                    // again after it, and if any has happened the multicast is
+                    // not sent and what was noted for it is taken back. Until 2026-10-13 nothing
+                    // was read again here. A unicast answer sent before the
+                    // wait has gone, and the query counts as answered for it;
+                    // without one, nothing was sent.
+                    if (AnswersNothing(_advertising()))
+                    {
+                        Unnote(note);
+                        multicastTakenBack = true;
+                    }
                 }
 
-                // Every multicast path above that leaves an answer to send notes it.
-                await SendNotedAsync(response, entry.Via, note!, cancellationToken).ConfigureAwait(false);
+                if (!multicastTakenBack)
+                {
+                    // Every multicast path above that leaves an answer to send notes it.
+                    await SendNotedAsync(response, entry.Via, note!, cancellationToken).ConfigureAwait(false);
+                }
+                else if (!answeredByUnicastOnRequest)
+                {
+                    return false;
+                }
             }
         }
 
         if (answeredByUnicastOnRequest)
         {
             _answeredByUnicastOnRequest++;
+        }
+
+        if (waitedAtRandom)
+        {
+            _waitedAtRandom++;
         }
 
         if (entry.Via.IsIPv6)
@@ -1325,6 +1489,21 @@ public sealed partial class MdnsResponder
             _goodbyes++;
         }
     }
+
+    /// <summary>
+    /// True when the responder must answer nothing: the printer is withdrawn
+    /// (README REQ-LIF-006), a conflict is held (REQ-ADV-024), or a probe is
+    /// under way (REQ-ADV-023).
+    /// </summary>
+    /// <remarks>
+    /// Asked when a query arrives, with the gate as read then, and again after
+    /// each wait before its answer is sent, with the gate read anew: any of the
+    /// three can change while an answer waits (REQ-ADV-029). One method, so
+    /// that the two cannot come to ask different things. Until 2026-10-13 the
+    /// test was written out where the query arrives, and asked nowhere else.
+    /// </remarks>
+    private bool AnswersNothing(bool advertising) =>
+        !advertising || Conflict is not null || Volatile.Read(ref _probing);
 
     /// <summary>
     /// True when an answer may be sent by unicast to this address: when it is

@@ -48,6 +48,18 @@ below was found to misquote its first words; it is corrected there. And reading
 answers, recorded and corrected the same day:
 [the finding](2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md).)*
 
+*(Status note, later still on 2026-10-13, by Claude, Claude Opus 5.5: item 3 is
+built, the last of the four. An answer that holds a shared record, or that
+answers a query of more than one question, now waits a random 20 to 120 ms
+first, as README `REQ-ADV-029` states; see
+[the finding](2026-10-13-an-answer-others-may-send-too-waits-at-random.md).
+It is measured against the code by tests and has not yet been run on a network.
+Reading §6.3 for it: what item 3 below says of the service's own names, that it
+"answers for them at once, which is what is asked", holds only for a query of
+one question. §6.3 says that "for query messages containing more than one
+question, all (non-defensive) answers SHOULD be randomly delayed in the range
+20-120 ms", whatever they hold.)*
+
 This is not a review of the service against the whole of RFC 6762. See "What
 this does not show".
 

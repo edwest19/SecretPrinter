@@ -43,6 +43,10 @@
 // the direction of Edwin West, 2026-10-13, for REQ-ADV-028. Reviewed by a human
 // before merge.
 //
+// RandomAnswerDelayTests registered by Claude (Anthropic model, Claude Opus 5.5)
+// at the direction of Edwin West, 2026-10-13, for REQ-ADV-029. Reviewed by a
+// human before merge.
+//
 // Pass --results <path> to record which requirements had a test that executed
 // and passed, for SecretPrinter.SpecCheck to read.
 // -----------------------------------------------------------------------------
@@ -89,6 +93,7 @@ internal static class Program
             typeof(KnownAnswerTests),
             typeof(OncePerSecondTests),
             typeof(UnicastAddressTests),
-            typeof(UnicastResponseTests));
+            typeof(UnicastResponseTests),
+            typeof(RandomAnswerDelayTests));
     }
 }
