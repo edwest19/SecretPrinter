@@ -51,6 +51,10 @@
 // AdapterWatchTests registered by Claude (Anthropic model, Claude Opus 5.5) at
 // the direction of Edwin West, 2026-10-10, for REQ-RES-010. Reviewed by a human
 // before merge.
+//
+// ShutdownTests registered by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-14, for REQ-LIF-009. Reviewed by a human
+// before merge.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.TestKit;
@@ -97,6 +101,7 @@ internal static class Program
             typeof(OfferingTests),
             typeof(ListenPlanTests),
             typeof(AdvertisementLogTests),
-            typeof(AdapterWatchTests));
+            typeof(AdapterWatchTests),
+            typeof(ShutdownTests));
     }
 }

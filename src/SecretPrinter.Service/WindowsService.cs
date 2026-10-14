@@ -11,6 +11,13 @@
 // The paragraph headed NOT COMPILED BY THE AUTHOR was given its note the same
 // day. Reviewed by a human before merge.
 //
+// OnShutdown no longer calls OnStop, and only OnStop asks Windows for more
+// time, by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
+// West, 2026-10-14, for REQ-LIF-009. See "When Windows shuts down" below, and
+// docs/findings/2026-10-14-a-windows-restart-ended-the-service-before-it-stopped.md.
+// The comment on the accepted controls in the constructor was corrected the
+// same day. Reviewed by a human before merge.
+//
 // Purpose:
 //   The handshake with the Windows service control manager, and nothing else.
 //
@@ -71,6 +78,30 @@
 //
 //   Not yet run under the control manager. What Windows then shows for the
 //   service, and which event it records, have not been measured.
+//
+// When Windows shuts down:
+//   ServiceBase handles a shutdown differently from a stop request. For a stop
+//   it marks the service stop-pending and then calls OnStop. For a shutdown it
+//   calls OnShutdown with the service still marked running, and if OnShutdown
+//   throws, ServiceBase throws it again on a thread-pool thread, where nothing
+//   catches it and the process ends. RequestAdditionalTime throws unless the
+//   service is marked pending. (Read in ServiceBase.cs of
+//   System.ServiceProcess.ServiceController, the same file at tags v10.0.0,
+//   v10.0.11 and v10.0.12 of dotnet/runtime.)
+//
+//   Until 2026-10-14 OnShutdown called OnStop, which asked for more time before
+//   it stopped anything. So at every shutdown or restart of Windows the stop
+//   never began: no goodbye records, no summary in the log, and the process
+//   ended with an exception nothing caught. It was seen on FIOS-STB-01 that
+//   morning, and the exception was then measured on Windows by ShutdownTests.
+//
+//   Now OnStop and OnShutdown each log their own line and stop the work the
+//   same way (StopTheWork), and only OnStop asks for more time. How long
+//   Windows waits for a service at a shutdown is set on each machine by
+//   WaitToKillServiceTimeout (5000 milliseconds on FIOS-STB-01, read
+//   2026-10-14); nothing here asks for more. On FIOS-STB-01 that day a stop
+//   request logged everything from its first line to its last within one
+//   second.
 // -----------------------------------------------------------------------------
 
 using System.Runtime.Versioning;
@@ -105,9 +136,12 @@ public sealed class WindowsService : ServiceBase
         _log = log;
         ServiceName = ServiceNameConstant;
 
-        // The control manager sends stop; it does not send pause or shutdown
-        // requests we would do anything different with, so they are not
-        // accepted rather than accepted and ignored.
+        // Stop and shutdown are accepted, and each stops the work (OnStop,
+        // OnShutdown). Pause is not: a paused proxy would do nothing different
+        // from a stopped one, so it is refused rather than accepted and
+        // ignored. (Corrected 2026-10-14 by Claude, Claude Opus 5.5: this said
+        // the control manager does not send shutdown requests we would do
+        // anything different with, beside CanShutdown set true.)
         CanStop = true;
         CanPauseAndContinue = false;
         CanShutdown = true;
@@ -126,15 +160,47 @@ public sealed class WindowsService : ServiceBase
 
     [Requirement("REQ-LIF-001",
         "Answers a stop request by cancelling and waiting, so the advertisement is retracted and sockets closed before the process exits.")]
+    [Requirement("REQ-LIF-009",
+        "Asks Windows for more time only here, where ServiceBase has marked the service stop-pending before calling OnStop.")]
     protected override void OnStop()
     {
         _log.Info($"Service '{ServiceName}' stopping.");
 
-        // Ask Windows for room to finish. Without this a shutdown that takes
-        // longer than the control manager's default patience is killed, and the
-        // goodbye records never leave.
+        // Ask Windows for room to finish. Without this a stop that takes longer
+        // than the control manager's default patience is killed, and the
+        // goodbye records never leave. Allowed here, because ServiceBase marks
+        // the service stop-pending before it calls OnStop; not in OnShutdown,
+        // where it throws (see "When Windows shuts down" in the header).
         RequestAdditionalTime((int)TimeSpan.FromSeconds(30).TotalMilliseconds);
 
+        StopTheWork();
+    }
+
+    /// <summary>
+    /// Stops the work when Windows shuts down or restarts, as a stop request
+    /// does, without asking for more time.
+    /// </summary>
+    /// <remarks>
+    /// ServiceBase calls this with the service still marked running, so
+    /// RequestAdditionalTime would throw, and what this throws ends the process.
+    /// See "When Windows shuts down" in the header.
+    /// </remarks>
+    [Requirement("REQ-LIF-009",
+        "Stops the work at a Windows shutdown or restart as a stop request does, cancelling it and waiting for it, and does not ask Windows for more time, which ServiceBase refuses while the service is not marked stop-pending.")]
+    [Requirement("REQ-LIF-003",
+        "A machine shutdown retracts the advertisement the same way a service stop does, so the printer does not linger in client caches after a reboot.")]
+    protected override void OnShutdown()
+    {
+        _log.Info($"Service '{ServiceName}' stopping: Windows is shutting down.");
+        StopTheWork();
+    }
+
+    /// <summary>
+    /// Cancels the work and waits for it, for a stop request and for a shutdown
+    /// alike, and reports a stop that did not finish or a failure before it.
+    /// </summary>
+    private void StopTheWork()
+    {
         if (!_lifecycle.Stop())
         {
             _log.Warn("Stopped without completing shutdown cleanly.");
@@ -165,11 +231,6 @@ public sealed class WindowsService : ServiceBase
 
         Environment.Exit(FailedExitCode);
     }
-
-    /// <summary>Treats machine shutdown exactly like a stop.</summary>
-    [Requirement("REQ-LIF-003",
-        "A machine shutdown retracts the advertisement the same way a service stop does, so the printer does not linger in client caches after a reboot.")]
-    protected override void OnShutdown() => OnStop();
 
     protected override void Dispose(bool disposing)
     {
