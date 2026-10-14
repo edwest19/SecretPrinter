@@ -15,6 +15,17 @@ and 0.2.0 do this. It was seen on FIOS-STB-01 on 2026-10-14, when Windows
 restarted it at 08:38Z while nothing was offered, so nothing lingered that
 time. It is stated as README `REQ-LIF-009` and under "Known problems".**
 
+*(Status note, 2026-10-14, by Claude, Claude Opus 5.5: run at a real restart
+later the same day, on FIOS-STB-01, in a build of `8663e5c` made there and
+installed as the service, with the printer offered. Before the boot the
+service's log holds every line that "What a run at a real restart would need
+to show" names, all at 20:49:12Z, and the System log holds no application
+error from `SecretPrinter.Service.exe`. Windows then restarted again by itself
+to finish installing an update, while the service waited at startup, and that
+stop ended as the first test below expects. The goodbye was logged and not
+captured on the wire. See [the finding of the
+run](2026-10-14-the-service-stopped-cleanly-at-a-windows-restart.md).)*
+
 No IPv6 address, hardware address or device name appears in this finding, and
 no machine's address on either network.
 
