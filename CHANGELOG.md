@@ -15,9 +15,10 @@ Everything under that heading, up to the next one, becomes the release notes.
 published on 2026-10-11, is the second. (Sentence added 2026-10-11 by Claude,
 Claude Opus 5.5, in the commit that sets the version to 0.2.0, as "`0.2.0` is
 the second version meant as a release."; made exact the same day, once 0.2.0
-had been published.) `0.3.0` is the third version meant as a release.
+had been published.) `0.3.0`, published on 2026-10-15, is the third.
 (Sentence added 2026-10-15 by Claude, Claude Opus 5.5, in the commit that sets
-the version to 0.3.0.) Every version
+the version to 0.3.0, as "`0.3.0` is the third version meant as a release.";
+made exact the same day, once 0.3.0 had been published.) Every version
 below `0.1.0` is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
 2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
 `0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
@@ -165,6 +166,25 @@ configured changes.
 - **Reporting a problem.** Security problems go to the repository's private
   vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
   response-time commitment is offered.
+- **What happened.** The workflow ran for this tag on 2026-10-15 and all three
+  of its jobs passed. The signing job waited for Edwin West's approval. Twelve
+  SecretPrinter files were signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`, in a folder of 216
+  files. The release is on the repository's Releases page as
+  `SecretPrinter-0.3.0-win-x64.zip`, with SHA-256
+  `74D7BB3F69EB6CA6422E54012E1A65D237FC5D0EB6807D146A279F5C5DE46660`, and its
+  `.sha256` file, marked Latest and not as a pre-release. A copy downloaded with
+  `curl.exe` on FIOS-STB-01, which runs Windows 10, passed both checks there and
+  was the same as the zip, file by file. **It carries .NET 10.0.13** and is
+  stamped `0.3.0+064ca9fc7cf649ff3eed615758274bedb533767f`. It was installed
+  there the same day in place of the build of the same source code that had run
+  since 2026-10-14, by the update steps of `docs/operating.md` with the
+  signature check; the household had no printer for 10 seconds, and an iPhone
+  printed a page through it; see
+  [the finding](docs/findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md).
+  Updating from one release to the next is still not shown.
+  (Added 2026-10-15 by Claude, Claude Opus 5.5, after the run. It is not in the
+  release notes GitHub shows, which were taken from this file at the tag.)
 
 ## [0.2.0] - 2026-10-11
 

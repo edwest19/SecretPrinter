@@ -95,14 +95,14 @@ demands of people doing it a favour.
 ## Supported versions
 
 **`0.1.0`, published on 2026-10-08, is the first release, `0.2.0`,
-published on 2026-10-11, the second, and `0.3.0` the third version meant as
-one.** Releases are published by
+published on 2026-10-11, the second, and `0.3.0`, published on 2026-10-15,
+the third.** Releases are published by
 the release workflow, from a tag, on this repository's Releases page and
 nowhere else, signed under the name given below.
 
 | Version | What it is | Reports about it |
 | --- | --- | --- |
-| `0.3.0` | The third version meant as a release. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.3.0` | The third release, published on 2026-10-15. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.2.0` | The second release, published on 2026-10-11. It has two faults that `0.3.0` corrects: it answers a legacy mDNS query by unicast to whatever address the query gives (`REQ-SEC-017`), and it does not stop cleanly when Windows shuts down (`REQ-LIF-009`); `README.md`, "Known problems", says more. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.1.0` | The first release, published on 2026-10-08. It has the same two faults as `0.2.0`, which `0.3.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.1.0-rc.1`, `0.1.0-rc.2`, `0.1.0-rc.3` | Trials of the release workflow, and a pre-release for testing. Only `0.1.0-rc.3` was published. | Not covered. `0.1.0` is compiled from the same source code as `0.1.0-rc.3`; see whether the problem happens on `0.1.0`. |
@@ -136,7 +136,10 @@ second" changed to "`0.2.0`, published on 2026-10-11, the second, and `0.3.0`
 the third version meant as one" in the first sentence, and a sentence on the
 two faults `0.3.0` corrects added to the rows for `0.2.0` and `0.1.0`,
 2026-10-15 by Claude, Anthropic model, Claude Opus 5.5, at the direction of
-Edwin West, in the commit that sets the version to 0.3.0.)
+Edwin West, in the commit that sets the version to 0.3.0. Later the same day,
+once 0.3.0 had been published, "the third version meant as one" became
+"published on 2026-10-15, the third", and "The third version meant as a
+release." in the row became "The third release, published on 2026-10-15.")
 
 (The first two paragraphs replaced 2026-10-07 by Claude, Anthropic model,
 Claude Opus 5.5, at the direction of Edwin West, who decided that day to

@@ -26,6 +26,11 @@ whether the IPv6 source address of a received datagram carries its scope on
 Windows is still not established. See
 [the finding of the run](2026-10-13-twenty-nine-answers-went-by-unicast-on-a-network.md).)*
 
+*(Status note, 2026-10-15, by Claude, Claude Opus 5.5: release 0.3.0, published
+on 2026-10-15, is the first release to carry this correction. It was installed
+on FIOS-STB-01 the same day; see [the finding of the
+release](2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md).)*
+
 No address of a real device appears in this finding. The addresses below are
 made up or from the ranges set aside for documentation.
 

@@ -254,6 +254,16 @@ Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 2026-10-15, in the commit that sets the version to 0.3.0.
 Reviewed by a human before merge.*
 
+*Later on 2026-10-15, once release 0.3.0 had been published and installed on
+FIOS-STB-01, by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+Edwin West: under "Where the program comes from", "`0.3.0` is the third
+version meant as one" became "`0.3.0`, published on 2026-10-15, is the third",
+and a sentence on its install added; under "Checking a release before you
+install it", a sentence on both checks run on 0.3.0; under "Updating an
+installed service", a sentence on this update and the stamp 0.3.0 printed
+([finding](findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -280,7 +290,7 @@ visible on a second segment. That is why it confines itself to printing.
 
 **From a release.** Releases are published on the repository's Releases page,
 and `0.1.0`, published on 2026-10-08, is the first. `0.2.0`, published on
-2026-10-11, is the second. `0.3.0` is the third version meant as one. A
+2026-10-11, is the second. `0.3.0`, published on 2026-10-15, is the third. A
 pre-release for testing,
 `0.1.0-rc.3`, was published there on 2026-10-07. It has the same form as a
 release and is checked and installed by the same steps; it is not a release.
@@ -314,6 +324,10 @@ On 2026-10-11 release 0.2.0 was downloaded there the same way, checked, and
 installed by the same steps in place of an unsigned build of the same source
 code; an iPhone printed through it
 ([the finding](findings/2026-10-11-the-second-release-was-published-and-installed-on-fios-stb-01.md)).
+On 2026-10-15 release 0.3.0 was downloaded there the same way, checked,
+compared with its zip file by file, and installed by the same steps in place
+of an unsigned build of the same source code; an iPhone printed through it
+([the finding](findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md)).
 
 **From source, today.** Clone the repository and install the .NET 10 SDK.
 
@@ -434,6 +448,11 @@ the same results: the two values the same, and four lines, every one `Valid`
 and timestamped, 12 files under the name above and 190 signed by Microsoft.
 Check 2 was run again on the installed folder, with the same four lines
 ([the finding](findings/2026-10-11-the-second-release-was-published-and-installed-on-fios-stb-01.md)).
+On 2026-10-15 both were run, as printed, on release 0.3.0 on FIOS-STB-01, with
+the same results: the two values the same, and four lines, every one `Valid`
+and timestamped, 12 files under the name above and 190 signed by Microsoft.
+Check 2 was run again on the installed folder, with the same four lines
+([the finding](findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md)).
 
 ---
 
@@ -961,8 +980,10 @@ and nothing else needed changing ([the finding](findings/2026-10-09-the-first-re
 paragraph ended after its first sentence.) On 2026-10-11 the steps under "From a
 release", with the signature check in step 4, replaced an unsigned build made
 on FIOS-STB-01 with release 0.2.0
-([the finding](findings/2026-10-11-the-second-release-was-published-and-installed-on-fios-stb-01.md)). An update from
-one release to the next has not yet been made.
+([the finding](findings/2026-10-11-the-second-release-was-published-and-installed-on-fios-stb-01.md)). On 2026-10-15
+the same steps replaced another unsigned build made there with release 0.3.0
+([the finding](findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md)).
+An update from one release to the next has not yet been made.
 
 #### From a release
 
@@ -1031,7 +1052,9 @@ commit its tag names. On 2026-10-09 release 0.1.0 printed
 `0.1.0+27b5f5c98368bbc1fde2ff7ece4aaa870dcb961d`, and `27b5f5c` is the commit
 `v0.1.0` names. On 2026-10-11 release 0.2.0 printed
 `0.2.0+5b846ba027ab96372bde70295009334b37b54405`, and `5b846ba` is the commit
-`v0.2.0` names.
+`v0.2.0` names. On 2026-10-15 release 0.3.0 printed
+`0.3.0+064ca9fc7cf649ff3eed615758274bedb533767f`, and `064ca9f` is the commit
+`v0.3.0` names.
 
 **5. Start the service, wait about fifteen seconds, and read the end of its
 log.**

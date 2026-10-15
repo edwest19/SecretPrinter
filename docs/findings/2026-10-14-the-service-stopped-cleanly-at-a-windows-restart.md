@@ -315,7 +315,11 @@ connecting it and its later runs connecting nothing.
   of `WaitToKillServiceTimeout` on FIOS-STB-01.
 - **A shutdown that turns the machine off.** Both were restarts.
 - **A release.** Neither 0.1.0 nor 0.2.0 carries the correction; this was a
-  build made on FIOS-STB-01.
+  build made on FIOS-STB-01. *(Status note, 2026-10-15, by Claude, Claude Opus
+  5.5: release 0.3.0, published on 2026-10-15, carries it, and replaced this
+  build on FIOS-STB-01 that day; a restart with the release running has not
+  been seen yet. See [the finding of the
+  release](2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md).)*
 - **Why** Windows took 4 minutes 40 seconds, why the script's 5:00 pm run is
   absent, why Windows did not connect the Wi-Fi after a boot, and why the
   printer went quiet at 21:28Z.
