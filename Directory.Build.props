@@ -73,8 +73,13 @@
          Set to 0.2.0 on 2026-10-11 by Claude (Anthropic model, Claude Opus
          5.5) at the direction of Edwin West, the number he chose that day for
          the second release, after the build it is compiled from had run
-         overnight on FIOS-STB-01. -->
-    <Version>0.2.0</Version>
+         overnight on FIOS-STB-01.
+
+         Set to 0.3.0 on 2026-10-15 by Claude (Anthropic model, Claude Opus
+         5.5) at the direction of Edwin West, the number he chose that day for
+         the third release, the first to carry the corrections of REQ-SEC-017
+         and REQ-LIF-009. -->
+    <Version>0.3.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>

@@ -15,7 +15,9 @@ Everything under that heading, up to the next one, becomes the release notes.
 published on 2026-10-11, is the second. (Sentence added 2026-10-11 by Claude,
 Claude Opus 5.5, in the commit that sets the version to 0.2.0, as "`0.2.0` is
 the second version meant as a release."; made exact the same day, once 0.2.0
-had been published.) Every version
+had been published.) `0.3.0` is the third version meant as a release.
+(Sentence added 2026-10-15 by Claude, Claude Opus 5.5, in the commit that sets
+the version to 0.3.0.) Every version
 below `0.1.0` is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
 2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
 `0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
@@ -24,6 +26,145 @@ that `0.1.0-rc.3` was a pre-release for testing and not a release, and that it
 was published on 2026-10-07. Later the same day, once 0.1.0 had been
 published, "is the first version meant as a release" became "is the first
 release", and the sentence saying when it was published was added.)
+
+## [0.3.0] - 2026-10-15
+
+The third version of SecretPrinter meant as a release. It corrects two faults
+that `0.1.0` and `0.2.0` both have, and changes three things in how the
+service answers questions on the network. Nothing in how it is installed or
+configured changes.
+
+- **Before you install it,** read two sections of `README.md`: "Read this
+  before installing" and, under it, "Known problems". This software was written
+  by an AI, Claude, directed by one person, and has had no outside security
+  review. Every measurement of it on a network was made in one household, with
+  one printer model, an Epson ET-3760, and almost always an iPhone as the
+  client.
+- **Two faults in `0.1.0` and `0.2.0`, corrected:**
+  - **An answer sent by unicast now goes only to an address on the network
+    the question came from** (`REQ-SEC-017`). Until now a legacy mDNS
+    question, one sent from a port other than 5353, was answered by unicast to
+    whatever source address it carried. A device on the client network that
+    forged that address could have had the service send the printer's
+    advertisement out of the printer-side adapter, or through a router to an
+    address on neither network, and the answer is many times the size of the
+    question. This has not been seen on a network. Now, over IPv4, the address
+    must be on the client network as the relay works it out from the client
+    interface's address; over IPv6, it must be a link-local address carrying
+    the scope of the interface the question arrived on. A legacy question from
+    any other address is not answered, and the line the service logs when it
+    stops counts it.
+  - **When Windows shuts down or restarts, the service now stops cleanly**
+    (`REQ-LIF-009`). Until now, at every shutdown or restart of Windows, the
+    service logged that it was stopping and its process then ended with an
+    exception nothing caught: it sent no goodbye records, closed nothing in
+    order and wrote no summary. A client could go on listing the printer after
+    the machine had gone down, until the records expired: two minutes for the
+    address records, 75 minutes for the browse and TXT records. The shutdown
+    handler asked Windows for more time, which .NET's `ServiceBase` refuses
+    with an exception at a shutdown. Now the service logs
+    `Service 'SecretPrinter' stopping: Windows is shutting down.` and stops as
+    it does for a stop request, without asking for more time. How long Windows
+    waits for a service at a shutdown is set on each machine.
+- **Three changes in how the service answers** (RFC 6762, the mDNS standard):
+  - **A record is multicast on a client adapter at most once a second**
+    (`REQ-ADV-027`; section 6, which requires it; `0.1.0` and `0.2.0` did not,
+    as `README.md`, Known problems, said at both releases). An answer leaves
+    out any record the service multicast on that adapter less than a second
+    before, and when nothing is left, nothing is sent. Announcements and
+    goodbyes wait instead, never more than a second, so that each still carries
+    every record. An answer to another device's probe waits only until 250
+    milliseconds have passed since its records were last multicast there.
+  - **A question that asks for a unicast answer gets one** (`REQ-ADV-028`;
+    section 5.4), record by record, when the service multicast that record on
+    the adapter less than a quarter of its TTL before; otherwise the record
+    goes by multicast, as before. Until now such a question, from port 5353,
+    was answered by multicast. A unicast answer goes only to an address
+    `REQ-SEC-017` allows.
+  - **An answer that other devices may be sending too waits a random 20 to
+    120 milliseconds first** (`REQ-ADV-029`; sections 6 and 6.3): one that
+    holds a shared record, which are the service's three PTR records, or that
+    answers a message of more than one question. An answer to a probe, or to a
+    single question about records only the service holds, goes at once. An
+    answer that waited is checked again before it is sent, and is not sent if
+    meanwhile the printer was withdrawn, a conflict was heard or a probe began.
+- **The line the service logs when it stops** now gives four more counts:
+  queries not answered because the answer would only have repeated records
+  multicast less than a second before; queries not answered because the answer
+  would have gone by unicast to an address off their network; and, of the
+  queries answered, how many were answered by unicast because they asked for
+  it, and how many after a random wait.
+- **Tests.** 76 were added, for 528 in all on the development machine (452 at
+  `0.2.0`). One runs only on Windows: it drives the service's real shutdown
+  handler; two more read the compiled service to check what that handler
+  calls. Tests written before these changes were given a clock they control,
+  or no random wait, where the new timing would otherwise change what they
+  see. Each change was also broken on purpose, one way at a time, to see which
+  tests catch it; the findings in `docs/findings/` list each attempt.
+- **Updating from `0.1.0` or `0.2.0`:** `docs/operating.md`, "Updating an
+  installed service", "From a release". Check the new release first, as below.
+  The configuration file, the service registration, the firewall rules and the
+  data folder are the same as before.
+- **Check it before you install it.** `docs/operating.md`, "Checking a release
+  before you install it", gives two checks that need only PowerShell: the zip's
+  SHA-256 against the `.sha256` file published beside it, and the signature on
+  every program file. SecretPrinter's own files are signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`. A SecretPrinter file
+  that is unsigned, or signed under any other name, is not from this project.
+- **The .NET runtime inside it** is the one the build machine's SDK supplied,
+  and a fix to it arrives only in a new release. Its version is in
+  `SecretPrinter.Service.runtimeconfig.json` in the folder. It is not known
+  when this entry is written. Microsoft's latest .NET 10 release on 2026-10-15
+  was 10.0.13, of 2026-10-13, which Microsoft marks as a security release;
+  `0.1.0` and `0.2.0` carry 10.0.12. The one package SecretPrinter declares,
+  `System.ServiceProcess.ServiceController`, stays at 10.0.11: its source
+  folder, and that of `System.Diagnostics.EventLog`, which it brings, did not
+  change between the tags `v10.0.11` and `v10.0.13` of dotnet/runtime.
+- **Where it has run.** Each of the five changes ran on a network before this
+  release. `REQ-ADV-027`, and `REQ-SEC-017` with `REQ-ADV-028`, ran on
+  2026-10-12 and 2026-10-13 on a Windows 11 machine, for about 10 and 13
+  minutes. `REQ-ADV-029` ran on 2026-10-14 on FIOS-STB-01, on Windows 10 22H2,
+  where each of the 17 queries it answered was answered after the random wait.
+  An iPhone printed a page in each of those three runs. `REQ-LIF-009` ran at a
+  real restart of FIOS-STB-01 on 2026-10-14, with the printer offered: the
+  service logged sending its goodbye, wrote its summary and stopped, and
+  Windows recorded no application error. Since 2026-10-14 a build of the same
+  source code has been the household's proxy on FIOS-STB-01. In the 19 hours 38
+  minutes from its last start that day to 16:35Z on 2026-10-15, it lost the
+  printer 11 times and found it again each time without a restart, offering it
+  again 9 seconds to 6 minutes 24 seconds after withdrawing it. Once the
+  printer-side Wi-Fi had dropped; a script of Edwin West's, not part of
+  SecretPrinter, reconnected it, and the printer was offered again 4 seconds
+  after the script began to reconnect it. Since that build's first start it has
+  relayed 79 connections, each to a printer whose certificate matched the pin:
+  77 completed, none failed, and the other two were open when Windows
+  restarted, so the log has no line for their end. None of those builds was
+  signed; the first two were made on the development machine, the others on
+  FIOS-STB-01. Microsoft's list of the systems .NET 10 supports (last updated
+  2026-09-28) includes Windows 11 and not Windows 10 22H2; `README.md`, open
+  question 10, says more.
+- **What has not been shown,** at the time this entry is written:
+  - This build itself. When this is written nobody has downloaded it, checked
+    it or run it.
+  - Updating an installation from one release to the next by the document's
+    steps.
+  - At a shutdown: the goodbye on the wire (it was logged, not captured); a
+    shutdown that turns the machine off rather than restarting it; a shutdown
+    that arrives while the service is already stopping.
+  - On a network, a legacy question from a forged address being refused.
+    Tests show it.
+  - `REQ-ADV-029` on Windows 11, and `REQ-LIF-009` at a restart of any machine
+    but FIOS-STB-01.
+  - Three things RFC 6762 recommends about the timing of answers are still not
+    done; among them, while one answer waits its random time, the service
+    reads no other question. A question sent by unicast straight to the
+    service's port 5353 has not been seen answered. `README.md`, "Known
+    problems", says more of both.
+  - Any printer but the one model, any household but one, and any client but
+    one iPhone and, once, a second device.
+- **Reporting a problem.** Security problems go to the repository's private
+  vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
+  response-time commitment is offered.
 
 ## [0.2.0] - 2026-10-11
 

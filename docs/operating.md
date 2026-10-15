@@ -249,6 +249,11 @@ service", a sentence on this update and the stamp 0.2.0 printed
 ([finding](findings/2026-10-11-the-second-release-was-published-and-installed-on-fios-stb-01.md)).
 Reviewed by a human before merge.*
 
+*Under "Where the program comes from", the sentence on `0.3.0` added by
+Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+2026-10-15, in the commit that sets the version to 0.3.0.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -275,7 +280,8 @@ visible on a second segment. That is why it confines itself to printing.
 
 **From a release.** Releases are published on the repository's Releases page,
 and `0.1.0`, published on 2026-10-08, is the first. `0.2.0`, published on
-2026-10-11, is the second. A pre-release for testing,
+2026-10-11, is the second. `0.3.0` is the third version meant as one. A
+pre-release for testing,
 `0.1.0-rc.3`, was published there on 2026-10-07. It has the same form as a
 release and is checked and installed by the same steps; it is not a release.
 (Until 2026-10-08 this began "From a release, once there is one. No release has

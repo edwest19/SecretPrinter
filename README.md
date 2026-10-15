@@ -189,7 +189,10 @@ last of its four items was run on a network, and the entry on questions sent by
 unicast to port 5353 was added; later that day the entry on releases 0.1.0 and
 0.2.0 not stopping cleanly when Windows shuts down was added (REQ-LIF-009), and
 later still changed when the correction was run at a real restart; the other
-entries were not read again that day.)
+entries were not read again that day. On 2026-10-15, in the commit that sets
+the version to 0.3.0, those two entries on releases 0.1.0 and 0.2.0 were
+changed to name 0.3.0 as the first version to carry each correction; the
+other entries were not read again that day.)
 
 - **A print attempt can reach the printer and send no job.** On 2026-10-01 and
   2026-10-02, in three attempts, an iPhone connected through the proxy, had
@@ -251,9 +254,12 @@ entries were not read again that day.)
   printer's advertisement, out of the printer-side adapter, or through a router
   to an address on neither network, and the answer is many times the size of
   the question. Not seen on a network. Corrected on `main` on 2026-10-13
-  (REQ-SEC-017); no release carries the correction yet
+  (REQ-SEC-017); `0.3.0`, the third version meant as a release, is the first
+  to carry the correction
   ([finding](docs/findings/2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md)).
-  (Entry added 2026-10-13 by Claude, Claude Opus 5.5.)
+  (Entry added 2026-10-13 by Claude, Claude Opus 5.5. Changed 2026-10-15, in
+  the commit that sets the version to 0.3.0: it said "no release carries the
+  correction yet".)
 - **Releases 0.1.0 and 0.2.0 do not stop cleanly when Windows shuts down or
   restarts.** The service logs that it is stopping, and then its process ends
   with an exception nothing catches: it sends no goodbye records, closes nothing
@@ -267,11 +273,12 @@ entries were not read again that day.)
   offered: the service logged sending its goodbye, wrote its summary and
   stopped, and Windows recorded no application error
   ([finding](docs/findings/2026-10-14-the-service-stopped-cleanly-at-a-windows-restart.md)).
-  No release carries the correction yet.
+  `0.3.0`, the third version meant as a release, is the first to carry it.
   (Entry added 2026-10-14 by Claude, Claude Opus 5.5. Changed later that day,
   after the run at a real restart: it ended "no release carries the correction
   yet, and it has not been run at a real restart", followed by the first
-  finding's link.)
+  finding's link. Changed again 2026-10-15, in the commit that sets the version
+  to 0.3.0: it ended "No release carries the correction yet.")
 - **A service that fails after it has started stays stopped until it is
   started again.** A part of the running service that fails, such as a relay
   that cannot open its listeners (REQ-ADV-021), stops the whole service: it
@@ -1010,7 +1017,9 @@ beside them, into one folder outside the repository. `0.1.0`, published on
 2026-10-11, is the second. (Sentence added 2026-10-11 by Claude, Claude Opus
 5.5, in the commit that sets the version to 0.2.0, as "`0.2.0` is the second
 version meant as a release."; made exact the same day, once it had been
-published.)
+published.) `0.3.0` is the third version meant as a release. (Sentence added
+2026-10-15 by Claude, Claude Opus 5.5, in the commit that sets the version to
+0.3.0.)
 (Note, 2026-10-07, by Claude, Claude Opus 5.5: `0.1.0-rc.3` is a pre-release for testing, not a release; see
 `CHANGELOG.md`. It was published that day.) (Corrected 2026-10-08 by Claude,
 Claude Opus 5.5, in the commit that sets the version to 0.1.0: the sentence
