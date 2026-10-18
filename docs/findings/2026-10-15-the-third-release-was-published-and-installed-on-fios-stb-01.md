@@ -17,6 +17,13 @@ printer for 10 seconds. An iPhone printed a page through it. Updating from one
 release to the next is still not shown: what 0.3.0 replaced was a build, not
 0.2.0. No code changed.**
 
+*(Status note, 2026-10-18, by Claude, Claude Opus 5.5: 0.3.0 has since run on
+FIOS-STB-01 for 74 hours 10 minutes without a restart of the service or of
+Windows, read on 2026-10-18. It relayed and completed 145 connections, none
+failed, and it lost the printer 34 times and found it again each time without
+a restart. See
+[the finding of that reading](2026-10-18-the-third-release-ran-three-days-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name or the printer's certificate fingerprint.
@@ -311,6 +318,8 @@ Not predicted:
 - **Which of the 44 CVEs of .NET 10.0.13 concern code SecretPrinter runs.**
 - **That the service runs on 10.0.13 as it did on 10.0.12** beyond this
   start-up and this print: the build of `8663e5c` carried 10.0.12.
+  *(Status note, 2026-10-18, by Claude, Claude Opus 5.5: it has since run on
+  10.0.13 for 74 hours; see the status note at the top.)*
 
 ## How it was read
 

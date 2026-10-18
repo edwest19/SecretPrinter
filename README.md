@@ -92,7 +92,7 @@ configuration and checked on every connection; see
 The service does not tie its connection to the printer to the printer-side
 network adapter. Windows chooses the way out from its routing table, as it would
 for any program. Normally that is the printer-side adapter, because it gives
-Windows the most specific route to the printer's address. On six occasions
+Windows the most specific route to the printer's address. On eight occasions
 Windows has been measured choosing its default route instead, which sends the
 attempt to connect out on the client network, addressed to the printer and
 handed to the client network's router. The first time, the printer-side adapter
@@ -118,10 +118,24 @@ its address, and routed to the printer through it. Its state at the moment of
 the attempt was not read. The sixth time, later on 2026-10-14, after Windows
 had restarted, the printer-side adapter had no link, as the first time, and
 one attempt took the default route and was not answered.
+The seventh time, on 2026-10-16, while the printer did not answer the service
+for ten hours, a script of Edwin West's that tests the printer's port every ten
+minutes found the port not answering at 61 runs in a row, and every one of
+those tests took the default route. At each of those runs after the first,
+which had just connected the printer-side adapter, the script found that
+adapter up, and at none did it log its pings to the gateway of the printer's
+network unanswered. The eighth time, early on 2026-10-17, one test by the same
+script took the default route during a loss of nine minutes, with the adapter
+up. From 2026-10-15 to 2026-10-18 every test of that script that failed while
+the service held the printer unreachable took the default route, 62 in all, and
+the one that failed while the service held it reachable took the printer-side
+adapter.
 The first two occasions and the fourth were measured with Windows' own tools,
-`Test-NetConnection` and `Find-NetRoute`, the third and the sixth with
-`Test-NetConnection` alone, and the fifth with `Test-NetConnection` and,
-minutes later, `Find-NetRoute`, none of them with the service's connection. No
+`Test-NetConnection` and `Find-NetRoute`, the third, the sixth, the seventh and
+the eighth with `Test-NetConnection` alone, the last two run by that script,
+which is not part of SecretPrinter, and the fifth with `Test-NetConnection`
+and, minutes later, `Find-NetRoute`, none of them with the service's
+connection. No
 print job goes that way. The service sends job data only after a
 TLS handshake with the pinned printer succeeds, and a connection that is never
 answered never gets that far. What does leave is the attempt itself: the
@@ -135,16 +149,21 @@ observed either. See the findings of
 [2026-09-27](docs/findings/2026-09-27-the-printer-went-silent-and-the-join-held.md),
 [2026-10-03](docs/findings/2026-10-03-the-printer-came-back-at-an-hourly-question.md),
 [2026-10-06](docs/findings/2026-10-06-a-signed-service-was-updated-started-at-boot-and-uninstalled.md),
-[2026-10-14](docs/findings/2026-10-14-seventeen-answers-waited-at-random-on-a-network.md)
+[2026-10-14](docs/findings/2026-10-14-seventeen-answers-waited-at-random-on-a-network.md),
+[later that day](docs/findings/2026-10-14-the-service-stopped-cleanly-at-a-windows-restart.md)
 and
-[later that day](docs/findings/2026-10-14-the-service-stopped-cleanly-at-a-windows-restart.md).
+[2026-10-18](docs/findings/2026-10-18-the-third-release-ran-three-days-on-fios-stb-01.md).
 (Updated 2026-10-03 by Claude, Claude Opus 5.5: until then this point said two
 occasions and described two. Updated 2026-10-07 by Claude, Claude Opus 5.5: it said three; the fourth was
 measured on 2026-10-06 and recorded in that day's finding, and was not carried
 here. Updated 2026-10-14 by Claude, Claude Opus 5.5: it said four occasions; the
 fifth is new. Updated again later that day by Claude, Claude Opus 5.5: it said
 five occasions and "the third with `Test-NetConnection` alone", and its links
-ended at the first finding of 2026-10-14; the sixth is new.)
+ended at the first finding of 2026-10-14; the sixth is new. Updated 2026-10-18
+by Claude, Claude Opus 5.5: it said six occasions and "the third and the sixth
+with `Test-NetConnection` alone"; the seventh and eighth are new, read from
+that script's log from 2026-10-15 on. Its log before then was not read for
+this.)
 
 **6. It has been measured in one household.**
 Every measurement on a network that this document reports was made in one
@@ -512,16 +531,24 @@ still parses nothing it carries. Measured on 2026-09-15; see
 Step 5 is not bound to the printer-side interface. The relay's outbound socket
 is created without a local address, so Windows chooses its path from the
 routing table. Normally that is the printer network. Windows has been measured
-choosing the default route on the client network on four occasions: with the
-printer-side link down; with the link up while the printer was not answering
-on its network; once with the adapter's state not read; and with the adapter
-reported up while nothing on its network answered it. Why it chose that with
-the adapter up is not established. All four were measured with Windows' own
-tools, not with the relay's socket. This is disclosed as the fifth item under
+choosing the default route on the client network on eight occasions: twice
+with the printer-side link down; three times with the link up while the
+printer was not answering on its network; once with the adapter reported up
+while nothing on its network answered it; and twice with the adapter's state at
+that moment not read. Why it chose that with the adapter up is not
+established. All eight were measured with Windows' own tools, not with the
+relay's socket. This is disclosed as the fifth item under
 [Read this before installing](#read-this-before-installing).
 (Updated 2026-10-07 by Claude, Claude Opus 5.5: this paragraph described two occasions. The fifth item
 had described three since 2026-10-03, and a fourth was measured on
 2026-10-06.)
+(Updated 2026-10-18 by Claude, Claude Opus 5.5: it said four occasions: "with
+the printer-side link down; with the link up while the printer was not
+answering on its network; once with the adapter's state not read; and with the
+adapter reported up while nothing on its network answered it", and "All four".
+The fifth and sixth, measured on 2026-10-14, had been added to the fifth item
+that day but not here; the seventh and eighth are new. See [the
+finding](docs/findings/2026-10-18-the-third-release-ran-three-days-on-fios-stb-01.md).)
 
 The address and port for step 5 come from the printer's `_ipps._tcp` service,
 and the capabilities advertised in step 2 come from the TXT record of its
