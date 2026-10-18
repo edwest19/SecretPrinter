@@ -28,6 +28,13 @@
 # were "being forced to run on Node.js 24". The versions above declare
 # Node.js 24. The inputs given below are the same.)
 #
+# The checkout keeps no credentials (persist-credentials: false), as in
+# release.yml. (Added 2026-10-18 by Claude, Claude Opus 5.5, at the direction
+# of Edwin West. Until then this workflow left checkout's default, which in
+# v7.0.1 is true, as its action.yml at the pinned commit reads: "configure the
+# token or SSH key with the local git config", so later steps could use the
+# job's token through git. Nothing here needs it after the checkout.)
+#
 # What this workflow does NOT do:
 #   It does not sign anything, publish anything, or deploy anything. Signing and
 #   release belong in a separate workflow with different permissions, so that a
@@ -65,6 +72,9 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # This job only reads. The token is not kept for later steps to use.
+          persist-credentials: false
 
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
