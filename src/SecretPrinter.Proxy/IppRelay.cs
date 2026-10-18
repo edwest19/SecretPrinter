@@ -30,6 +30,11 @@
 // listed by default, so no link-local client is permitted unless a caller
 // says which interface it may arrive on. Reviewed by a human before merge.
 //
+// The comment at the end of RunAsync corrected by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-10-18: it said the
+// relays were let finish, and they are cut. Comment only; no behaviour
+// changed. Reviewed by a human before merge.
+//
 // Purpose:
 //   Moves print job bytes between a client and the printer, and does nothing
 //   else with them.
@@ -305,7 +310,16 @@ public sealed class IppRelay
             running.Add(Task.Run(() => RelayOneAsync(client, cancellationToken), cancellationToken));
         }
 
-        // Let in-flight jobs finish rather than cutting a document in half.
+        // Wait for the relays still running to end, so that this does not
+        // return while one is. They were given the same token, so when it is
+        // cancelled - the service stopping, or withdrawing the printer
+        // (REQ-LIF-006) - each is cut, not let finish (REQ-LIF-002), with any
+        // document it was carrying, and nothing is logged for its end (the
+        // note on REQ-PXY-009). The wait then ends with their cancellation,
+        // which the caller expects.
+        // (Corrected 2026-10-18 by Claude, Claude Opus 5.5: this comment read
+        // "Let in-flight jobs finish rather than cutting a document in half.",
+        // which is not what the code does. Comment only.)
         await Task.WhenAll(running).ConfigureAwait(false);
     }
 
