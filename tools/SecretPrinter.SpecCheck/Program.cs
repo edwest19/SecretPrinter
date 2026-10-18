@@ -30,6 +30,11 @@
 // misread: a PASS means every binding requirement has a marker on some code and
 // a marker on some test. It does not mean the code is correct. See the note
 // printed at the end of every run.
+//
+// A line under "Test records" saying what its count of requirements with a
+// passing test counts, and how it differs from "covered by code", added by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-18. No count changed. Reviewed by a human before merge.
 // -----------------------------------------------------------------------------
 
 namespace SecretPrinter.SpecCheck;
@@ -131,6 +136,13 @@ internal static class Program
         {
             Console.WriteLine($"  Test records  : {results.RecordCount}, "
                               + $"{results.PassedRequirementCount} requirement(s) with a passing test");
+
+            // The two counts are easy to confuse, and differ: this one counts
+            // every identifier a PASS line names, whatever its row says, while
+            // "covered by code" counts the rows marked OK. See the tool's
+            // README, "The two counts".
+            Console.WriteLine("                  (each requirement named by a passing test record, whatever its row "
+                              + "says; 'covered by code' below counts the rows marked OK)");
         }
 
         CoverageMatrix matrix = CoverageMatrix.Build(document, scan, evidence, results);

@@ -148,6 +148,31 @@ coverage and evidence, code wins and the evidence becomes supporting context.
 **What an entry proves:** the artifact exists, and someone wrote down why it
 satisfies the requirement. Not that the artifact does what the entry claims.
 
+## The two counts
+
+Two numbers this tool prints sound alike and are not the same count.
+
+- **`N of M requirements fully covered`**, at the head of the Markdown matrix,
+  and **`covered by code`**, in the console summary, are one count: the rows
+  marked `OK`. Each has an implementation marker and a test marker and, when
+  `--test-results` is given, at least one of its marked tests recorded as
+  passing. Rows marked `OK (evidence)` are not in it.
+- **`requirement(s) with a passing test`**, on the console's `Test records`
+  line, counts every requirement identifier that at least one `PASS` line of
+  the results files names, whatever that requirement's row says, and even an
+  identifier the README does not define.
+
+When test results are supplied the second is never lower than the first, and
+it can be higher. A requirement satisfied by evidence, with no implementation
+marker, whose marked test passed is counted in the second and not in the
+first. On 2026-10-18 that was `REQ-DIST-009`, the one requirement between 88
+and 89 in Claude's workspace, where the two tests of `REQ-ADV-019` and
+`REQ-ADV-020` cannot run, and between 90 and 91 on the development machine.
+
+*(Section added 2026-10-18 by Claude, Claude Opus 5.5, at the direction of
+Edwin West, with a line saying the same under `Test records` and a paragraph
+under the matrix's first line. No count changed.)*
+
 ## Conventions
 
 **Test assemblies are identified by name.** An assembly whose simple name ends
