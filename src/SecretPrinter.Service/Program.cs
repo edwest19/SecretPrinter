@@ -34,6 +34,10 @@
 // had not yet been run under the control manager, and it was, on 2026-09-22.
 // Comment only; no behaviour changed. Reviewed by a human before merge.
 //
+// The version line, written first at every start before the configuration is
+// read, added by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+// Edwin West, 2026-10-18, for REQ-OBS-011. Reviewed by a human before merge.
+//
 // Purpose:
 //   Entry point. Loads configuration, runs the host, stops cleanly on Ctrl+C.
 //
@@ -45,6 +49,11 @@
 //   The file is opened BEFORE the configuration is read, so that a refusal to
 //   start - the commonest thing an operator needs to see - is written to it
 //   rather than lost.
+//
+//   The first entry of every start names the program and the version stamped
+//   in it (REQ-OBS-011), so that a log appended to across updates says which
+//   build wrote what follows. It comes before the configuration is read, so a
+//   refused start carries it too.
 //
 // Two ways to run:
 //   Without --service, this is a console application: Ctrl+C stops it. That is
@@ -163,8 +172,12 @@ internal static class Program
     /// that a configuration that cannot be used is reported to the file as well
     /// as the console.
     /// </summary>
+    [Requirement("REQ-OBS-011",
+        "Logs the program's name and version stamp as the first entry of every start, before the configuration is read, on the console and in the log file alike.")]
     private static async Task<int> RunAsync(string configPath, bool asService, IServiceLog log)
     {
+        log.Info(ProgramVersion.LineFor(typeof(Program).Assembly));
+
         ServiceConfiguration configuration;
         try
         {

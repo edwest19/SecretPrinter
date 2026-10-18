@@ -705,6 +705,7 @@ How print jobs are moved.
 | REQ-OBS-008 | MUST | Startup logs record the fingerprint the service will require of the printer, and each relayed connection logs the TLS protocol negotiated with it, so an operator can confirm from logs alone that the job went encrypted and to which device. |
 | REQ-OBS-009 | MUST | The service writes its log to a file when the operator names one on the command line, and refuses to run under the Windows service control manager unless they do — a service has no console, so without a file it would report nothing anywhere. The path has no default, the service creates no folder to hold it, and the file is opened before configuration is read so that a refusal to start is recorded in it. |
 | REQ-OBS-010 | MUST | Every log entry occupies exactly one line. Control characters in a message are escaped rather than written, so text learned from the network cannot insert a line break and forge an entry. |
+| REQ-OBS-011 | MUST | At every start, the first entry the service logs, before it reads its configuration, names the program and gives the version stamped in it: the text Windows reports as the program file's `ProductVersion`, which in a release is the version, a `+`, and the commit the release was built from. A start that the configuration refuses carries it too. If the program carries no stamp, the entry says so. (Added 2026-10-18 by Claude, Claude Opus 5.5. Releases 0.1.0, 0.2.0 and 0.3.0 do not log their version.) |
 
 ## 10. Requirements: build and distribution (DIST)
 

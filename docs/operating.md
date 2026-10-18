@@ -264,6 +264,13 @@ installed service", a sentence on this update and the stamp 0.3.0 printed
 ([finding](findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md)).
 Reviewed by a human before merge.*
 
+*On 2026-10-18, by Claude (Anthropic model, Claude Opus 5.5) at the direction
+of Edwin West, for `REQ-OBS-011`, the line the service now logs first at every
+start, naming its version: under "Reading the log", a paragraph on it; under
+"Updating an installed service", a note after step 4 of "From a release" and a
+note on the sentence saying the startup output of a build from source proves
+nothing either way. Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -1054,7 +1061,10 @@ commit its tag names. On 2026-10-09 release 0.1.0 printed
 `0.2.0+5b846ba027ab96372bde70295009334b37b54405`, and `5b846ba` is the commit
 `v0.2.0` names. On 2026-10-15 release 0.3.0 printed
 `0.3.0+064ca9fc7cf649ff3eed615758274bedb533767f`, and `064ca9f` is the commit
-`v0.3.0` names.
+`v0.3.0` names. (Note, 2026-10-18, by Claude, Claude Opus 5.5: since that day
+the service also writes this stamp as the first line of its log at every start
+(`REQ-OBS-011`), so the log read in step 5 shows it too. Releases 0.1.0, 0.2.0
+and 0.3.0 do not.)
 
 **5. Start the service, wait about fifteen seconds, and read the end of its
 log.**
@@ -1149,7 +1159,13 @@ Get-Content C:\ProgramData\SecretPrinter\secretprinter.log -Tail 5
 The timestamp should be seconds before the service's own start line in the log.
 Startup output is not a check on its own: most changes do not alter what the
 service prints at startup, so an identical banner is the expected result and
-proves nothing either way.
+proves nothing either way. (Note, 2026-10-18, by Claude, Claude Opus 5.5: since
+that day the first line the service logs at every start gives the version
+stamped in the program (`REQ-OBS-011`), which for a build made in a git clone
+ends with a `+` and the commit the clone was on. That line does change when
+the commit does: compare what follows the `+` with the output of
+`git -C <repo> log -1 --format=%H`. The rest of the startup output is as this
+paragraph describes.)
 
 Two honest limitations of this procedure:
 
@@ -1231,6 +1247,13 @@ printed on both days. The cause is not established
 ---
 
 ## Reading the log
+
+The first line of every start names the program and the version stamped in it,
+as `SecretPrinter.Service version <version>+<commit>`: the same text step 4 of
+"Updating an installed service" reads from the installed file
+(`REQ-OBS-011`). It is written before the configuration is read, so a start
+that the configuration refuses has it too. Releases 0.1.0, 0.2.0 and 0.3.0 do
+not write it; it was added on 2026-10-18.
 
 The startup log states every interface and the address it resolved to, then the
 complete advertisement: every record, every TXT entry published, and every entry
