@@ -19,6 +19,14 @@ out the client network at all 62 of its runs: the seventh and eighth
 occasions under the fifth point of README "Read this before installing". No
 code changed.**
 
+*(Status note, 2026-10-19, by Claude, Claude Opus 5.5: the script's whole log,
+from 2026-10-09 to 2026-10-19, was read on 2026-10-19. All 1,224 of its tests
+that succeeded went through the printer-side adapter; of the 220 that failed,
+213 took the default route, 212 of them while the service was not offering the
+printer. That record now stands in README in place of the seventh and eighth
+occasions this finding added. See [the finding of that
+reading](2026-10-19-ten-days-of-port-tests-and-three-windows-settings-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name.
@@ -172,6 +180,10 @@ printer, and whether the restart is what brought it back, are not recorded.
 The script tests TCP port 631 on the printer with `Test-NetConnection` at
 every run. It ran 447 times from 1:16 pm on 2026-10-15 to the reading: 384
 tests succeeded and 63 did not.
+*(Status note, 2026-10-19, by Claude, Claude Opus 5.5: the counts by day read
+on 2026-10-19 give 445 runs begun in that time, 64, 144, 144 and 93, all on
+the schedule. Which count is right was not settled. The 63 failures agree with
+that reading.)*
 
 - **62 of the 63 reported the interface `Ethernet` and the machine's
   client-side address as their source:** Windows chose its default route, out
@@ -188,6 +200,9 @@ tests succeeded and 63 did not.
 - **Which adapter the 384 tests that succeeded used was not read,** except at
   the six runs read in full, from 2:30 to 3:20 pm on 2026-10-17, each of which
   used the Wi-Fi.
+  *(Status note, 2026-10-19, by Claude, Claude Opus 5.5: read on 2026-10-19,
+  every test of the script that succeeded, from 2026-10-09 to 2026-10-19, went
+  through the printer-side adapter.)*
 
 So in these three days every test of the script that failed while the service
 held the printer unreachable took the default route, and the one that failed
@@ -196,6 +211,8 @@ chooses the default route with the printer-side adapter up is still not
 established. These are the seventh and eighth occasions under the fifth point
 of README "Read this before installing", which said six until this finding.
 The script's log before 1:16 pm on 2026-10-15 was not read for this.
+*(Status note, 2026-10-19, by Claude, Claude Opus 5.5: it has since been read;
+see the status note at the top.)*
 
 None of this was the service's connection. The service accepts no connection
 while the printer is withdrawn (`REQ-LIF-006`). Whether any of the 145

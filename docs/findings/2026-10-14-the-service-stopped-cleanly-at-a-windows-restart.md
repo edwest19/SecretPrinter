@@ -227,6 +227,12 @@ Its log, read from 4:44 pm Eastern:
   for 4:50 pm, when the machine was starting after its first restart, or for
   5:00 pm, after the second boot, when the Wi-Fi was not connected. Why the
   5:00 pm run is absent is not established.
+  *(Status note, 2026-10-19, by Claude, Claude Opus 5.5: the script's whole
+  log, read on 2026-10-19, shows eight runs missing that day, all within an
+  hour after the boots, these two among them, and none missing on any other
+  day from 2026-10-09 to 2026-10-19. Task Scheduler's history log was off, so
+  why is not recorded; it was turned on that day. See [the finding of that
+  reading](2026-10-19-ten-days-of-port-tests-and-three-windows-settings-on-fios-stb-01.md).)*
 
 So the script connected the Wi-Fi again, 15 minutes 1 second after the second
 boot. Windows did not connect it by itself between the first boot and the
@@ -275,6 +281,10 @@ connection. No warning or error.
   falls on the script's schedule; the morning's two do not, and what made
   them is not established. The script's log for those times, and the
   service's log around 20:13Z, were not read.
+  *(Status note, 2026-10-19, by Claude, Claude Opus 5.5: read on 2026-10-19,
+  both of the morning's connections were the script's. Its runs of 5:32:15
+  and 5:52:16 am, late on its schedule after the restart, found the Wi-Fi
+  disconnected and connected it. See [the finding](2026-10-19-ten-days-of-port-tests-and-three-windows-settings-on-fios-stb-01.md).)*
 
 ## What Claude predicted, and what it did not
 
@@ -323,6 +333,11 @@ connecting it and its later runs connecting nothing.
 - **Why** Windows took 4 minutes 40 seconds, why the script's 5:00 pm run is
   absent, why Windows did not connect the Wi-Fi after a boot, and why the
   printer went quiet at 21:28Z.
+  *(Status note, 2026-10-19, by Claude, Claude Opus 5.5: why the run is
+  absent is still not established (above). Microsoft documents a Windows
+  default that blocks new automatic connections to the internet while an
+  Ethernet one is up; whether that is why Windows does not connect this Wi-Fi
+  is being tested on FIOS-STB-01. See [the finding](2026-10-19-ten-days-of-port-tests-and-three-windows-settings-on-fios-stb-01.md).)*
 
 ## How it was read
 
