@@ -24,6 +24,11 @@
 // added by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
 // West, 2026-09-30, for REQ-SEC-012. Reviewed by a human before merge.
 //
+// The test that a connection accepted as the relay is stopped is still closed,
+// and the listener it uses, added by Claude (Anthropic model, Claude Opus 5.5)
+// at the direction of Edwin West, 2026-10-20, for REQ-LIF-002. Reviewed by a
+// human before merge.
+//
 // Purpose:
 //   Verifies the print path: that bytes arrive unchanged, that both sides close
 //   together, that failures are prompt and reported, and - the two claims the
@@ -1024,6 +1029,59 @@ internal static class IppRelayTests
         running.Wait(Patience);
     }
 
+    [TestCase("A connection accepted as the relay is stopped is still closed")]
+    [Requirement("REQ-LIF-002")]
+    public static void A_connection_accepted_as_the_relay_stops_is_closed()
+    {
+        // The window: the listener has handed over a connection, and the token
+        // is cancelled before the relay for that connection has started. The
+        // service cancels this token when it stops, and when it withdraws the
+        // printer (REQ-LIF-006), so a client connecting at either moment lands
+        // in it. This listener opens the window on purpose - it cancels, then
+        // hands the connection over - so the test does not depend on timing.
+        StreamPair clientLink = StreamPair.Create();
+        var client = new FakeConnection(clientLink.Left, ClientEndpoint);
+
+        using var stopping = new CancellationTokenSource();
+        var listener = new CancelsThenAcceptsListener(stopping, client);
+
+        var factory = new FakeConnectionFactory
+        {
+            OnConnect = _ => new FakeConnection(StreamPair.Create().Left, PrinterEndpoint),
+        };
+
+        // The resolver checks its token before anything else, as the service's
+        // does (PrinterResolver.ResolveAsync).
+        var relay = new IppRelay(
+            listener,
+            factory,
+            token =>
+            {
+                token.ThrowIfCancellationRequested();
+                return Task.FromResult(PrinterEndpoint);
+            },
+            new RelayOptions { AllowedClientNetworks = [ClientNetwork] },
+            new RecordingObserver());
+
+        Task running = relay.RunAsync(stopping.Token);
+
+        try
+        {
+            running.Wait(Patience);
+        }
+        catch (AggregateException ex) when (ex.InnerExceptions.All(inner => inner is OperationCanceledException))
+        {
+            // Expected: RunAsync ends with the cancellation of its relays.
+        }
+
+        Assert.True(running.IsCompleted, "RunAsync must end once its token is cancelled");
+        Assert.True(client.Disposed,
+            "a connection the listener handed over must be closed, even when the token was cancelled "
+            + "before its relay started; otherwise it stays open with nothing reading it");
+        Assert.Equal(0, factory.Attempts.Count,
+            "nothing may be opened to the printer for a connection accepted after the stop");
+    }
+
     /// <summary>Waits briefly for a condition, so tests need no fixed sleeps.</summary>
     private static bool SpinUntil(Func<bool> condition)
     {
@@ -1090,6 +1148,32 @@ internal sealed class QueueListener : IConnectionListener
         _available.Dispose();
         return ValueTask.CompletedTask;
     }
+}
+
+/// <summary>
+/// A listener that cancels the relay's token and then hands over one prepared
+/// connection, in that order, so that the connection arrives after the
+/// cancellation. Every later accept is cancelled.
+/// </summary>
+internal sealed class CancelsThenAcceptsListener(CancellationTokenSource stopping, IDuplexConnection connection)
+    : IConnectionListener
+{
+    private int _accepted;
+
+    public IPEndPoint LocalEndPoint { get; } = new(IPAddress.Parse("192.168.1.234"), 631);
+
+    public Task<IDuplexConnection> AcceptAsync(CancellationToken cancellationToken)
+    {
+        if (Interlocked.Exchange(ref _accepted, 1) == 0)
+        {
+            stopping.Cancel();
+            return Task.FromResult(connection);
+        }
+
+        return Task.FromCanceled<IDuplexConnection>(new CancellationToken(canceled: true));
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 /// <summary>A listener that never produces a connection; the tests drive RelayOneAsync directly.</summary>

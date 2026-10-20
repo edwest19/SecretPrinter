@@ -35,6 +35,13 @@
 // relays were let finish, and they are cut. Comment only; no behaviour
 // changed. Reviewed by a human before merge.
 //
+// Each accepted connection's relay made to start whatever the token says, by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-20, for REQ-LIF-002: the token was also given to Task.Run, which
+// then does not run the relay if the token is cancelled first, and a
+// connection accepted in that moment was left open. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Moves print job bytes between a client and the printer, and does nothing
 //   else with them.
@@ -279,6 +286,9 @@ public sealed class IppRelay
         "Accepts connections from the listener, which the service binds to configured client interfaces only.")]
     [Requirement("REQ-PXY-008",
         "Each accepted connection is relayed on its own task, so one slow or stalled job cannot block another.")]
+    [Requirement("REQ-LIF-002",
+        "Every connection the listener hands over is given its relay, even when the token was cancelled first, and "
+        + "the relay closes it however it ends. Relays still running are cut by the same token and waited for.")]
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         var running = new List<Task>();
@@ -307,7 +317,19 @@ public sealed class IppRelay
             }
 
             running.RemoveAll(t => t.IsCompleted);
-            running.Add(Task.Run(() => RelayOneAsync(client, cancellationToken), cancellationToken));
+
+            // Task.Run is not given the token, so the relay always starts. Given
+            // the token, Task.Run does not run the relay if the token is
+            // cancelled before the relay begins, and the client is closed only
+            // in RelayOneAsync's finally: a connection accepted just as the
+            // service stopped or withdrew the printer was left open, with
+            // nothing reading it. RelayOneAsync is still given the token; the
+            // service's resolver checks it before anything else, so such a
+            // relay ends there and opens nothing to the printer.
+            // (Corrected 2026-10-20 by Claude, Claude Opus 5.5: the token was
+            // also passed to Task.Run. See
+            // docs/findings/2026-10-20-a-connection-accepted-as-the-relay-stopped-was-left-open.md.)
+            running.Add(Task.Run(() => RelayOneAsync(client, cancellationToken)));
         }
 
         // Wait for the relays still running to end, so that this does not
