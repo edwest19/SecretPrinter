@@ -79,6 +79,18 @@
 #   (The two sentences above about the release job were reworded, and this
 #   paragraph added, by Claude (Anthropic model, Claude Opus 5.5) at the
 #   direction of Edwin West, 2026-10-07. Comments only; no step changed.)
+#
+# What the release notes hold:
+#   The CHANGELOG.md entry for the version, then a section "Built with" that
+#   names the .NET SDK this run built with and the .NET runtime the release
+#   folder carries. The entry is written before the build and cannot know
+#   either: global.json lets the build machine use any newer 10.0 SDK, and the
+#   SDK decides the runtime. The same is put on the run's page as a notice.
+#   Both can be read without signing in to GitHub; the job's log cannot.
+#   (Added, with the step "Name the SDK and the runtime", by Claude (Anthropic
+#   model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-20. Until
+#   then which SDK built a release was in the log only. Not yet run on GitHub:
+#   the next tag is its first run.)
 # -----------------------------------------------------------------------------
 
 name: Release
@@ -266,6 +278,45 @@ jobs:
               '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash,
                             $_.FullName.Substring($folder.Length + 1)
           } | Set-Content -LiteralPath 'artifacts/before-signing.sha256' -Encoding utf8
+
+      - name: Name the SDK and the runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # The SDK this job built with. global.json allows any newer 10.0 SDK
+          # (rollForward latestFeature), so the build machine decides which,
+          # on the day. Run from the repository, dotnet --version names the
+          # one global.json selected.
+          $sdk = dotnet --version
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace("$sdk")) {
+              throw "dotnet --version did not name an SDK (exit code $LASTEXITCODE)."
+          }
+          $sdk = "$sdk".Trim()
+
+          # The runtime the folder carries, as the folder itself names it.
+          $config = Join-Path $env:RUNNER_TEMP 'SecretPrinter/SecretPrinter.Service.runtimeconfig.json'
+          $included = (Get-Content -LiteralPath $config -Raw | ConvertFrom-Json).runtimeOptions.includedFrameworks
+          $frameworks = @($included | Where-Object { $_ -and $_.name -and $_.version })
+          if ($frameworks.Count -eq 0) {
+              throw "$config names no included framework, so the folder does not carry its own runtime."
+          }
+          $runtime = ($frameworks | ForEach-Object { "$($_.name) $($_.version)" }) -join ', '
+
+          # After the changelog entry, in the release notes the release job
+          # publishes. Both these and the notice below can be read without
+          # signing in; the job's log cannot.
+          @(
+              '',
+              '## Built with',
+              '',
+              "- .NET SDK $sdk, as ``dotnet --version`` named it on the build machine.",
+              "- The .NET runtime in the folder: $runtime, as ``SecretPrinter.Service.runtimeconfig.json`` names it.",
+              '',
+              'This section is added by the release workflow when it builds the release. It is not in `CHANGELOG.md`, whose entry is written before the build.'
+          ) | Add-Content -LiteralPath 'artifacts/release-notes.md' -Encoding utf8
+
+          Write-Host "::notice title=Built with::.NET SDK $sdk. The folder carries $runtime."
 
       - name: Hand the unsigned folder to the sign job
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

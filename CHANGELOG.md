@@ -10,6 +10,10 @@ Every release of SecretPrinter is a tagged commit with an entry here
 this file has exactly one heading of the form `## [version] - YYYY-MM-DD` for
 it, and unless `<Version>` in `Directory.Build.props` says the same version.
 Everything under that heading, up to the next one, becomes the release notes.
+The workflow then adds a section of its own after it, "Built with", naming the
+.NET SDK that built the release and the .NET runtime its folder carries, which
+an entry written before the build cannot know. (Sentence added 2026-10-20 by
+Claude, Claude Opus 5.5. No release has carried that section yet.)
 
 **`0.1.0` is the first release.** It was published on 2026-10-08. `0.2.0`,
 published on 2026-10-11, is the second. (Sentence added 2026-10-11 by Claude,

@@ -315,6 +315,10 @@ Not predicted:
   boot. `REQ-LIF-009` was run at a real restart in the build of `8663e5c`.
 - **Which SDK the workflow used,** and the coverage line of the job's summary.
   Neither was read.
+  *(Status note, 2026-10-20, by Claude, Claude Opus 5.5: still not read for
+  0.3.0. From the next release, the workflow names the SDK it built with, and
+  the runtime the folder carries, in a section it adds to the release notes
+  and in a notice on the run's page, both readable without signing in.)*
 - **Which of the 44 CVEs of .NET 10.0.13 concern code SecretPrinter runs.**
 - **That the service runs on 10.0.13 as it did on 10.0.12** beyond this
   start-up and this print: the build of `8663e5c` carried 10.0.12.
