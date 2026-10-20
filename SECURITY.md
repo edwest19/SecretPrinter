@@ -96,13 +96,13 @@ demands of people doing it a favour.
 
 **`0.1.0`, published on 2026-10-08, is the first release, `0.2.0`,
 published on 2026-10-11, the second, `0.3.0`, published on 2026-10-15, the
-third, and `0.4.0` the fourth version meant as one.** Releases are published by
-the release workflow, from a tag, on this repository's Releases page and
-nowhere else, signed under the name given below.
+third, and `0.4.0`, published on 2026-10-20, the fourth.** Releases are
+published by the release workflow, from a tag, on this repository's Releases
+page and nowhere else, signed under the name given below.
 
 | Version | What it is | Reports about it |
 | --- | --- | --- |
-| `0.4.0` | The fourth version meant as a release. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.4.0` | The fourth release, published on 2026-10-20. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.3.0` | The third release, published on 2026-10-15. It has a fault that `0.4.0` corrects: a client connection accepted in the moment the service stops, or withdraws the printer, can be left open (`REQ-LIF-002`). | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.2.0` | The second release, published on 2026-10-11. It has two faults that `0.3.0` corrects: it answers a legacy mDNS query by unicast to whatever address the query gives (`REQ-SEC-017`), and it does not stop cleanly when Windows shuts down (`REQ-LIF-009`); `README.md`, "Known problems", says more. It also has the fault of `0.3.0` that `0.4.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.1.0` | The first release, published on 2026-10-08. It has the same two faults as `0.2.0`, which `0.3.0` corrects, and the one `0.4.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
@@ -147,7 +147,10 @@ changed to "`0.3.0`, published on 2026-10-15, the third, and `0.4.0` the
 fourth version meant as one" in the first sentence, and a sentence on the
 fault `0.4.0` corrects added to the rows for `0.3.0`, `0.2.0` and `0.1.0`,
 2026-10-20 by Claude, Anthropic model, Claude Opus 5.5, at the direction of
-Edwin West, in the commit that sets the version to 0.4.0.)
+Edwin West, in the commit that sets the version to 0.4.0. Later the same day,
+once 0.4.0 had been published, "the fourth version meant as one" became
+"published on 2026-10-20, the fourth", and "The fourth version meant as a
+release." in the row became "The fourth release, published on 2026-10-20.")
 
 (The first two paragraphs replaced 2026-10-07 by Claude, Anthropic model,
 Claude Opus 5.5, at the direction of Edwin West, who decided that day to

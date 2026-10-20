@@ -89,8 +89,12 @@
 #   Both can be read without signing in to GitHub; the job's log cannot.
 #   (Added, with the step "Name the SDK and the runtime", by Claude (Anthropic
 #   model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-20. Until
-#   then which SDK built a release was in the log only. Not yet run on GitHub:
-#   the next tag is its first run.)
+#   then which SDK built a release was in the log only. This note ended "Not
+#   yet run on GitHub: the next tag is its first run." until later that day,
+#   when the step first ran, for the tag v0.4.0, and named .NET SDK 10.0.402
+#   and Microsoft.NETCore.App 10.0.13. Recorded in
+#   docs/findings/2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md.
+#   Comments only; no step changed.)
 # -----------------------------------------------------------------------------
 
 name: Release

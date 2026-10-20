@@ -309,6 +309,10 @@ Not predicted:
 - **Updating from one release to the next,** by the document's steps. The
   folder 0.3.0 replaced was the unsigned build of the same source code, not
   0.2.0.
+  *(Status note, 2026-10-20, by Claude, Claude Opus 5.5: shown that day on
+  FIOS-STB-01, where release 0.4.0 replaced release 0.3.0 by the steps under
+  "From a release", with the signature check
+  ([finding](2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).)*
 - **0.3.0 on Windows 11, or on a machine with no .NET.** FIOS-STB-01 has .NET
   SDKs installed; the release carries its own runtime.
 - **A Windows shutdown or restart with 0.3.0 running,** or a start of 0.3.0 at
@@ -319,6 +323,10 @@ Not predicted:
   0.3.0. From the next release, the workflow names the SDK it built with, and
   the runtime the folder carries, in a section it adds to the release notes
   and in a notice on the run's page, both readable without signing in.)*
+  *(Status note, later on 2026-10-20, by Claude, Claude Opus 5.5: 0.4.0 was
+  the first; its notes and its run's page name .NET SDK 10.0.402 and
+  Microsoft.NETCore.App 10.0.13
+  ([finding](2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).)*
 - **Which of the 44 CVEs of .NET 10.0.13 concern code SecretPrinter runs.**
 - **That the service runs on 10.0.13 as it did on 10.0.12** beyond this
   start-up and this print: the build of `8663e5c` carried 10.0.12.

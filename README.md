@@ -1075,9 +1075,10 @@ version meant as a release."; made exact the same day, once it had been
 published.) `0.3.0`, published on 2026-10-15, is the third. (Sentence added
 2026-10-15 by Claude, Claude Opus 5.5, in the commit that sets the version to
 0.3.0, as "`0.3.0` is the third version meant as a release."; made exact the
-same day, once it had been published.) `0.4.0` is the fourth version meant as
-a release. (Sentence added 2026-10-20 by Claude, Claude Opus 5.5, in the commit
-that sets the version to 0.4.0.)
+same day, once it had been published.) `0.4.0`, published on 2026-10-20, is
+the fourth. (Sentence added 2026-10-20 by Claude, Claude Opus 5.5, in the
+commit that sets the version to 0.4.0, as "`0.4.0` is the fourth version meant
+as a release."; made exact the same day, once it had been published.)
 (Note, 2026-10-07, by Claude, Claude Opus 5.5: `0.1.0-rc.3` is a pre-release for testing, not a release; see
 `CHANGELOG.md`. It was published that day.) (Corrected 2026-10-08 by Claude,
 Claude Opus 5.5, in the commit that sets the version to 0.1.0: the sentence
@@ -1125,6 +1126,13 @@ passed, the signing job after Edwin West's approval, and release 0.3.0 was
 published, marked Latest
 ([finding](docs/findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md)).
 (Sentence added 2026-10-15 by Claude, Claude Opus 5.5.)
+It ran a seventh time on 2026-10-20, for the tag `v0.4.0`: all three jobs
+passed, the signing job after Edwin West's approval, and release 0.4.0 was
+published, marked Latest. It was the first run of the step that names, in a
+section "Built with" of the release notes and on the run's page, the .NET SDK
+that built the release and the .NET runtime its folder carries
+([finding](docs/findings/2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).
+(Sentences added 2026-10-20 by Claude, Claude Opus 5.5.)
 (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit that sets the
 version to 0.1.0. It said the workflow had run twice, and "No release has been
 published, and the job that publishes one has never run.", followed by a note
@@ -1132,7 +1140,9 @@ of 2026-10-07 recording the third run and ending "No release has been
 published; a pre-release has." Later the same day, once 0.1.0 had been
 published, the last sentence, "`0.1.0` is the first version meant as a
 release, and its tag, `v0.1.0`, runs the workflow for it.", was replaced by
-the one before this note.)
+the one that begins "It ran a fourth time". This note said "the one before
+this note" until 2026-10-20, when Claude, Claude Opus 5.5, made it exact, the
+sentences on later runs having come between.)
 (Paragraph, the `release.yml` line in the tree and the `[done]` beside
 `CHANGELOG.md` added 2026-10-04 by Claude, Claude Opus 5.5, and corrected twice
 the same day as the workflow ran: it first said the workflow had never run, and
@@ -1160,7 +1170,12 @@ release 0.3.0, downloaded there and checked, replaced the last of them, a build
 of `8663e5c`, by the same update steps with the signature check; an iPhone
 printed through it
 ([finding](docs/findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md)).
-(Sentence added 2026-10-15 by Claude, Claude Opus 5.5.)
+(Sentence added 2026-10-15 by Claude, Claude Opus 5.5.) On 2026-10-20 release
+0.4.0, downloaded there and checked, replaced release 0.3.0 by the same update
+steps with the signature check, the first update from one release to the next;
+an iPhone printed through it
+([finding](docs/findings/2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).
+(Sentence added 2026-10-20 by Claude, Claude Opus 5.5.)
 
 `SecretPrinter.Listen6` and `SecretPrinter.Loop6` are measurement tools written
 to answer one question each while IPv6 was being added; each one's header

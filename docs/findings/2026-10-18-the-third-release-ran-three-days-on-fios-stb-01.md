@@ -263,6 +263,10 @@ Not predicted:
 ## What this does not show
 
 - **Updating from one release to the next** by the document's steps.
+  *(Status note, 2026-10-20, by Claude, Claude Opus 5.5: shown that day on
+  FIOS-STB-01, where release 0.4.0 replaced release 0.3.0 by the steps under
+  "From a release", with the signature check
+  ([finding](2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).)*
 - **A Windows shutdown or restart with 0.3.0 running,** or a start of 0.3.0 at
   boot: Windows did not restart in these three days.
 - **0.3.0 on Windows 11, or on a machine with no .NET.**

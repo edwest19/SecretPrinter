@@ -523,6 +523,11 @@ Every other prediction made before a command held.
   where the internet mark could matter.
 - **An update from one release to the next,** followed from the document. Edwin
   chose to uninstall at the end of the walk, so no install was left to update.
+  *(Status note, 2026-10-20, by Claude, Claude Opus 5.5: shown that day on
+  FIOS-STB-01, not on the machine of this finding, where release 0.4.0
+  replaced release 0.3.0 by the document's steps under "From a release", with
+  the signature check
+  ([finding](2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).)*
 - **A start at boot** of this install. It was registered `start= auto` and
   uninstalled without a restart of Windows; a start at boot was measured on
   2026-10-06.

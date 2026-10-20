@@ -438,6 +438,10 @@ release, and every line of the start-up that was predicted.
   source" steps on an empty program folder.
 - **An update from one release to the next.** This was from a build from source
   to the first release.
+  *(Status note, 2026-10-20, by Claude, Claude Opus 5.5: shown that day on
+  FIOS-STB-01, where release 0.4.0 replaced release 0.3.0 by the steps under
+  "From a release", with the signature check
+  ([finding](2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).)*
 - **0.1.0 with no .NET installed, on Windows 10.** FIOS-STB-01 still has the
   .NET SDK. Edwin chose to leave it, and to come back to it with the packaged
   service, SecretPrinterX. A self-contained folder is built to use only its own

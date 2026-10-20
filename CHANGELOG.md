@@ -13,7 +13,8 @@ Everything under that heading, up to the next one, becomes the release notes.
 The workflow then adds a section of its own after it, "Built with", naming the
 .NET SDK that built the release and the .NET runtime its folder carries, which
 an entry written before the build cannot know. (Sentence added 2026-10-20 by
-Claude, Claude Opus 5.5. No release has carried that section yet.)
+Claude, Claude Opus 5.5. It ended "No release has carried that section yet."
+until later that day, when `0.4.0` was the first to carry it.)
 
 **`0.1.0` is the first release.** It was published on 2026-10-08. `0.2.0`,
 published on 2026-10-11, is the second. (Sentence added 2026-10-11 by Claude,
@@ -22,9 +23,11 @@ the second version meant as a release."; made exact the same day, once 0.2.0
 had been published.) `0.3.0`, published on 2026-10-15, is the third.
 (Sentence added 2026-10-15 by Claude, Claude Opus 5.5, in the commit that sets
 the version to 0.3.0, as "`0.3.0` is the third version meant as a release.";
-made exact the same day, once 0.3.0 had been published.) `0.4.0` is the
-fourth version meant as a release. (Sentence added 2026-10-20 by Claude, Claude
-Opus 5.5, in the commit that sets the version to 0.4.0.) Every version
+made exact the same day, once 0.3.0 had been published.) `0.4.0`, published
+on 2026-10-20, is the fourth. (Sentence added 2026-10-20 by Claude, Claude Opus
+5.5, in the commit that sets the version to 0.4.0, as "`0.4.0` is the fourth
+version meant as a release."; made exact the same day, once 0.4.0 had been
+published.) Every version
 below `0.1.0` is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
 2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
 `0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
@@ -122,6 +125,28 @@ configured changes.
 - **Reporting a problem.** Security problems go to the repository's private
   vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
   response-time commitment is offered.
+- **What happened.** The workflow ran for this tag on 2026-10-20 and all three
+  of its jobs passed. Its new step named .NET SDK 10.0.402 and the runtime
+  Microsoft.NETCore.App 10.0.13, on the run's page and in the section "Built
+  with" of the release notes. The signing job waited for Edwin West's approval.
+  Twelve SecretPrinter files were signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`, in a folder of 216
+  files. The release is on the repository's Releases page as
+  `SecretPrinter-0.4.0-win-x64.zip`, with SHA-256
+  `F9FE275C7CD4B5BC24C1897C3C0F94E8FCB701040C2462A9B76B574961A4BB5F`, and its
+  `.sha256` file, marked Latest and not as a pre-release. A copy downloaded with
+  `curl.exe` on FIOS-STB-01, which runs Windows 10, passed both checks there and
+  was the same as the zip, file by file. **It carries .NET 10.0.13** and is
+  stamped `0.4.0+22b5252ee16e589bb7159bea2c3a7fe27b49dc42`. It was installed
+  there the same day in place of release `0.3.0`, by the update steps of
+  `docs/operating.md` with the signature check: **the first update from one
+  release to the next.** The household had no printer for 10 seconds. The
+  first line the new service logged was
+  `SecretPrinter.Service version 0.4.0+22b5252ee16e589bb7159bea2c3a7fe27b49dc42`,
+  and an iPhone printed a page through it; see
+  [the finding](docs/findings/2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md).
+  (Added 2026-10-20 by Claude, Claude Opus 5.5, after the run. It is not in the
+  release notes GitHub shows, which were taken from this file at the tag.)
 
 ## [0.3.0] - 2026-10-15
 

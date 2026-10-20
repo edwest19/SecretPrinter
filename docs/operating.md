@@ -285,6 +285,19 @@ Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 2026-10-20, in the commit that sets the version to 0.4.0.
 Reviewed by a human before merge.*
 
+*Later on 2026-10-20, once release 0.4.0 had been published and installed on
+FIOS-STB-01, by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+Edwin West: under "Where the program comes from", "`0.4.0` is the fourth
+version meant as one" became "`0.4.0`, published on 2026-10-20, is the
+fourth", and a sentence on its install added; under "Checking a release before
+you install it", a sentence on both checks run on 0.4.0; under "Updating an
+installed service", the sentence saying no update from one release to the next
+had been made replaced by one on this update, the stamp 0.4.0 printed, and a
+note that it is the first release to log it; under "Reading the log", a
+sentence saying the same
+([finding](findings/2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -312,7 +325,7 @@ visible on a second segment. That is why it confines itself to printing.
 **From a release.** Releases are published on the repository's Releases page,
 and `0.1.0`, published on 2026-10-08, is the first. `0.2.0`, published on
 2026-10-11, is the second. `0.3.0`, published on 2026-10-15, is the third.
-`0.4.0` is the fourth version meant as one. A
+`0.4.0`, published on 2026-10-20, is the fourth. A
 pre-release for testing,
 `0.1.0-rc.3`, was published there on 2026-10-07. It has the same form as a
 release and is checked and installed by the same steps; it is not a release.
@@ -350,6 +363,10 @@ On 2026-10-15 release 0.3.0 was downloaded there the same way, checked,
 compared with its zip file by file, and installed by the same steps in place
 of an unsigned build of the same source code; an iPhone printed through it
 ([the finding](findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md)).
+On 2026-10-20 release 0.4.0 was downloaded there the same way, checked,
+compared with its zip file by file, and installed by the same steps in place
+of release 0.3.0; an iPhone printed through it
+([the finding](findings/2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).
 
 **From source, today.** Clone the repository and install the .NET 10 SDK.
 
@@ -475,6 +492,11 @@ the same results: the two values the same, and four lines, every one `Valid`
 and timestamped, 12 files under the name above and 190 signed by Microsoft.
 Check 2 was run again on the installed folder, with the same four lines
 ([the finding](findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md)).
+On 2026-10-20 both were run, as printed, on release 0.4.0 on FIOS-STB-01, with
+the same results: the two values the same, and four lines, every one `Valid`
+and timestamped, 12 files under the name above and 190 signed by Microsoft.
+Check 2 was run again on the installed folder, with the same four lines
+([the finding](findings/2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).
 
 ---
 
@@ -1005,7 +1027,11 @@ on FIOS-STB-01 with release 0.2.0
 ([the finding](findings/2026-10-11-the-second-release-was-published-and-installed-on-fios-stb-01.md)). On 2026-10-15
 the same steps replaced another unsigned build made there with release 0.3.0
 ([the finding](findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md)).
-An update from one release to the next has not yet been made.
+On 2026-10-20 the same steps replaced release 0.3.0 there with release 0.4.0,
+the first update from one release to the next
+([the finding](findings/2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).
+(Until then this paragraph ended "An update from one release to the next has
+not yet been made.")
 
 #### From a release
 
@@ -1076,10 +1102,14 @@ commit its tag names. On 2026-10-09 release 0.1.0 printed
 `0.2.0+5b846ba027ab96372bde70295009334b37b54405`, and `5b846ba` is the commit
 `v0.2.0` names. On 2026-10-15 release 0.3.0 printed
 `0.3.0+064ca9fc7cf649ff3eed615758274bedb533767f`, and `064ca9f` is the commit
-`v0.3.0` names. (Note, 2026-10-18, by Claude, Claude Opus 5.5: since that day
+`v0.3.0` names. On 2026-10-20 release 0.4.0 printed
+`0.4.0+22b5252ee16e589bb7159bea2c3a7fe27b49dc42`, and `22b5252` is the commit
+`v0.4.0` names. (Note, 2026-10-18, by Claude, Claude Opus 5.5: since that day
 the service also writes this stamp as the first line of its log at every start
 (`REQ-OBS-011`), so the log read in step 5 shows it too. Releases 0.1.0, 0.2.0
-and 0.3.0 do not.)
+and 0.3.0 do not.) (Note, 2026-10-20, by Claude, Claude Opus 5.5: release
+0.4.0 is the first that does. When it was installed on FIOS-STB-01 that day,
+the log read in step 5 began its start with that line.)
 
 **5. Start the service, wait about fifteen seconds, and read the end of its
 log.**
@@ -1268,7 +1298,9 @@ as `SecretPrinter.Service version <version>+<commit>`: the same text step 4 of
 "Updating an installed service" reads from the installed file
 (`REQ-OBS-011`). It is written before the configuration is read, so a start
 that the configuration refuses has it too. Releases 0.1.0, 0.2.0 and 0.3.0 do
-not write it; it was added on 2026-10-18.
+not write it; it was added on 2026-10-18. Release 0.4.0, published on
+2026-10-20, is the first that does. (Sentence added 2026-10-20 by Claude,
+Claude Opus 5.5.)
 
 The startup log states every interface and the address it resolved to, then the
 complete advertisement: every record, every TXT entry published, and every entry

@@ -246,6 +246,10 @@ Not predicted:
 - **Updating from one release to the next,** by the document's steps. The
   folder 0.2.0 replaced was the unsigned build of the same source code, not
   0.1.0.
+  *(Status note, 2026-10-20, by Claude, Claude Opus 5.5: shown that day on
+  FIOS-STB-01, where release 0.4.0 replaced release 0.3.0 by the steps under
+  "From a release", with the signature check
+  ([finding](2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).)*
 - **0.2.0 on Windows 11, or on a machine with no .NET.** FIOS-STB-01 has .NET
   SDKs installed; the release carries its own runtime.
 - **The start over in this build.** The printer had not been lost between the
