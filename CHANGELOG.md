@@ -22,7 +22,9 @@ the second version meant as a release."; made exact the same day, once 0.2.0
 had been published.) `0.3.0`, published on 2026-10-15, is the third.
 (Sentence added 2026-10-15 by Claude, Claude Opus 5.5, in the commit that sets
 the version to 0.3.0, as "`0.3.0` is the third version meant as a release.";
-made exact the same day, once 0.3.0 had been published.) Every version
+made exact the same day, once 0.3.0 had been published.) `0.4.0` is the
+fourth version meant as a release. (Sentence added 2026-10-20 by Claude, Claude
+Opus 5.5, in the commit that sets the version to 0.4.0.) Every version
 below `0.1.0` is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
 2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
 `0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
@@ -31,6 +33,95 @@ that `0.1.0-rc.3` was a pre-release for testing and not a release, and that it
 was published on 2026-10-07. Later the same day, once 0.1.0 had been
 published, "is the first version meant as a release" became "is the first
 release", and the sentence saying when it was published was added.)
+
+## [0.4.0] - 2026-10-20
+
+The fourth version of SecretPrinter meant as a release. The service now names
+its own version in its log at every start, and two faults that `0.1.0`,
+`0.2.0` and `0.3.0` all have are corrected. Nothing in how it is installed or
+configured changes.
+
+- **Before you install it,** read two sections of `README.md`: "Read this
+  before installing" and, under it, "Known problems". This software was written
+  by an AI, Claude, directed by one person, and has had no outside security
+  review. Every measurement of it on a network was made in one household, with
+  one printer model, an Epson ET-3760, and almost always an iPhone as the
+  client.
+- **The service logs its version at every start** (`REQ-OBS-011`). The first
+  line of every start, written before the configuration is read, is
+  `SecretPrinter.Service version` followed by the version stamped in the
+  program: in a release, the version, a `+`, and the commit it was built from.
+  The log file is appended to across runs and updates, and until now it never
+  said which build wrote a line. A start that the configuration refuses logs it
+  too.
+- **Two faults in `0.1.0`, `0.2.0` and `0.3.0`, corrected:**
+  - **A connection accepted in the moment the service stops, or withdraws the
+    printer, is now closed** (`REQ-LIF-002`). Until now a client connection
+    the listener had just accepted when the service stopped, or withdrew the
+    printer because the printer had stopped answering (`REQ-LIF-006`), could
+    be left open, with nothing reading it, nothing in the service closing it,
+    and nothing in the log: its relay was never started. Found by reading the
+    code; never seen on a machine.
+  - **Five warnings no longer end a sentence twice.** Each quoted an
+    exception's message and added a full stop after it, so a message that
+    brought its own, as the one Windows gives a socket error does, was printed
+    with two:
+    `... not valid in its context.. Treated as no answer.` The other four
+    are about a printer that answers again but could not be offered, an
+    advertisement that could not be withdrawn on the network, and goodbye
+    records that could not be sent after a name conflict or at a stop.
+- **The release notes now say what built the release.** After this entry the
+  release workflow adds a section of its own, "Built with", naming the .NET
+  SDK that built the release and the .NET runtime its folder carries, and puts
+  the same on the run's page. Until now both were in the job's log only, which
+  needs a sign-in to GitHub. This release is the first the workflow makes that
+  way.
+- **Tests.** 8 were added, for 536 in all on the development machine (528 at
+  `0.3.0`). Each change was also broken on purpose, one way at a time, to see
+  which tests catch it; the commit messages and the findings say what was
+  tried and what was caught. Of the five warnings, the one at a stop is checked
+  by reading, not by a test.
+- **Updating from `0.1.0`, `0.2.0` or `0.3.0`:** `docs/operating.md`,
+  "Updating an installed service", "From a release". Check the new release
+  first, as below. The configuration file, the service registration, the
+  firewall rules and the data folder are the same as before.
+- **Check it before you install it.** `docs/operating.md`, "Checking a release
+  before you install it", gives two checks that need only PowerShell: the zip's
+  SHA-256 against the `.sha256` file published beside it, and the signature on
+  every program file. SecretPrinter's own files are signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`. A SecretPrinter file
+  that is unsigned, or signed under any other name, is not from this project.
+- **The .NET runtime inside it** is the one the build machine's SDK supplied,
+  and a fix to it arrives only in a new release. In the release notes GitHub
+  shows, the section "Built with" after this entry names it, and so does
+  `SecretPrinter.Service.runtimeconfig.json` in the folder. Microsoft's latest
+  .NET 10 release on 2026-10-20 was still 10.0.13, of 2026-10-13, which
+  `0.3.0` carries. The one package SecretPrinter declares,
+  `System.ServiceProcess.ServiceController`, stays at 10.0.11, as in `0.3.0`.
+- **Where it has run.** The changes since `0.3.0` have run in tests only: on
+  the development machine, on Windows, and in Claude's workspace, on Linux.
+  One of the tests of `REQ-OBS-011` starts the service's program on Windows
+  with a configuration file that does not exist and reads the log it writes.
+  None of the changes has run as an installed service, or on a network, before
+  this release; installing it on FIOS-STB-01 is the first. `0.3.0`, which has
+  none of them, has been the household's proxy there since 2026-10-15. Which
+  versions of Windows it can run on: `README.md`, open question 10.
+- **What has not been shown,** at the time this entry is written:
+  - This build itself. When this is written nobody has downloaded it, checked
+    it or run it.
+  - Any of the changes since `0.3.0` running as an installed service, or on a
+    network.
+  - The section "Built with" and the notice on GitHub: this release is their
+    first run.
+  - Updating an installation from one release to the next by the document's
+    steps.
+  - A connection caught in the moment the first fault is about: it cannot be
+    made to happen on demand.
+  - Any printer but the one model, any household but one, and any client but
+    one iPhone and, once, a second device.
+- **Reporting a problem.** Security problems go to the repository's private
+  vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
+  response-time commitment is offered.
 
 ## [0.3.0] - 2026-10-15
 

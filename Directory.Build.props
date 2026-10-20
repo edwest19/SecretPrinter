@@ -78,8 +78,12 @@
          Set to 0.3.0 on 2026-10-15 by Claude (Anthropic model, Claude Opus
          5.5) at the direction of Edwin West, the number he chose that day for
          the third release, the first to carry the corrections of REQ-SEC-017
-         and REQ-LIF-009. -->
-    <Version>0.3.0</Version>
+         and REQ-LIF-009.
+
+         Set to 0.4.0 on 2026-10-20 by Claude (Anthropic model, Claude Opus
+         5.5) at the direction of Edwin West, the number he chose that day for
+         the fourth release, the first to log its own version (REQ-OBS-011). -->
+    <Version>0.4.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>

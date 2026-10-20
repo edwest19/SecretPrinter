@@ -280,6 +280,11 @@ reconnected the Wi-Fi by itself twice
 ([finding](findings/2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md)).
 Reviewed by a human before merge.*
 
+*Under "Where the program comes from", the sentence on `0.4.0` added by
+Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+2026-10-20, in the commit that sets the version to 0.4.0.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -306,7 +311,8 @@ visible on a second segment. That is why it confines itself to printing.
 
 **From a release.** Releases are published on the repository's Releases page,
 and `0.1.0`, published on 2026-10-08, is the first. `0.2.0`, published on
-2026-10-11, is the second. `0.3.0`, published on 2026-10-15, is the third. A
+2026-10-11, is the second. `0.3.0`, published on 2026-10-15, is the third.
+`0.4.0` is the fourth version meant as one. A
 pre-release for testing,
 `0.1.0-rc.3`, was published there on 2026-10-07. It has the same form as a
 release and is checked and installed by the same steps; it is not a release.

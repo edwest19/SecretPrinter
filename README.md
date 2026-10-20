@@ -1075,7 +1075,9 @@ version meant as a release."; made exact the same day, once it had been
 published.) `0.3.0`, published on 2026-10-15, is the third. (Sentence added
 2026-10-15 by Claude, Claude Opus 5.5, in the commit that sets the version to
 0.3.0, as "`0.3.0` is the third version meant as a release."; made exact the
-same day, once it had been published.)
+same day, once it had been published.) `0.4.0` is the fourth version meant as
+a release. (Sentence added 2026-10-20 by Claude, Claude Opus 5.5, in the commit
+that sets the version to 0.4.0.)
 (Note, 2026-10-07, by Claude, Claude Opus 5.5: `0.1.0-rc.3` is a pre-release for testing, not a release; see
 `CHANGELOG.md`. It was published that day.) (Corrected 2026-10-08 by Claude,
 Claude Opus 5.5, in the commit that sets the version to 0.1.0: the sentence
