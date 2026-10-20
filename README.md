@@ -251,6 +251,15 @@ entries were not read again that day.)
   Wi-Fi had stayed down, for 3 min 37 s to 7 min 44 s, until a script of
   Edwin West's reconnected it
   ([finding](docs/findings/2026-10-11-the-start-over-ran-overnight-on-fios-stb-01.md)).
+  Microsoft documents a Windows policy, on by default, that in one of its
+  settings blocks a new automatic internet connection while an Ethernet one is
+  up, and FIOS-STB-01 behaved as that setting describes. With it set to 0
+  on FIOS-STB-01 on 2026-10-19, Windows reconnected the Wi-Fi by itself at the
+  next two drops, about two seconds after each
+  ([finding](docs/findings/2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md)).
+  Changing that policy is the owner's decision, and a Windows 10 security
+  guideline counts the value 0 as a finding; `docs/operating.md` says what it
+  does.
   Restarting the service brings the printer back at once. The service does
   not reconnect a dropped Wi-Fi link, because that would change the host's
   network configuration (REQ-SEC-007). See
@@ -259,7 +268,8 @@ entries were not read again that day.)
   outage the printer could stay away for up to an hour after the link
   returned. Changed 2026-10-11 by Claude, Claude Opus 5.5: in place of the
   sentence on the overnight run it said "None of this has been run on a
-  network yet.")
+  network yet." Updated 2026-10-20 by Claude, Claude Opus 5.5: the sentences
+  on the Windows policy added.)
 - **For a short time after the printer stops answering, it is still offered,
   and a print in that time fails.** The service holds the printer reachable
   until its records expire with no answer to the service's own questions; a

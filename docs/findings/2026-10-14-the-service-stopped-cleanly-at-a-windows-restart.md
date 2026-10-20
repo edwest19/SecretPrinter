@@ -338,6 +338,11 @@ connecting it and its later runs connecting nothing.
   default that blocks new automatic connections to the internet while an
   Ethernet one is up; whether that is why Windows does not connect this Wi-Fi
   is being tested on FIOS-STB-01. See [the finding](2026-10-19-ten-days-of-port-tests-and-three-windows-settings-on-fios-stb-01.md).)*
+  *(Status note, 2026-10-20, by Claude, Claude Opus 5.5: with that policy set
+  to 0, Windows reconnected the Wi-Fi by itself after two drops on
+  2026-10-20, about two seconds after each. After a boot it has not been seen
+  yet: no boot has happened since the change. See [the
+  finding](2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md).)*
 
 ## How it was read
 

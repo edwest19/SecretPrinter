@@ -271,6 +271,15 @@ start, naming its version: under "Reading the log", a paragraph on it; under
 note on the sentence saying the startup output of a build from source proves
 nothing either way. Reviewed by a human before merge.*
 
+*Under "When the printer-side network drops", three paragraphs and a command
+on the Windows policy that kept Windows from reconnecting the printer-side
+Wi-Fi, and a sentence on the connection mode Windows logs when it does, added
+by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+2026-10-20, after the policy was set to 0 on FIOS-STB-01 and Windows
+reconnected the Wi-Fi by itself twice
+([finding](findings/2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -1343,6 +1352,55 @@ the WLAN-AutoConfig log records no attempt, for 13 hours in one case, until a
 person connected by hand
 ([the finding](findings/2026-09-20-the-wlan-drops-and-nothing-retries.md)).
 
+**Why Windows did not reconnect it, and the setting that changes that.** A
+Windows policy, "Minimize the number of simultaneous connections to the
+Internet or a Windows Domain", is on by default in Windows 10, by Microsoft's
+page "Understand and Configure Windows Connection Manager". The page says that
+at its setting 1 "any new automatic internet connection is blocked when the
+computer has at least one active internet connection to a preferred type of
+network", that "Ethernet is always preferred when connected", and that "Users
+can still manually connect to any network." It does not say which setting the
+default is in Windows 10 version 1809 and later. On FIOS-STB-01, with its
+client side on Ethernet, its printer side on Wi-Fi, both reaching the internet,
+and the policy not set, Windows behaved as setting 1 describes: in every WLAN
+log read, it never connected the Wi-Fi by itself while the Ethernet was up, and
+a person or a script still could. Set to 0, "Allow simultaneous connections",
+it allows both at once; Microsoft's page "Policy CSP - ADMX_WCM" says that then
+"a computer can have simultaneous connections to the internet, to a Windows
+domain, or to both. Internet traffic can be routed over any connection". On
+FIOS-STB-01, after Edwin West set it to 0 on 2026-10-19, the Wi-Fi was
+disconnected by its driver twice in the next 20 hours, and both times Windows
+connected it again by itself, about two seconds later ([the
+finding](findings/2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md)).
+That is two drops on one machine; after a boot it has not been seen yet.
+
+Whether to change the policy is your decision for your machine, and the
+service will not make it (`REQ-SEC-007`). Weigh this: DISA's Security
+Technical Implementation Guide for Windows 10, rule WN10-CC-000055, says
+"Multiple network connections can provide additional attack vectors to a
+system and must be limited", counts 0 as a finding, and asks for the policy
+not to be set or for 3, "Prevent Wi-Fi When on Ethernet". With 3, Windows
+would not let the printer-side Wi-Fi connect while the Ethernet is up, and
+SecretPrinter could not reach a printer over Wi-Fi at all. At the default, the
+machine is on both networks while the Wi-Fi stays connected after someone
+connects it; 0 lets Windows connect it itself.
+
+To read the policy (it prints `(not set)` when the policy is not set, which
+leaves Windows' default):
+
+```powershell
+"fMinimizeConnections: " + $(try { (Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy' -Name fMinimizeConnections -ErrorAction Stop).fMinimizeConnections } catch { '(not set)' })
+```
+
+To set it, use the Local Group Policy Editor (`gpedit.msc`, as an
+administrator): Computer Configuration, Administrative Templates, Network,
+Windows Connection Manager, "Minimize the number of simultaneous connections
+to the Internet or a Windows Domain"; Enabled, with "0 = Allow simultaneous
+connections". Then run `gpupdate /target:computer` and read it back with the
+line above. The editor then shows the policy as set; a value written straight
+into the registry would leave it showing "Not configured" while in force. On
+FIOS-STB-01, Windows 10 Pro 22H2, it was set this way over Remote Desktop.
+
 The service does not reconnect the link and will not: changing the host's
 network configuration is exactly what `REQ-SEC-007` forbids. What it does is stop
 offering the printer while it cannot reach it — the advertisement is withdrawn
@@ -1410,7 +1468,10 @@ Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-WLAN-AutoConfig/Op
 it. `8000`, `8001` and `8002` are a connection starting, succeeding and failing.
 A `8003` from the driver with no `8000` after it is this problem. The event's
 `Connection Mode` line describes how *that* connection was started, not the
-profile's setting; check the profile with `netsh wlan show profile`.
+profile's setting; check the profile with `netsh wlan show profile`. A
+connection Windows starts by itself reads "Automatic connection with a
+profile"; one made with `netsh wlan connect` reads "Manual connection with a
+profile".
 
 `4003` is WLAN-AutoConfig itself acting on the link: its message says it
 *"detected limited connectivity, attempting automatic recovery"*. On

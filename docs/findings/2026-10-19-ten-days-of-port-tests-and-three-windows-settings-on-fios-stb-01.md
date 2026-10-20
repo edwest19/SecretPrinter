@@ -20,6 +20,13 @@ default that blocks new automatic connections to the internet while an
 Ethernet one is up; whether that is why Windows never connects this adapter
 by itself is not yet shown. No code changed.**
 
+*(Status note, 2026-10-20, by Claude, Claude Opus 5.5: the Wi-Fi was
+disconnected by its driver twice after the change, at 05:31:51Z and 14:31:53Z
+on 2026-10-20, and both times Windows connected it again by itself, 2.0 and
+2.3 seconds later, "Automatic connection with a profile". The script
+connected nothing. Edwin West keeps the policy at 0. See [the finding of that
+reading](2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name.

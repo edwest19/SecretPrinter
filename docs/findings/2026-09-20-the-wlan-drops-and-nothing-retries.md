@@ -28,6 +28,16 @@ reconnect attempt until a person made one. SecretPrinter cannot fix this and doe
 try to; `REQ-LIF-006` exists so that the service stops offering a printer it
 cannot reach while the link is down.**
 
+*(Status note, 2026-10-20, by Claude, Claude Opus 5.5: Microsoft documents a
+Windows policy, "Minimize the number of simultaneous connections to the
+Internet or a Windows Domain", that is on by default and at its setting 1
+blocks "any new automatic internet connection" while the computer has an
+active one to a preferred type of network, Ethernet first; "Users can still
+manually connect to any network." With it set to 0 on FIOS-STB-01 on
+2026-10-19, Windows reconnected the printer-side Wi-Fi by itself at the next
+two drops, about two seconds after each. Why the link drops is still not
+established. See [the finding](2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md).)*
+
 ## The machine
 
 FIOS-STB-01 reaches the printer network over Wi-Fi, profile `<printer-side
