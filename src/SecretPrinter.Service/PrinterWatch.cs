@@ -16,6 +16,12 @@
 // REQ-RES-010. See "When the interface is usable again" below. Reviewed by a
 // human before merge.
 //
+// The warning for a lookup that failed before an answer could be expected
+// made to end the failure's own message with one full stop (LogLine.Sentence),
+// by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-20. A message that brought its own was printed with two. Reviewed by
+// a human before merge.
+//
 // Purpose:
 //   Keeps PrinterReachability fed. It waits until a query is due, asks, reports
 //   the outcome, and logs the two moments that matter: the printer going quiet,
@@ -371,7 +377,7 @@ public sealed class PrinterWatch
             // than folded in quietly.
             _log.Warn(
                 $"Printer lookup failed before an answer could be expected: {ex.GetType().Name}: "
-                + $"{ex.Message}. Treated as no answer. Nothing is claimed about the printer.");
+                + $"{LogLine.Sentence(ex.Message)} Treated as no answer. Nothing is claimed about the printer.");
 
             await ReportAsync(_reachability.RecordSilence(), cancellationToken).ConfigureAwait(false);
         }

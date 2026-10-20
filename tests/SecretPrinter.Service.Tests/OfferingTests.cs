@@ -19,6 +19,11 @@
 // otherwise wait a real second before each after the first. No test changed
 // what it checks. Reviewed by a human before merge.
 //
+// The test that each of the three warnings quoting a failed send ends its
+// message with one full stop added by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, 2026-10-20. Reviewed by a human before
+// merge.
+//
 // Purpose:
 //   Verifies the decisions ServiceHost hands to Offering: when the printer is
 //   offered to the client network and when it is not (README REQ-ADV-023,
@@ -271,5 +276,48 @@ internal static class OfferingTests
         Assert.True(f.Transport.Sent[0].Parsed.Answers.All(r => r.Ttl == 0), "every record in it with TTL 0");
         Assert.True(f.Log.Lines.Any(l => l.Contains("Advertisement withdrawn", StringComparison.Ordinal)),
             "the withdrawal is logged, as before");
+    }
+
+    // ---- A send that fails ---------------------------------------------------
+
+    [TestCase("Each of the three warnings that quote a failed send ends its message with one full stop")]
+    public static void A_failed_send_ends_its_sentence_once()
+    {
+        // The message Windows gave a socket error on FIOS-STB-01 ends with a
+        // full stop; each warning below quotes such a message where a sentence
+        // ends.
+        const string Quoted = "The requested address is not valid in its context.";
+        var failure = new SocketException((int)SocketError.AddressNotAvailable, Quoted);
+
+        // Withdrawing: the goodbye cannot be sent.
+        var lost = new Fixture(gateOpen: true);
+        lost.Transport.OnSend = _ => throw failure;
+        lost.ReachabilityChanged(reachable: false);
+
+        // Restoring: the probe cannot be sent.
+        var found = new Fixture(gateOpen: false);
+        found.Transport.OnSend = _ => throw failure;
+        found.ReachabilityChanged(reachable: true);
+
+        // After a conflict: the goodbye cannot be sent.
+        var conflicted = new Fixture(gateOpen: true);
+        Task withdrawing = Offering.WithdrawOnConflictAsync(
+            conflicted.Conflicts.Task, conflicted.Responder, conflicted.Gate, conflicted.Log, CancellationToken.None);
+        conflicted.Transport.OnSend = _ => throw failure;
+        conflicted.HearConflict();
+        withdrawing.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+
+        foreach ((string what, Fixture f, string next) in new[]
+                 {
+                     ("withdrawing", lost, " The gate is closed"),
+                     ("restoring", found, " Nothing is offered."),
+                     ("after the conflict", conflicted, " Clients may show the printer"),
+                 })
+        {
+            string line = f.Log.Lines.SingleOrDefault(l => l.Contains(Quoted, StringComparison.Ordinal)) ?? "";
+            Assert.True(line.Contains(Quoted + next, StringComparison.Ordinal),
+                $"{what}: the message, one full stop, then the next sentence: {line}");
+            Assert.False(line.Contains("..", StringComparison.Ordinal), $"{what}: no sentence ends twice: {line}");
+        }
     }
 }

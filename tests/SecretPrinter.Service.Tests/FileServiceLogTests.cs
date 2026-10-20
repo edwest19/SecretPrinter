@@ -5,6 +5,10 @@
 // West, 2026-09-18, for REQ-OBS-009 and REQ-OBS-010. Reviewed by a human before
 // merge.
 //
+// The test of LogLine.Sentence added by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, 2026-10-20. Reviewed by a human before
+// merge.
+//
 // Purpose:
 //   Checks the log file a service leaves behind: that entries arrive, that they
 //   survive a restart, that they can be read while the service is still
@@ -167,6 +171,24 @@ internal static class FileServiceLogTests
             "2026-09-18 12:34:56Z  INFORMATION  " + Ordinary,
             LogLine.Format(Noon, LogLevel.Information, Ordinary),
             "and the formatted line must be the message with a stamp and a level in front of it");
+    }
+
+    [TestCase("A message placed where a sentence ends gets one full stop, never two")]
+    public static void A_sentence_ends_with_one_full_stop()
+    {
+        // The message Windows gave a socket error on FIOS-STB-01 ends with a
+        // full stop, and the message Linux gives the same error does not. Where
+        // such a message ends a sentence in a log line, the line must read the
+        // same either way.
+        Assert.Equal(
+            "The requested address is not valid in its context.",
+            LogLine.Sentence("The requested address is not valid in its context."),
+            "a message that already ends with a full stop is left as it is");
+
+        Assert.Equal(
+            "Cannot assign requested address.",
+            LogLine.Sentence("Cannot assign requested address"),
+            "a message that does not is given one");
     }
 
     // ---- Failure does not propagate -----------------------------------------

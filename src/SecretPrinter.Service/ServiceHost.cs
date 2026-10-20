@@ -128,6 +128,12 @@
 // docs/findings/2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md.
 // Reviewed by a human before merge.
 //
+// The warning for goodbye records that could not be sent at a stop made to end
+// the failure's message with one full stop (LogLine.Sentence), by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-20. A message that brought its own was printed with two. Reviewed by
+// a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -502,7 +508,7 @@ public sealed class ServiceHost
             }
             catch (Exception ex) when (ex is OperationCanceledException or System.Net.Sockets.SocketException)
             {
-                _log.Warn($"Could not send goodbye records: {ex.Message}. "
+                _log.Warn($"Could not send goodbye records: {LogLine.Sentence(ex.Message)} "
                           + "Clients may show the printer until its TTL expires.");
             }
 

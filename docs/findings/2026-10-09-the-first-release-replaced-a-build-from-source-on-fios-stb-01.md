@@ -394,6 +394,15 @@ Corrected elsewhere, because this update made them out of date:
   Treated as no answer.` The message Windows supplies ends with a full stop,
   and `PrinterWatch` adds another. 0.1.0 has the same line. It changes a line a
   release has been measured with, so it waits for the next change to the code.
+  *(Status note, 2026-10-20, by Claude, Claude Opus 5.5: corrected. Four more
+  warnings did the same: three in `Offering` (a printer that could not be
+  offered, an advertisement that could not be withdrawn, goodbye records that
+  could not be sent after a name conflict) and one in `ServiceHost` (goodbye
+  records that could not be sent at a stop). All five now end the quoted
+  message with one full stop, through `LogLine.Sentence`. Tests hold four of
+  them to it; the one at a stop is checked by reading. The message Linux gives
+  the same socket error has no full stop, which is why the line read correctly
+  in Claude's workspace. Releases 0.1.0 to 0.3.0 carry all five.)*
 - **The stop at 19:12:32Z on 2026-10-08 has no `SecretPrinter stopped.` line**
   after `Service 'SecretPrinter' stopping.`, where every other stop in the
   reading has one. What the service was doing before that stop was not read,

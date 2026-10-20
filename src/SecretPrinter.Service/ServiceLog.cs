@@ -16,6 +16,11 @@
 // the class on 2026-09-18 and found by reading it back the same day: see the
 // comment on Write.
 //
+// LogLine.Sentence added by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-20, for the warnings that quote an
+// exception's message where a sentence ends: a message that brought its own
+// full stop was printed with two. Reviewed by a human before merge.
+//
 // Purpose:
 //   Where the service says what it is doing.
 //
@@ -121,6 +126,24 @@ public static class LogLine
     }
 
     private static bool IsControl(char c) => c < ' ' || c == '\u007F';
+
+    /// <summary>
+    /// Returns <paramref name="text"/> ending with one full stop: as it is when
+    /// it already ends with one, with one added when it does not.
+    /// </summary>
+    /// <remarks>
+    /// For text the service does not write itself, such as an exception's
+    /// message, placed where a sentence ends. The message Windows gave a socket
+    /// error on FIOS-STB-01 ends with a full stop, and the message Linux gives
+    /// the same error does not; a full stop added regardless printed two
+    /// (docs/findings/2026-10-09-the-first-release-replaced-a-build-from-source-on-fios-stb-01.md).
+    /// </remarks>
+    public static string Sentence(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        return text.EndsWith('.') ? text : text + ".";
+    }
 }
 
 /// <summary>Receives what the service reports about itself.</summary>

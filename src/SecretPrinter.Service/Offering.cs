@@ -5,6 +5,11 @@
 // Edwin West, 2026-09-28, for the SecretPrinter project. Reviewed by a human
 // before merge.
 //
+// The three warnings that quote a failed send made to end its message with one
+// full stop (LogLine.Sentence), by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-20. A message that brought its own was
+// printed with two. Reviewed by a human before merge.
+//
 // Purpose:
 //   Every decision about whether the printer is offered to the client network,
 //   in one place, and in a form that can be tested without a socket:
@@ -153,10 +158,10 @@ public static class Offering
             // claimed, so nothing is offered, and the watch will not ask again
             // until the printer is lost and found once more. Said plainly.
             log.Warn(reachable
-                ? $"The printer answers again, but it could not be offered: {ex.Message}. Nothing is offered. "
+                ? $"The printer answers again, but it could not be offered: {LogLine.Sentence(ex.Message)} Nothing is offered. "
                   + "The watch tries again only if the printer is lost and found again; restarting the "
                   + "service tries at once."
-                : $"The advertisement could not be withdrawn on the network: {ex.Message}. The gate is closed "
+                : $"The advertisement could not be withdrawn on the network: {LogLine.Sentence(ex.Message)} The gate is closed "
                   + "regardless, so nothing is accepted; clients fall back on the record TTL.");
         }
     }
@@ -202,7 +207,7 @@ public static class Offering
         }
         catch (Exception ex) when (ex is OperationCanceledException or SocketException)
         {
-            log.Warn($"Could not send goodbye records after the name conflict: {ex.Message}. "
+            log.Warn($"Could not send goodbye records after the name conflict: {LogLine.Sentence(ex.Message)} "
                      + "Clients may show the printer until its TTL expires.");
         }
     }

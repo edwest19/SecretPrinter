@@ -30,6 +30,10 @@
 // the watch's own loop as the two cases about a job's answer do. Reviewed by a
 // human before merge.
 //
+// The test that a failure's own message is followed by one full stop, whether
+// or not it brings one, added by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-20. Reviewed by a human before merge.
+//
 // Purpose:
 //   Holds the watch to two things: that it actually asks, and that it only
 //   speaks when something changed.
@@ -355,6 +359,63 @@ internal static class PrinterWatchTests
         Assert.True(
             log.Lines.Exists(line => line.Contains("InvalidOperationException", StringComparison.Ordinal)),
             "an unexpected failure must be named in the log rather than swallowed");
+    }
+
+    [TestCase("A failure's own message ends its sentence once, whether or not it brings a full stop")]
+    public static async Task A_failures_message_is_followed_by_one_full_stop()
+    {
+        var clock = new TestClock(Start);
+        var log = new RecordingLog();
+        var reachability = new PrinterReachability(Answer(Start), clock, () => 0.0);
+
+        int asked = 0;
+        using var stop = new CancellationTokenSource();
+
+        var watch = new PrinterWatch(
+            reachability,
+            _ =>
+            {
+                asked++;
+
+                if (asked == 1)
+                {
+                    // As Windows worded it on FIOS-STB-01: a full stop at the end.
+                    throw new SocketException(
+                        (int)SocketError.AddressNotAvailable, "The requested address is not valid in its context.");
+                }
+
+                if (asked == 2)
+                {
+                    // As Linux words the same error: none.
+                    throw new SocketException((int)SocketError.AddressNotAvailable, "Cannot assign requested address");
+                }
+
+                stop.CancelAfter(TimeSpan.Zero);
+                return Task.FromResult(Answer(clock.GetUtcNow()));
+            },
+            log,
+            clock,
+            (wait, _) =>
+            {
+                clock.MoveTo(clock.GetUtcNow() + wait);
+                return Task.CompletedTask;
+            });
+
+        await watch.WatchAsync(stop.Token).ConfigureAwait(false);
+
+        List<string> failed =
+            log.Lines.FindAll(line => line.Contains("Printer lookup failed", StringComparison.Ordinal));
+
+        Assert.Equal(2, failed.Count, "each failure is logged");
+        Assert.True(
+            failed[0].Contains("not valid in its context. Treated as no answer.", StringComparison.Ordinal),
+            $"one full stop after a message that brings its own: {failed[0]}");
+        Assert.True(
+            failed[1].Contains("Cannot assign requested address. Treated as no answer.", StringComparison.Ordinal),
+            $"and one after a message that does not: {failed[1]}");
+        Assert.False(
+            log.Lines.Exists(line => line.Contains("..", StringComparison.Ordinal)),
+            "no line ends a sentence twice");
     }
 
     // ---- Answers that jobs obtain -------------------------------------------
