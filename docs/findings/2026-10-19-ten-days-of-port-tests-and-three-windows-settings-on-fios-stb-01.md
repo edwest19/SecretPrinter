@@ -132,6 +132,16 @@ The script tests TCP port 631 on the printer with `Test-NetConnection` at
 every run. Its log holds 1,444 results, from 2026-10-09 to 6:20:27 pm on
 2026-10-19. Three runs before 1:16 pm on 2026-10-15 logged none; which, was
 not read.
+*(Status note, 2026-10-21, by Claude, Claude Opus 5.5: read on 2026-10-21. They
+are the runs begun at 4:11:28 pm on 2026-10-10, one of the three that began
+about a minute late (above), and at 4:00:54 am and 6:04:02 am on 2026-10-14,
+about half an hour before that morning's restart and after it. The first two
+logged the start of their port test, at 4:11:32 pm and 4:02:22 am, and nothing
+after it; the third logged the start of its first step, at 6:04:03 am, and
+nothing after it. The next run began at the next tenth minute each time. Why
+they stopped is not in the script's log, and Task Scheduler's history was off
+then. No other run in the log, up to the one of 5:10:27 pm on 2026-10-21, lacks
+a port result or has two.)*
 
 For each test, what the service held was taken from the service's own log:
 the last of its lines about the printer's state before the moment the test
@@ -198,6 +208,12 @@ times from 1:16 pm on 2026-10-15 to its reading at 19:27:20Z on 2026-10-18.
 The counts by day read today give 445 runs begun in that time (64, 144, 144
 and 93), all on the schedule. The 63 failures it counted agree with today's
 reading. Which run count is right was not settled.
+*(Status note, 2026-10-21, by Claude, Claude Opus 5.5: settled on 2026-10-21.
+From 1:16 pm on 2026-10-15 to that reading the script began 445 runs and logged
+445 port results. The 447 counted the results up to about 3:46 pm, when a later
+command of that session was run with no end time, and so took in the runs of
+3:30 and 3:40 pm. See the status note on [the finding of
+2026-10-18](2026-10-18-the-third-release-ran-three-days-on-fios-stb-01.md).)*
 
 ## The printer-side Wi-Fi, and Windows' rule on simultaneous connections
 

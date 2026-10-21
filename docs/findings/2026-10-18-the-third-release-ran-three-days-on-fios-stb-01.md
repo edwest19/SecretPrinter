@@ -184,6 +184,15 @@ tests succeeded and 63 did not.
 on 2026-10-19 give 445 runs begun in that time, 64, 144, 144 and 93, all on
 the schedule. Which count is right was not settled. The 63 failures agree with
 that reading.)*
+*(Status note, 2026-10-21, by Claude, Claude Opus 5.5: settled by one read-only
+count of the script's log on 2026-10-21. From 1:16 pm on 2026-10-15 to the
+reading at 3:27:20 pm on 2026-10-18 (19:27:20Z), the script began 445 runs and
+logged 445 port results: 63 failed, all of them listed below, and 382
+succeeded. The 447, and with it the 384 here and below, came from a later
+command of the same session, run at about 3:46 pm with no end time, which also
+counted the runs begun at 3:30:28 and 3:40:28 pm; both came after the last
+failure listed below, at 2:10 am on 2026-10-17, and succeeded. The 63 failures
+are unchanged.)*
 
 - **62 of the 63 reported the interface `Ethernet` and the machine's
   client-side address as their source:** Windows chose its default route, out
