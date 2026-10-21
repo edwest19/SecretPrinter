@@ -14,6 +14,34 @@ seconds later. Before the change, in every WLAN log read on this machine,
 Windows never connected that adapter by itself. Two drops, one machine.
 Edwin keeps the policy at 0. No code changed.**
 
+*(Status note, 2026-10-21, by Claude, Claude Opus 5.5: the same logs were read
+again on FIOS-STB-01 on 2026-10-21, read-only, for the day from 20:30:45Z on
+2026-10-20 to 20:17:02Z, with the policy still at 0 and no boot since
+2026-10-14. The driver disconnected the Wi-Fi twice more, at 23:51:56Z on
+2026-10-20 and at 15:48:13Z on 2026-10-21, and both times Windows connected it
+again by itself, 2.2 seconds later ("Automatic connection with a profile"):
+four drops since the change, and Windows reconnected all four. The service
+logged `The printer-side interface is usable again:` at 23:52:03Z, after the
+first of the two, and nothing after the second; a drop shorter than its
+5-second examination may not be seen. Twice the script found the gateway not
+answering a ping while the Wi-Fi was connected, at its runs begun at 00:00:27Z
+and 08:20:28Z on 2026-10-21, and disconnected and connected the Wi-Fi itself
+(an `8003` with "The network is disconnected by the user", then a manual
+connection). Windows did not disconnect or reconnect the link before the script
+did: the first time, the WLAN log holds no disconnect between Windows'
+reconnection at 23:51:58Z and the script's disconnection, and the second time
+none between the script's run of 08:10:28Z, which found the gateway answering,
+and its disconnection. The second time, the service had lost the printer at
+08:15:49Z and found it at 08:20:55Z, 2 seconds after the script's connection.
+The first time, the printer itself had not answered on its port since the
+script's run of 23:10:27Z, and did not until Edwin restarted it ([the release
+finding's status
+note](2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).
+That day the log also holds 11 lone `11004` events, none within 15 seconds of a
+disconnect or an `11006`: four came 50 to 114 seconds before four of the
+service's six losses began, one came during a loss, and six had no loss begin
+in the 12 minutes after. What they are is still not shown.)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name.
@@ -202,6 +230,8 @@ the link being re-authenticated; this reading cannot show whether they were.
 - **More than two drops.** Both were reconnected by Windows within 2.3
   seconds; a drop Windows does not reconnect has not been seen since the
   change, and the script would still connect it.
+  *(Status note, 2026-10-21, by Claude, Claude Opus 5.5: four by then, all
+  reconnected by Windows; see the status note at the top.)*
 - **After a boot.** The [finding of 2026-10-14 on the
   restart](2026-10-14-the-service-stopped-cleanly-at-a-windows-restart.md)
   records that Windows did not connect the Wi-Fi after a boot. No boot has
@@ -214,6 +244,9 @@ the link being re-authenticated; this reading cannot show whether they were.
   again.
 - **What the six lone `11004` events were,** and whether the loss at
   05:33:35Z had anything to do with the first drop.
+  *(Status note, 2026-10-21, by Claude, Claude Opus 5.5: still not shown;
+  eleven more the next day, four of them shortly before a loss; see the status
+  note at the top.)*
 
 ## How it was read
 

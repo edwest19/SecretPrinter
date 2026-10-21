@@ -298,6 +298,13 @@ sentence saying the same
 ([finding](findings/2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md)).
 Reviewed by a human before merge.*
 
+*On 2026-10-21, by Claude (Anthropic model, Claude Opus 5.5) at the direction
+of Edwin West: under "When the printer-side network drops", a note on the day
+after the Wi-Fi finding, with two more drops reconnected by Windows and two
+times the gateway did not answer while the link stayed connected
+([finding](findings/2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -1411,6 +1418,12 @@ disconnected by its driver twice in the next 20 hours, and both times Windows
 connected it again by itself, about two seconds later ([the
 finding](findings/2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md)).
 That is two drops on one machine; after a boot it has not been seen yet.
+(Note, 2026-10-21, by Claude, Claude Opus 5.5: in the next 24 hours, two more
+drops, reconnected by Windows the same way. Twice that day the link stayed
+connected while the printer-side network's gateway did not answer a ping;
+Windows did not disconnect or reconnect it, and a script of Edwin West's, which
+does both when the gateway does not answer, did ([the finding's status
+note](findings/2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md)).)
 
 Whether to change the policy is your decision for your machine, and the
 service will not make it (`REQ-SEC-007`). Weigh this: DISA's Security

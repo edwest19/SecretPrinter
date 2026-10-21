@@ -21,6 +21,35 @@ no printer for 10 seconds. The first line the new service logged was its
 version, the first time `REQ-OBS-011` ran under the service control manager.
 An iPhone printed a page through it. No code changed after the tag.**
 
+*(Status note, 2026-10-21, by Claude, Claude Opus 5.5: 0.4.0's first day on
+FIOS-STB-01 was read there on 2026-10-21, read-only, from the service's log,
+Windows' WLAN-AutoConfig log and the log of Edwin West's script `Check-SP.ps1`,
+from 0.4.0's start to 20:17:02Z. Neither Windows nor the service restarted: the
+version line is in the log once, at the start. The service lost the printer six
+times and found it again each time without a restart, offering it again 2 or 3
+seconds after it answered. It did not offer the printer for 5 hours 56 minutes
+in all, 25% of the 23 hours 46 minutes from 20:30:50Z, when it began accepting
+print jobs. No error was logged, and no warning but those of the losses and one
+`Could not reopen the printer-side socket`, at 00:00:50Z on 2026-10-21, in the
+seconds the script had the printer-side Wi-Fi disconnected; the socket was
+reopened 7 seconds later. No `Printer lookup failed` line was logged, so the
+correction of `1322a06` has still not been seen on a machine. Nearly all of the
+time without the printer, 5 hours 50 minutes in two losses, was one outage of
+the printer itself. The script's test of the printer's port 631 failed at all
+31 of its runs begun from 23:10:27Z on 2026-10-20 to 04:10:27Z on 2026-10-21,
+and the gateway answered its ping at 30 of them. Within that, the service found
+the printer once, at 23:52:04Z, 5 seconds after Windows reconnected the Wi-Fi
+from a drop, and lost it again at 00:00:36Z. Edwin restarted the printer at
+about 12:15 am Eastern by his recollection, about 04:15Z, and said that before
+it "was not answering on either network". The port answered at the script's run
+begun at 04:20:28Z; the service found the printer at 05:10:36Z and offered it
+at 05:10:38Z, 50 to 60 minutes after the port answered again. After a loss the
+service asks after 1, 2, 4… seconds, up to once an hour (`REQ-RES-008`), and
+does not log those questions; whether the printer would have answered one
+before 05:10:36Z is in neither log. The same day's Wi-Fi is in a status note on
+[the finding of 2026-10-20 on the
+Wi-Fi](2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name or the printer's certificate fingerprint.
@@ -273,6 +302,8 @@ finding corrects all four, each with a note giving what it said.
 ## What this does not show
 
 - **0.4.0 over time.** One start and one print, within minutes of the install.
+  *(Status note, 2026-10-21, by Claude, Claude Opus 5.5: its first day was read
+  on 2026-10-21; see the status note at the top.)*
 - **A Windows shutdown or restart with 0.4.0 running,** or a start of 0.4.0 at
   boot.
 - **The moment `REQ-LIF-002`'s correction is about:** a connection accepted as
