@@ -5,6 +5,12 @@
 // Edwin West, for the SecretPrinter project, 2026-09-25, for REQ-RES-009.
 // Reviewed by a human before merge.
 //
+// Given the printer's announcements, and passing them to every resolver it
+// makes, by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
+// West, 2026-10-22, for REQ-RES-011. The one PrinterAnnouncements outlives each
+// pair, so records heard just before a reopen are still held after it.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Holds the printer-side mDNS socket and the resolver that reads it, as one
 //   pair that can be reopened. Everything that asks the printer anything - the
@@ -74,6 +80,7 @@ public sealed class PrinterSide : IDisposable
     private readonly Func<(MdnsInterface? Usable, string? Reason)> _examine;
     private readonly IServiceLog _log;
     private readonly IInterfaceInventory? _inventory;
+    private readonly PrinterAnnouncements? _announcements;
 
     // Guards the pair and _disposed. Never held while a socket is opened or
     // closed, or while a resolver is disposed.
@@ -107,13 +114,18 @@ public sealed class PrinterSide : IDisposable
     /// lookup times out. Defaults to the machine's own adapters. Supplied by
     /// tests so they do not read the real ones.
     /// </param>
+    /// <param name="announcements">
+    /// Passed to every resolver made here, which hands it what arrives between
+    /// lookups, so the printer can be heard without being asked (REQ-RES-011).
+    /// </param>
     public PrinterSide(
         MdnsInterface printerInterface,
         IMdnsTransport transport,
         Func<MdnsInterface, IMdnsTransport> open,
         Func<(MdnsInterface? Usable, string? Reason)> examine,
         IServiceLog log,
-        IInterfaceInventory? inventory = null)
+        IInterfaceInventory? inventory = null,
+        PrinterAnnouncements? announcements = null)
     {
         ArgumentNullException.ThrowIfNull(printerInterface);
         ArgumentNullException.ThrowIfNull(transport);
@@ -125,10 +137,11 @@ public sealed class PrinterSide : IDisposable
         _examine = examine;
         _log = log;
         _inventory = inventory;
+        _announcements = announcements;
 
         _interface = printerInterface;
         _transport = transport;
-        _resolver = new PrinterResolver(transport, printerInterface, inventory: inventory);
+        _resolver = new PrinterResolver(transport, printerInterface, inventory: inventory, announcements: announcements);
     }
 
     /// <summary>The resolver to ask through now.</summary>
@@ -183,7 +196,7 @@ public sealed class PrinterSide : IDisposable
         try
         {
             transport = _open(usable);
-            resolver = new PrinterResolver(transport, usable, inventory: _inventory);
+            resolver = new PrinterResolver(transport, usable, inventory: _inventory, announcements: _announcements);
         }
         catch (Exception ex)
         {

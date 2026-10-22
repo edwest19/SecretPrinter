@@ -22,6 +22,18 @@ heard. The test changed nothing in the repository, and no code changed.
 Whether the service should listen for the printer's own announcements and
 goodbyes is raised below, not decided.**
 
+*(Status note, 2026-10-22, by Claude, Claude Opus 5.5: decided and built the
+same day. Edwin West chose that the service should hear the printer's
+announcements and not act on its goodbyes. While the service holds the printer
+unreachable, the printer's own records heard on the printer-side interface,
+sent to the mDNS group from port 5353, now make it reachable as an answer does
+(README `REQ-RES-011`), and a lookup no longer takes a record whose TTL is 0.
+Measured against the code by tests; not run on a network, and no release
+carries it. The two rules of RFC 6762 §6 that a querier ignores unicast
+responses it did not ask for and responses from other ports are applied to
+what is heard; the lookups themselves do not yet apply them. See [the finding
+of 2026-10-22](2026-10-22-the-service-hears-the-printer-announce-itself.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The tool's output names every device that speaks mDNS on

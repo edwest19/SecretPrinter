@@ -22,6 +22,12 @@
 // 2026-10-20. A message that brought its own was printed with two. Reviewed by
 // a human before merge.
 //
+// Told when the printer was heard on the printer-side interface without being
+// asked, and the printer then held reachable again if it was held unreachable,
+// by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-22, for REQ-RES-011. See "When the printer is heard without being
+// asked" below. Reviewed by a human before merge.
+//
 // Purpose:
 //   Keeps PrinterReachability fed. It waits until a query is due, asks, reports
 //   the outcome, and logs the two moments that matter: the printer going quiet,
@@ -31,7 +37,9 @@
 //   clock and the loop. Neither reads an adapter. (Since 2026-10-10 this class
 //   is told, by AdapterWatch, when the printer-side interface is usable again,
 //   and it then starts the questions over; see below. It still never reads an
-//   adapter, and the verdict still rests on answers alone.)
+//   adapter, and the verdict still rests on answers alone. Since 2026-10-22 it
+//   also rests on the printer's own records heard without being asked, which
+//   are what the printer itself sent; see the last section below.)
 //
 // What it logs, and what it does not:
 //   Transitions only. On 2026-09-20 the printer-side WLAN was down for nine
@@ -106,6 +114,20 @@
 //   interface as found. While the printer is held reachable nothing happens and
 //   nothing is logged. Several calls queued before the loop reads them start
 //   the questions over once.
+//
+// When the printer is heard without being asked:
+//   The printer-side resolver hands what arrives between its lookups to a
+//   PrinterAnnouncements, and that tells this class, through
+//   RecordAnnouncement, when the printer's own records were heard: an
+//   announcement as it starts, or an answer it gave another device (README
+//   REQ-RES-011). Like a job's answer, the call only queues, and the loop's
+//   wait ends early for it. On the loop, while the printer is held
+//   unreachable, it is taken as an answer: the printer is reachable again at
+//   once, without a question, and that is logged as a recovery, saying the
+//   printer was heard without being asked. While it is held reachable nothing
+//   changes and nothing is logged. Several queued before the loop reads them
+//   are each given to PrinterReachability.RecordAnnouncement, which takes the
+//   first that tells something new.
 // -----------------------------------------------------------------------------
 
 using System.Threading.Channels;
@@ -136,6 +158,10 @@ public sealed class PrinterWatch
     // The printer-side interface as found each time it became usable again,
     // waiting for the loop to start the questions over. Only the loop reads it.
     private readonly Channel<string> _usableAgain = Channel.CreateUnbounded<string>();
+
+    // The printer as heard without being asked, waiting for the loop. Only the
+    // loop reads it.
+    private readonly Channel<ResolvedPrinter> _heard = Channel.CreateUnbounded<ResolvedPrinter>();
 
     /// <param name="reachability">The state and schedule this loop drives.</param>
     /// <param name="lookup">
@@ -198,6 +224,25 @@ public sealed class PrinterWatch
     }
 
     /// <summary>
+    /// Tells the watch the printer was heard on the printer-side interface
+    /// without being asked. The watch takes it in on its own loop, which it
+    /// wakes for: while the printer is held unreachable it is reachable again
+    /// at once; while it is held reachable nothing changes. Never blocks, and
+    /// never throws but for a null argument, so it may be called from the
+    /// resolver's reader.
+    /// </summary>
+    [Requirement("REQ-RES-011",
+        "Takes word that the printer was heard without being asked and wakes the watch for it, so that a printer "
+        + "held unreachable is offered again without waiting for the next question.")]
+    public void RecordAnnouncement(ResolvedPrinter announced)
+    {
+        ArgumentNullException.ThrowIfNull(announced);
+
+        // Unbounded and never completed, so this always succeeds.
+        _heard.Writer.TryWrite(announced);
+    }
+
+    /// <summary>
     /// Queries whenever the schedule says to, until cancelled. Returns without
     /// throwing when cancelled; every other failure is the printer being quiet,
     /// which is data rather than an error.
@@ -213,6 +258,7 @@ public sealed class PrinterWatch
             // and the wait below is computed from it. So can the interface being
             // usable again (REQ-RES-010).
             await RecordJobAnswersAsync(cancellationToken).ConfigureAwait(false);
+            await RecordHeardAsync(cancellationToken).ConfigureAwait(false);
             StartOverIfUsableAgain();
 
             // While the printer is reachable the record can reach the end of its
@@ -269,8 +315,8 @@ public sealed class PrinterWatch
     /// whichever comes first.
     /// </summary>
     /// <returns>
-    /// True when a job's answer, or word that the interface is usable again, is
-    /// waiting to be taken in.
+    /// True when a job's answer, word that the interface is usable again, or
+    /// word that the printer was heard, is waiting to be taken in.
     /// </returns>
     private async Task<bool> WaitAsync(TimeSpan wait, CancellationToken cancellationToken)
     {
@@ -279,8 +325,9 @@ public sealed class PrinterWatch
         Task elapsed = _delay(wait, woken.Token);
         Task<bool> arrived = _jobAnswers.Reader.WaitToReadAsync(woken.Token).AsTask();
         Task<bool> usableAgain = _usableAgain.Reader.WaitToReadAsync(woken.Token).AsTask();
+        Task<bool> heard = _heard.Reader.WaitToReadAsync(woken.Token).AsTask();
 
-        await Task.WhenAny(elapsed, arrived, usableAgain).ConfigureAwait(false);
+        await Task.WhenAny(elapsed, arrived, usableAgain, heard).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
         if (elapsed.IsCompleted)
@@ -291,9 +338,10 @@ public sealed class PrinterWatch
         }
 
         bool answerArrived = (arrived.IsCompletedSuccessfully && await arrived.ConfigureAwait(false))
-                             || (usableAgain.IsCompletedSuccessfully && await usableAgain.ConfigureAwait(false));
+                             || (usableAgain.IsCompletedSuccessfully && await usableAgain.ConfigureAwait(false))
+                             || (heard.IsCompletedSuccessfully && await heard.ConfigureAwait(false));
 
-        // Ends whichever of the two is still waiting.
+        // Ends whichever of them is still waiting.
         await woken.CancelAsync().ConfigureAwait(false);
 
         return answerArrived;
@@ -343,6 +391,28 @@ public sealed class PrinterWatch
             + "RFC 6762 questions again from one second.");
     }
 
+    /// <summary>
+    /// Takes in every time the printer was heard without being asked, in order.
+    /// While it is held unreachable the first that tells something new makes it
+    /// reachable, and that is logged as a recovery that says how.
+    /// </summary>
+    [Requirement("REQ-RES-011",
+        "While the printer is held unreachable, takes the printer heard without being asked as an answer, reports "
+        + "it reachable again and logs how it was found; while it is held reachable, changes nothing and logs "
+        + "nothing.")]
+    private async Task RecordHeardAsync(CancellationToken cancellationToken)
+    {
+        while (_heard.Reader.TryRead(out ResolvedPrinter? announced))
+        {
+            await ReportAsync(
+                    _reachability.RecordAnnouncement(announced),
+                    cancellationToken,
+                    "Printer reachable again: it was heard on the printer-side interface without being asked "
+                    + "(an announcement, or its answer to another device).")
+                .ConfigureAwait(false);
+        }
+    }
+
     /// <summary>Records every answer that jobs have handed over, in order.</summary>
     private async Task RecordJobAnswersAsync(CancellationToken cancellationToken)
     {
@@ -386,7 +456,8 @@ public sealed class PrinterWatch
     [Requirement("REQ-LIF-006",
         "Reports every change in reachability, once, to the handler that stops or resumes offering the "
         + "printer - so the listener and the advertisement follow the measurement rather than a timer.")]
-    private async Task ReportAsync(ReachabilityTransition transition, CancellationToken cancellationToken)
+    private async Task ReportAsync(
+        ReachabilityTransition transition, CancellationToken cancellationToken, string? reachableLine = null)
     {
         switch (transition)
         {
@@ -398,7 +469,7 @@ public sealed class PrinterWatch
                 break;
 
             case ReachabilityTransition.BecameReachable:
-                _log.Info("Printer reachable again: it answered on the printer-side interface.");
+                _log.Info(reachableLine ?? "Printer reachable again: it answered on the printer-side interface.");
                 break;
 
             case ReachabilityTransition.None:

@@ -134,6 +134,17 @@
 // 2026-10-20. A message that brought its own was printed with two. Reviewed by
 // a human before merge.
 //
+// The printer heard without being asked, by Claude (Anthropic model, Claude
+// Opus 5.5) at the direction of Edwin West, 2026-10-22, for REQ-RES-011. One
+// PrinterAnnouncements, listening for the printer's _ipps._tcp instance, is
+// given to the PrinterSide, which passes it to every resolver it makes; what
+// arrives between lookups goes to it, and it tells the watch when the
+// printer's own records were heard. The watch is made only once the printer
+// has answered at startup, so until then what is heard has nowhere to go and
+// is dropped, as before. No test runs this wiring, as no test runs RunAsync.
+// See docs/findings/2026-10-22-the-service-hears-the-printer-announce-itself.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Turns seven libraries into a running program: opens the sockets, asks the
 //   printer what it can do, builds an advertisement from that answer, publishes
@@ -260,12 +271,25 @@ public sealed class ServiceHost
         // holds last. The using on resolverSocket above still disposes the
         // first one if anything between here and there throws; disposing a
         // socket twice is harmless.
+        //
+        // What arrives between lookups goes to the printer's announcements,
+        // which tell the watch when the printer was heard without being asked
+        // (REQ-RES-011). The watch is made once the printer has answered at
+        // startup; until then, what is heard is dropped, as before.
+        DnsName ippInstance = DnsName.Parse(_configuration.PrinterInstance);
+        DnsName ippsInstance = DnsName.Parse(_configuration.PrinterIppsInstance);
+        PrinterWatch? watchToTell = null;
+        var announcements = new PrinterAnnouncements(
+            ippsInstance,
+            heard => Volatile.Read(ref watchToTell)?.RecordAnnouncement(heard));
+
         using var printerSide = new PrinterSide(
             printerInterface,
             resolverSocket,
             reopenOn => MdnsSocket.Open(PlanMdnsBindings(_configuration.ClientInterfaces, reopenOn).Resolver),
             () => StartupWait.Examine(_configuration.PrinterInterfaceName, SystemInterfaceInventory.Instance),
-            _log);
+            _log,
+            announcements: announcements);
 
         // Closed until the advertised names are claimed: it opens only when the
         // startup probe comes back clear (REQ-ADV-023). Everything that offers
@@ -275,8 +299,6 @@ public sealed class ServiceHost
         // The advertisement is built from what the printer says now, not from
         // anything stored. Until the printer answers nothing is advertised:
         // capabilities nobody has confirmed would be a claim we cannot support.
-        DnsName ippInstance = DnsName.Parse(_configuration.PrinterInstance);
-        DnsName ippsInstance = DnsName.Parse(_configuration.PrinterIppsInstance);
         _log.Info($"Asking {ippInstance} what it can do, and {ippsInstance} where to connect, "
                   + $"on {printerInterface}.");
 
@@ -457,13 +479,18 @@ public sealed class ServiceHost
 
             running.Add(watch.WatchAsync(stopping.Token));
 
+            // From here on, the printer heard without being asked is told to
+            // the watch (REQ-RES-011).
+            Volatile.Write(ref watchToTell, watch);
+
             // The printer-side adapter examined every five seconds, by the
             // startup wait's rule, for as long as the service runs. When it
             // is usable again after being seen not usable, or usable on
             // another address or index, the watch is told; if it holds the
             // printer unreachable, it asks at once and starts the RFC 6762
             // questions over from one second (REQ-RES-010). The adapter's
-            // state never makes the printer reachable: only an answer does.
+            // state never makes the printer reachable: only the printer does,
+            // by an answer or by its own records heard (REQ-RES-011).
             var adapterWatch = new AdapterWatch(
                 printerInterface,
                 () => StartupWait.Examine(_configuration.PrinterInterfaceName, SystemInterfaceInventory.Instance),

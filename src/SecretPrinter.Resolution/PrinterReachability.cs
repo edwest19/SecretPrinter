@@ -24,12 +24,24 @@
 // docs/findings/2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md.
 // Reviewed by a human before merge.
 //
+// RecordAnnouncement added by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-22, for REQ-RES-011. The printer's own
+// records, heard on the printer-side interface without being asked, now make a
+// printer held unreachable reachable, as an answer does; while it is held
+// reachable they change nothing. Edwin West chose that on 2026-10-22, after the
+// printer was seen to announce itself when it started. The verdict still rests
+// on what the printer itself sent, never on an adapter. See
+// docs/findings/2026-10-22-the-service-hears-the-printer-announce-itself.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Holds the service's belief about whether the printer can be reached, and
 //   says when the next query is due.
 //
-//   It is fed the outcome of real mDNS lookups on the printer-side interface,
-//   and nothing else. It never reads an adapter, an address, or a multicast
+//   It is fed the outcome of real mDNS lookups on the printer-side interface
+//   and, since 2026-10-22, the printer's own records heard there without being
+//   asked (RecordAnnouncement, REQ-RES-011), and nothing else: what the
+//   printer itself sent. It never reads an adapter, an address, or a multicast
 //   membership. That is deliberate and measured: on 2026-09-19 an adapter that
 //   had left 224.0.0.251 went on listing it at reference count 0, and an
 //   adapter reported up with a working unicast path returned no multicast
@@ -214,6 +226,35 @@ public sealed class PrinterReachability
     }
 
     /// <summary>
+    /// Records that the printer was heard on the printer-side interface without
+    /// being asked: an announcement, or an answer to another device. While the
+    /// printer is held unreachable it is taken as an answer and the printer is
+    /// reachable again; while it is held reachable it changes nothing.
+    /// </summary>
+    /// <remarks>
+    /// Like a job's answer, it is ignored when it tells nothing new: when it
+    /// was heard no later than the answer held, or its lifetime is already
+    /// over. Taking a record already dead would report the printer reachable
+    /// only for the next tick to report it gone.
+    /// </remarks>
+    [Requirement("REQ-RES-011",
+        "Takes the printer heard without being asked as an answer while it is held unreachable, unless it is no "
+        + "newer than the answer held or its lifetime is already over; while it is held reachable, changes nothing.")]
+    public ReachabilityTransition RecordAnnouncement(ResolvedPrinter announced)
+    {
+        ArgumentNullException.ThrowIfNull(announced);
+
+        if (_reachable
+            || announced.ResolvedAt <= _answeredAt
+            || !announced.IsFreshAt(_clock.GetUtcNow()))
+        {
+            return ReachabilityTransition.None;
+        }
+
+        return RecordAnswer(announced);
+    }
+
+    /// <summary>
     /// Records that a query went unanswered, and schedules the next one.
     /// </summary>
     [Requirement("REQ-RES-008",
@@ -306,7 +347,8 @@ public sealed class PrinterReachability
     [Requirement("REQ-RES-010",
         "Starts the questions over while the printer is held unreachable: the next is due at once and the "
         + "interval after it is one second again. While the printer is held reachable nothing changes, and "
-        + "the verdict is never changed: only an answer makes the printer reachable.")]
+        + "the verdict is never changed: only the printer makes itself reachable, by an answer or by its own records "
+        + "heard (REQ-RES-011).")]
     public bool RestartContinuousQuerying()
     {
         if (_reachable)

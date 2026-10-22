@@ -305,6 +305,13 @@ times the gateway did not answer while the link stayed connected
 ([finding](findings/2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md)).
 Reviewed by a human before merge.*
 
+*On 2026-10-22, by Claude (Anthropic model, Claude Opus 5.5) at the direction
+of Edwin West: under "When the printer-side network drops", in "Coming back can
+be slow", three sentences on the printer heard without being asked
+(`REQ-RES-011`;
+[finding](findings/2026-10-22-the-service-hears-the-printer-announce-itself.md)).
+Not run on a network. Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -1471,8 +1478,17 @@ know:
   an hour after it starts answering, and the start over moves when each later
   question falls, so it can be found later than it would have been without
   one ([the finding](findings/2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md)).
-  A drop shorter than 5 seconds may not be seen. Restarting the service brings
-  the printer back at once. Versions before this change, 0.1.0 among them, do
+  A drop shorter than 5 seconds may not be seen. Since 2026-10-22 the service
+  also listens, while the printer is withdrawn, for the printer's own records
+  on the printer-side network, sent without being asked, and offers the
+  printer again as soon as it hears them (`REQ-RES-011`), logging `Printer
+  reachable again: it was heard on the printer-side interface without being
+  asked`. The printer measured on 2026-10-21 announced itself when it was
+  switched on, so a printer that does that is offered again when it is heard,
+  not at the next question; no release carries this yet, and it has not been
+  run on a network
+  ([the finding](findings/2026-10-22-the-service-hears-the-printer-announce-itself.md)).
+  Restarting the service brings the printer back at once. Versions before this change, 0.1.0 among them, do
   not start over: after a long outage the printer may not reappear for up to
   an hour after the link returns. Run overnight on FIOS-STB-01 on 2026-10-10
   and 2026-10-11: three times the Wi-Fi was disconnected, and Windows did not

@@ -34,6 +34,11 @@
 // or not it brings one, added by Claude (Anthropic model, Claude Opus 5.5) at
 // the direction of Edwin West, 2026-10-20. Reviewed by a human before merge.
 //
+// Tests that the printer heard without being asked brings it back at once
+// while it is held unreachable, and changes nothing while it is reachable,
+// added by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin
+// West, 2026-10-22, for REQ-RES-011. Reviewed by a human before merge.
+//
 // Purpose:
 //   Holds the watch to two things: that it actually asks, and that it only
 //   speaks when something changed.
@@ -528,6 +533,95 @@ internal static class PrinterWatchTests
         Assert.Equal(1,
             log.Lines.FindAll(line => line.Contains("reachable again", StringComparison.Ordinal)).Count,
             "the recovery is logged once, as when the watch's own query is answered");
+    }
+
+    [TestCase("The printer heard without being asked while it is held unreachable is offered again at once, without a question, and the log says how it was found")]
+    [Requirement("REQ-RES-011")]
+    public static async Task Heard_while_unreachable_brings_it_back_at_once()
+    {
+        // The startup answer's 120s lifetime has already run out, so the watch's
+        // first pass finds the printer unreachable and asks once, unanswered.
+        // Its wait for the next question never ends by itself here, so only
+        // the printer being heard can bring it back.
+        var clock = new TestClock(Start + TimeSpan.FromSeconds(200));
+        var log = new RecordingLog();
+        var reachability = new PrinterReachability(Answer(Start), clock, () => 0.0);
+        var changes = new ConcurrentQueue<bool>();
+        int asked = 0;
+        using var stop = new CancellationTokenSource();
+
+        var watch = new PrinterWatch(
+            reachability,
+            _ =>
+            {
+                Interlocked.Increment(ref asked);
+                throw new PrinterResolutionException("silent, for the test");
+            },
+            log,
+            clock,
+            (_, token) => Task.Delay(Timeout.Infinite, token),
+            (reachable, _) =>
+            {
+                changes.Enqueue(reachable);
+                return Task.CompletedTask;
+            });
+
+        Task watching = watch.WatchAsync(stop.Token);
+        await WaitUntilAsync(() => Volatile.Read(ref asked) == 1, "asking once and going unanswered")
+            .ConfigureAwait(false);
+
+        watch.RecordAnnouncement(Answer(clock.GetUtcNow()));
+
+        await WaitUntilAsync(() => changes.Count == 2, "reporting the recovery").ConfigureAwait(false);
+        await stop.CancelAsync().ConfigureAwait(false);
+        await watching.ConfigureAwait(false);
+
+        List<string> said = log.Lines.FindAll(line => line.Contains("reachable again", StringComparison.Ordinal));
+
+        Assert.Equal("False, True", string.Join(", ", changes),
+            "the printer was withdrawn when its record expired, and offered again when it was heard");
+        Assert.True(reachability.IsReachable, "the state must follow");
+        Assert.Equal(1, Volatile.Read(ref asked), "no question was needed: the wait for the next one was ended");
+        Assert.Equal(1, said.Count, "the recovery is logged once");
+        Assert.True(said[0].StartsWith("Information: ", StringComparison.Ordinal), "as information");
+        Assert.True(said[0].Contains("without being asked", StringComparison.Ordinal),
+            "the line says the printer was heard, not that it answered a question");
+    }
+
+    [TestCase("The printer heard without being asked while it is held reachable changes nothing and says nothing")]
+    [Requirement("REQ-RES-011")]
+    public static async Task Heard_while_reachable_changes_nothing()
+    {
+        var clock = new TestClock(Start);
+        var log = new RecordingLog();
+        var reachability = new PrinterReachability(Answer(Start), clock, () => 0.0);
+        var waits = new ConcurrentQueue<TimeSpan>();
+        using var stop = new CancellationTokenSource();
+
+        var watch = new PrinterWatch(
+            reachability,
+            _ => throw new InvalidOperationException("the watch must not ask before its schedule says"),
+            log,
+            clock,
+            (wait, token) =>
+            {
+                waits.Enqueue(wait);
+                return Task.Delay(Timeout.Infinite, token);
+            });
+
+        Task watching = watch.WatchAsync(stop.Token);
+        await WaitUntilAsync(() => waits.Count == 1, "waiting for the first reconfirmation").ConfigureAwait(false);
+
+        clock.MoveTo(Start + TimeSpan.FromSeconds(50));
+        watch.RecordAnnouncement(Answer(clock.GetUtcNow()));
+
+        await WaitUntilAsync(() => waits.Count == 2, "waking, and waiting again").ConfigureAwait(false);
+        await stop.CancelAsync().ConfigureAwait(false);
+        await watching.ConfigureAwait(false);
+
+        Assert.Equal(Start + TimeSpan.FromSeconds(96), reachability.NextQueryDue,
+            "the reconfirmation still falls at 80% of the lifetime of the last answer");
+        Assert.Equal(0, log.Lines.Count, "nothing is said about a printer that is answering");
     }
 
     [TestCase("Told the printer-side interface is usable again while the printer is held unreachable, the watch asks at once, starts from one second again, and says so once")]

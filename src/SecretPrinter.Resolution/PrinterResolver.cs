@@ -99,6 +99,30 @@
 //   A query's outcome is handed only to the callers that were waiting on it. It
 //   stops being joinable before it is delivered, so a lookup that arrives
 //   afterwards asks again rather than receiving an old failure.
+//
+// Between lookups, the printer's own announcements (REQ-RES-011):
+//   Added by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+//   Edwin West, 2026-10-22. Reviewed by a human before merge.
+//
+//   A datagram that arrives while no lookup is waiting is still not a reply to
+//   anything this resolver asked, and it is still never taken as a lookup's
+//   answer. It is now handed, when the resolver was given one, to a
+//   PrinterAnnouncements, which keeps only what the printer multicast on its
+//   own, each record with its TTL counted from when it arrived. That is not
+//   the "remembered address by another route" above: that was a reply sitting
+//   in a socket's queue and taken later with its TTL counted from then, and the
+//   reader here takes each datagram as it arrives. On 2026-10-21 the printer
+//   was seen to announce itself eight times when it started, as RFC 6762 s8.3
+//   says, and this resolver dropped what arrived between its questions, which
+//   after a long outage are an hour apart. See
+//   docs/findings/2026-10-21-the-printer-announces-itself-when-it-starts.md and
+//   docs/findings/2026-10-22-the-service-hears-the-printer-announce-itself.md.
+//
+//   And a record whose TTL is 0 is a goodbye (RFC 6762 s10.1): it says the
+//   record is going away. Until 2026-10-22 a lookup took an SRV or an address
+//   record whatever its TTL, so a goodbye arriving while a lookup waited would
+//   have been taken as an answer whose lifetime was already over. Read from the
+//   code, never seen. A lookup now skips such records.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -147,6 +171,7 @@ public sealed class PrinterResolver : IDisposable
     private readonly MdnsInterface _printerInterface;
     private readonly TimeProvider _clock;
     private readonly IInterfaceInventory _inventory;
+    private readonly PrinterAnnouncements? _announcements;
     private readonly CancellationTokenSource _readerLifetime = new();
     private readonly CancellationToken _lifetime;
     private readonly Task _reader;
@@ -185,11 +210,17 @@ public sealed class PrinterResolver : IDisposable
     /// Supplied so that every interface state can be tested on a machine which
     /// has none of them. Defaults to the adapters actually present.
     /// </param>
+    /// <param name="announcements">
+    /// Given every datagram that arrives while no lookup is waiting for it, so
+    /// that the printer can be heard when it speaks without being asked
+    /// (REQ-RES-011). Without one, such datagrams are dropped, as before.
+    /// </param>
     public PrinterResolver(
         IMdnsTransport transport,
         MdnsInterface printerInterface,
         TimeProvider? clock = null,
-        IInterfaceInventory? inventory = null)
+        IInterfaceInventory? inventory = null,
+        PrinterAnnouncements? announcements = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(printerInterface);
@@ -210,6 +241,7 @@ public sealed class PrinterResolver : IDisposable
         _printerInterface = printerInterface;
         _clock = clock ?? TimeProvider.System;
         _inventory = inventory ?? SystemInterfaceInventory.Instance;
+        _announcements = announcements;
 
         // Captured once. A query that is running when the resolver is disposed
         // is ended through this token; reading Token from the source after it
@@ -415,8 +447,12 @@ public sealed class PrinterResolver : IDisposable
 
     /// <summary>
     /// Reads the transport for as long as the resolver exists, passing each
-    /// datagram to the lookup that is waiting, or discarding it when none is.
+    /// datagram to the lookup that is waiting or, when none is, to the
+    /// printer's announcements if there are any to pass it to.
     /// </summary>
+    [Requirement("REQ-RES-011",
+        "Hands a datagram that arrives while no lookup is waiting to the printer's announcements, and never to a "
+        + "lookup; one that arrives while a lookup is waiting goes to that lookup, as before.")]
     private async Task ReadContinuouslyAsync(CancellationToken lifetime)
     {
         while (true)
@@ -445,9 +481,29 @@ public sealed class PrinterResolver : IDisposable
                 return;
             }
 
-            // Kept only if a lookup is waiting now. Otherwise it arrived between
-            // lookups, is not a reply to anything we asked, and is dropped.
-            Volatile.Read(ref _listening)?.Writer.TryWrite(datagram);
+            // Kept for a lookup only if one is waiting now. Otherwise it arrived
+            // between lookups and is not a reply to anything we asked: it goes
+            // to the printer's announcements, which take only what the printer
+            // multicast on its own (REQ-RES-011), or, without them, nowhere.
+            // A lookup that ended just now has completed its inbox, and its
+            // write fails: that datagram arrived between lookups too.
+            if (Volatile.Read(ref _listening)?.Writer.TryWrite(datagram) == true)
+            {
+                continue;
+            }
+
+            try
+            {
+                _announcements?.Hear(datagram, _printerInterface);
+            }
+            catch (Exception ex)
+            {
+                // Not handled here. Hear rejects what it cannot use without
+                // throwing, and the service's callback only queues, so this is a
+                // fault, not traffic: stop, and make lookups say why.
+                StopReading($"hearing the printer between lookups on {_printerInterface} failed: {ex.Message}");
+                return;
+            }
         }
     }
 
@@ -563,6 +619,13 @@ public sealed class PrinterResolver : IDisposable
 
             foreach (DnsRecord record in message.AllRecords)
             {
+                // A record whose TTL is 0 is a goodbye (RFC 6762 s10.1): it is
+                // going away, so it is no answer (REQ-RES-011).
+                if (record.Ttl == 0)
+                {
+                    continue;
+                }
+
                 switch (record.Type)
                 {
                     case DnsRecordType.Srv when record.Name.Equals(instance) && record.SrvTarget is { } target:

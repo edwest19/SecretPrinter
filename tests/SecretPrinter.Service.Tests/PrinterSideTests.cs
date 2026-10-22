@@ -5,6 +5,11 @@
 // Edwin West, for the SecretPrinter project, 2026-09-25, for REQ-RES-009.
 // Reviewed by a human before merge.
 //
+// The test that every resolver made here hands the printer's announcements on,
+// a reopen included, added by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-22, for REQ-RES-011. The fake socket gained
+// Enqueue for it. Reviewed by a human before merge.
+//
 // Purpose:
 //   Holds PrinterSide to what it is for: after a reopen, questions go through a
 //   new socket on the adapter's current address and the old socket is closed;
@@ -53,6 +58,9 @@ internal static class PrinterSideTests
         public Task<MdnsDatagram> ReceiveAsync(CancellationToken cancellationToken) =>
             _inner.ReceiveAsync(cancellationToken);
 
+        /// <summary>Delivers a datagram as if it had arrived on this socket.</summary>
+        public void Enqueue(MdnsDatagram datagram) => _inner.Enqueue(datagram);
+
         public Task SendMulticastAsync(ReadOnlyMemory<byte> payload, MdnsInterface via, CancellationToken cancellationToken) =>
             _inner.SendMulticastAsync(payload, via, cancellationToken);
 
@@ -76,7 +84,10 @@ internal static class PrinterSideTests
     /// socket it opens.
     /// </summary>
     private static (PrinterSide Side, ClosableTransport First, List<ClosableTransport> Opened, RecordingLog Log)
-        Build(Func<(MdnsInterface? Usable, string? Reason)> adapterNow, Func<MdnsInterface, ClosableTransport>? open = null)
+        Build(
+            Func<(MdnsInterface? Usable, string? Reason)> adapterNow,
+            Func<MdnsInterface, ClosableTransport>? open = null,
+            PrinterAnnouncements? announcements = null)
     {
         var first = new ClosableTransport(Adapter);
         var opened = new List<ClosableTransport>();
@@ -92,9 +103,56 @@ internal static class PrinterSideTests
                 return made;
             },
             adapterNow,
-            log);
+            log,
+            announcements: announcements);
 
         return (side, first, opened, log);
+    }
+
+    /// <summary>The printer's records as a multicast response, as heard on <paramref name="on"/>.</summary>
+    private static MdnsDatagram Announcement(MdnsInterface on)
+    {
+        DnsName host = DnsName.Parse("printer.local");
+        byte[] payload = new DnsResponseBuilder()
+            .AddAnswer(new OutgoingRecord(Instance, DnsRecordType.Srv, 120, true, new SrvPayload(0, 0, 631, host)))
+            .AddAnswer(new OutgoingRecord(host, DnsRecordType.A, 120, true,
+                new AddressPayload(IPAddress.Parse("192.168.12.180"))))
+            .Build();
+
+        return new MdnsDatagram(
+            payload, new IPEndPoint(IPAddress.Parse("192.168.12.180"), 5353), on.Index, on, MdnsSocket.MulticastGroup);
+    }
+
+    [TestCase("Every resolver made here hands the printer's announcements on, after a reopen too")]
+    [Requirement("REQ-RES-011")]
+    public static void Announcements_are_heard_through_every_resolver()
+    {
+        int heard = 0;
+        var announcements = new PrinterAnnouncements(Instance, _ => Interlocked.Increment(ref heard));
+
+        (PrinterSide side, ClosableTransport first, List<ClosableTransport> opened, _) =
+            Build(() => (Adapter, null), announcements: announcements);
+
+        using (side)
+        {
+            first.Enqueue(Announcement(Adapter));
+            WaitFor(() => Volatile.Read(ref heard) == 1, "the first resolver hearing the printer");
+
+            Assert.True(side.Reopen(), "a usable adapter must be reopened on");
+            opened[0].Enqueue(Announcement(Adapter));
+            WaitFor(() => Volatile.Read(ref heard) == 2, "the resolver made by the reopen hearing it");
+        }
+    }
+
+    private static void WaitFor(Func<bool> condition, string what)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(10);
+        }
+
+        Assert.True(condition(), $"timed out {what}");
     }
 
     [TestCase("A reopen puts a new socket and resolver in place, then closes the old ones")]

@@ -32,6 +32,14 @@ third of the four courses under "Decided"; it has not been built, and is
 raised again in [the finding of
 2026-10-21](2026-10-21-the-printer-announces-itself-when-it-starts.md).)*
 
+*(Status note, later on 2026-10-22, by Claude, Claude Opus 5.5: Edwin West
+chose the third course that day, and it was built: while the printer is held
+unreachable, its own records heard on the printer-side interface make it
+reachable (README `REQ-RES-011`). Measured against the code by tests; not run
+on a network, and no release carries it. The hourly cap is unchanged. See
+[the finding of
+2026-10-22](2026-10-22-the-service-hears-the-printer-announce-itself.md).)*
+
 All times are UTC and on 2026-10-03 unless a date is given. In US Eastern time,
 where the machines are, they fall on the evening of 2026-10-02.
 

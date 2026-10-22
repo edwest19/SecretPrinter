@@ -18,6 +18,11 @@
 // model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-10, for
 // REQ-RES-010. Reviewed by a human before merge.
 //
+// Tests of RecordAnnouncement, the printer heard on the printer-side interface
+// without being asked, added by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-22, for REQ-RES-011. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   Pins the reachability schedule to RFC 6762 section 5.2 rather than to
 //   whatever the implementation happens to do.
@@ -391,6 +396,79 @@ internal static class PrinterReachabilityTests
             ReachabilityTransition.None,
             reachability.RecordDemandAnswer(Answer(answeredAt)),
             "a record already dead must not report the printer reachable for one tick");
+        Assert.False(reachability.IsReachable, "the printer is still held unreachable");
+    }
+
+    // ---- Heard without being asked (REQ-RES-011) ---------------------------------
+
+    [TestCase("The printer heard while it is held unreachable is reachable again, and the schedule runs from what was heard")]
+    [Requirement("REQ-RES-011")]
+    public static void Heard_while_unreachable_makes_it_reachable()
+    {
+        var clock = new TestClock(Start);
+        PrinterReachability reachability = Fresh(clock);
+
+        clock.MoveTo(Start + TimeSpan.FromSeconds(120));
+        Assert.Equal(ReachabilityTransition.BecameUnreachable, reachability.Tick(), "the record ran out unanswered");
+
+        DateTimeOffset heardAt = Start + TimeSpan.FromSeconds(3000);
+        clock.MoveTo(heardAt);
+
+        Assert.Equal(
+            ReachabilityTransition.BecameReachable,
+            reachability.RecordAnnouncement(Answer(heardAt)),
+            "the printer's own records, heard on the printer-side interface, are as good as an answer");
+        Assert.True(reachability.IsReachable, "the state must follow");
+        Assert.Equal(heardAt + TimeSpan.FromSeconds(96), reachability.NextQueryDue,
+            "the first reconfirmation is at 80% of the lifetime heard, as after any answer");
+        Assert.Equal(heardAt + TimeSpan.FromSeconds(120), reachability.RecordExpiresAt,
+            "and the record lasts from when it was heard");
+    }
+
+    [TestCase("The printer heard while it is held reachable changes nothing")]
+    [Requirement("REQ-RES-011")]
+    public static void Heard_while_reachable_changes_nothing()
+    {
+        var clock = new TestClock(Start);
+        PrinterReachability reachability = Fresh(clock);
+        DateTimeOffset due = reachability.NextQueryDue;
+        DateTimeOffset expires = reachability.RecordExpiresAt;
+
+        DateTimeOffset heardAt = Start + TimeSpan.FromSeconds(50);
+        clock.MoveTo(heardAt);
+
+        Assert.Equal(
+            ReachabilityTransition.None,
+            reachability.RecordAnnouncement(Answer(heardAt)),
+            "a printer already reachable has not changed state");
+        Assert.Equal(due, reachability.NextQueryDue, "the reconfirmations still run from the last answer");
+        Assert.Equal(expires, reachability.RecordExpiresAt, "and so does the record's lifetime");
+    }
+
+    [TestCase("Something heard whose lifetime is over, or no newer than the answer held, does not revive the printer")]
+    [Requirement("REQ-RES-011")]
+    public static void Heard_but_stale_changes_nothing()
+    {
+        var clock = new TestClock(Start);
+        PrinterReachability reachability = Fresh(clock);
+
+        clock.MoveTo(Start + TimeSpan.FromSeconds(120));
+        reachability.Tick();
+
+        DateTimeOffset heardAt = Start + TimeSpan.FromSeconds(130);
+        clock.MoveTo(heardAt + TimeSpan.FromSeconds(120));
+
+        Assert.Equal(
+            ReachabilityTransition.None,
+            reachability.RecordAnnouncement(Answer(heardAt)),
+            "a record already dead must not report the printer reachable for one tick");
+
+        // Still within its lifetime, but heard no later than the answer the
+        // loss was counted from.
+        Assert.Equal(
+            ReachabilityTransition.None,
+            reachability.RecordAnnouncement(Answer(Start) with { Ttl = 4500 }),
+            "nor may one no newer than the answer the loss was counted from");
         Assert.False(reachability.IsReachable, "the printer is still held unreachable");
     }
 

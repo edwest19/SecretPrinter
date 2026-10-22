@@ -14,6 +14,10 @@
 // PrinterReachabilityTests registered by Claude (Anthropic model, Claude Opus
 // 5) at the direction of Edwin West, 2026-09-20. Reviewed by a human before
 // merge.
+//
+// PrinterAnnouncementsTests registered by Claude (Anthropic model, Claude Opus
+// 5.5) at the direction of Edwin West, 2026-10-22, for REQ-RES-011. Reviewed
+// by a human before merge.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.TestKit;
@@ -50,6 +54,7 @@ internal static class Program
             resultsPath,
             typeof(PrinterResolverTests),
             typeof(PrinterInterfaceDiagnosisTests),
-            typeof(PrinterReachabilityTests));
+            typeof(PrinterReachabilityTests),
+            typeof(PrinterAnnouncementsTests));
     }
 }

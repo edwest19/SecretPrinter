@@ -35,6 +35,13 @@ starts nothing over. Whether the service should hear them is raised, not
 decided, in [the finding of
 2026-10-21](2026-10-21-the-printer-announces-itself-when-it-starts.md).)*
 
+*(Status note, later on 2026-10-22, by Claude, Claude Opus 5.5: decided and
+built that day. While the printer is held unreachable, its own records heard
+on the printer-side interface now make it reachable without waiting for a
+question, started over or not (README `REQ-RES-011`). Measured against the code
+by tests; not run on a network, and no release carries it. See [the finding of
+2026-10-22](2026-10-22-the-service-hears-the-printer-announce-itself.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding. Neither does an address in `169.254.0.0/16` that the service's log
 records for the printer-side adapter. The addresses in the tests are made up.

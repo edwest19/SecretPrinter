@@ -60,6 +60,19 @@
 // Comments and the marker's text only; no behaviour changed. Reviewed by a
 // human before merge.
 //
+// The destination address of each datagram received kept on MdnsDatagram, with
+// SentToGroup, by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+// Edwin West, 2026-10-22, for REQ-RES-011. ReceiveAsync already read it with
+// IP_PKTINFO and IPV6_PKTINFO and threw it away. Microsoft documents
+// IN_PKTINFO's ipi_addr, on receive, as "The destination IPv4 address from the
+// IP header of the received packet", and IN6_PKTINFO's ipi6_addr likewise; the
+// .NET runtime (v10.0.0, SocketPal.Windows.cs and pal_networking.c) passes that
+// field through as IPPacketInformation.Address. RFC 6762 s6 has a querier
+// silently ignore unicast responses it did not ask for, and the printer's
+// announcements are heard only when sent to the group. See
+// docs/findings/2026-10-22-the-service-hears-the-printer-announce-itself.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The service's single point of contact with the network for mDNS. It binds
 //   UDP 5353, joins the multicast group on configured interfaces, receives
@@ -194,12 +207,34 @@ namespace SecretPrinter.Mdns;
 /// when the datagram arrived on an interface the service was not configured
 /// for. Callers must treat null as "not for us".
 /// </param>
+/// <param name="Destination">
+/// The destination address in the datagram's IP header, from IP_PKTINFO or
+/// IPV6_PKTINFO: the mDNS group for a multicast, this machine's address for a
+/// unicast. Null when it is not known, as for a datagram a test builds without
+/// one.
+/// </param>
 public sealed record MdnsDatagram(
     byte[] Payload,
     IPEndPoint Source,
     int InterfaceIndex,
-    MdnsInterface? ArrivedOn)
+    MdnsInterface? ArrivedOn,
+    IPAddress? Destination = null)
 {
+    /// <summary>
+    /// True when the datagram was sent to the mDNS group, 224.0.0.251 or
+    /// ff02::fb, rather than by unicast. False when the destination is not
+    /// known. RFC 6762 s6 has a querier silently ignore a unicast response it
+    /// did not ask for.
+    /// </summary>
+    [Requirement("REQ-RES-011",
+        "Tells a datagram sent to the mDNS group from one sent by unicast or to a destination not known, so that a "
+        + "response nobody asked for is taken only when it was multicast.")]
+    public bool SentToGroup =>
+        Destination is { } destination
+        && (destination.Equals(MdnsSocket.MulticastGroup)
+            || (destination.AddressFamily == AddressFamily.InterNetworkV6
+                && destination.GetAddressBytes().AsSpan().SequenceEqual(MdnsSocket.MulticastGroupV6.GetAddressBytes())));
+
     /// <summary>
     /// True when the sender used a port other than 5353, marking it a legacy
     /// unicast querier under RFC 6762 §6.7. Such queriers must be answered
@@ -656,6 +691,9 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
         "Reads the IPv6 socket as well as the IPv4 one, so a query arriving only over IPv6 is seen. The answering half of this requirement is MdnsResponder.HandleAsync, which answers over the transport recorded here.")]
     [Requirement("REQ-ADV-020",
         "Takes the arrival interface from IPV6_PKTINFO and looks it up by address family as well as index, so an IPv6 arrival is attributed to the IPv6 entry rather than to the IPv4 entry that may share its number.")]
+    [Requirement("REQ-RES-011",
+        "Keeps the destination address IP_PKTINFO and IPV6_PKTINFO report for each datagram, so that one sent to "
+        + "the mDNS group can be told from one sent by unicast.")]
     public async Task<MdnsDatagram> ReceiveAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -730,7 +768,10 @@ public sealed class MdnsSocket : IMdnsTransport, IDisposable
             int index = result.PacketInformation.Interface;
             _byIndex.TryGetValue((family, index), out MdnsInterface? arrivedOn);
 
-            return new MdnsDatagram(payload, (IPEndPoint)result.RemoteEndPoint, index, arrivedOn);
+            // The destination comes from the same packet information: the
+            // address in the IP header, the group for a multicast.
+            return new MdnsDatagram(
+                payload, (IPEndPoint)result.RemoteEndPoint, index, arrivedOn, result.PacketInformation.Address);
         }
         finally
         {

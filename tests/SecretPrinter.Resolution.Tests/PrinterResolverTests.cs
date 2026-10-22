@@ -27,6 +27,13 @@
 // docs/findings/2026-09-25-two-clauses-of-req-res-008-were-never-built.md.
 // Reviewed by a human before merge.
 //
+// Tests that a response arriving between lookups goes to the printer's
+// announcements, and that a lookup does not take a record whose TTL is 0 as its
+// answer, added by Claude (Anthropic model, Claude Opus 5.5) at the direction
+// of Edwin West, 2026-10-22, for REQ-RES-011. See
+// docs/findings/2026-10-22-the-service-hears-the-printer-announce-itself.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that the printer is found by name rather than by remembered
 //   address, and that a stale answer is never returned.
@@ -86,9 +93,13 @@ internal static class PrinterResolverTests
     /// </summary>
     private static readonly DnsName PrinterHost = new(["EPSON000000", "local"]);
 
-    /// <summary>Builds the reply an Epson sends: SRV, TXT and A together.</summary>
+    /// <summary>
+    /// Builds the reply an Epson sends: SRV, TXT and A together. With
+    /// <paramref name="toGroup"/> it is marked as sent to 224.0.0.251, as a
+    /// multicast response is; otherwise its destination is not known.
+    /// </summary>
     private static MdnsDatagram PrinterReply(
-        string address, uint ttl = 120, int interfaceIndex = 11, DnsName? instance = null)
+        string address, uint ttl = 120, int interfaceIndex = 11, DnsName? instance = null, bool toGroup = false)
     {
         DnsName target = instance ?? Instance;
 
@@ -105,7 +116,20 @@ internal static class PrinterResolverTests
             payload,
             new IPEndPoint(IPAddress.Parse(address), 5353),
             interfaceIndex,
-            interfaceIndex == PrinterNic.Index ? PrinterNic : null);
+            interfaceIndex == PrinterNic.Index ? PrinterNic : null,
+            toGroup ? MdnsSocket.MulticastGroup : null);
+    }
+
+    /// <summary>Waits up to five seconds for a condition the resolver's reader makes true.</summary>
+    private static void WaitFor(Func<bool> condition, string what)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(10);
+        }
+
+        Assert.True(condition(), $"timed out {what}");
     }
 
     /// <summary>A transport that answers each query with the given reply.</summary>
@@ -566,6 +590,116 @@ internal static class PrinterResolverTests
 
         Assert.Equal(IPAddress.Parse("192.168.12.180"), Resolve(resolver).Address,
             "a reply that was waiting before the query was sent must not be taken as its answer");
+    }
+
+    // ---- Between lookups, and goodbyes (REQ-RES-011) -------------------------
+
+    [TestCase("A response that arrives while no lookup is waiting is handed to the printer's announcements")]
+    [Requirement("REQ-RES-011")]
+    public static void Response_between_lookups_goes_to_the_announcements()
+    {
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        var heard = new List<ResolvedPrinter>();
+        var announcements = new PrinterAnnouncements(Instance, answer =>
+        {
+            lock (heard)
+            {
+                heard.Add(answer);
+            }
+        });
+
+        using var resolver = new PrinterResolver(
+            transport, PrinterNic, inventory: LocalAdapters, announcements: announcements);
+
+        // The printer announcing itself, while nobody asked.
+        transport.Enqueue(PrinterReply("192.168.12.180", toGroup: true));
+
+        WaitFor(() => { lock (heard) { return heard.Count == 1; } }, "waiting for the announcement to be heard");
+
+        Assert.Equal(IPAddress.Parse("192.168.12.180"), heard[0].Address, "the address the printer announced");
+        Assert.Equal(0, transport.Sent.Count, "nothing was asked");
+    }
+
+    [TestCase("A response that arrives while a lookup is waiting goes to that lookup, not to the announcements")]
+    [Requirement("REQ-RES-011")]
+    public static void Response_during_a_lookup_goes_to_the_lookup()
+    {
+        int heard = 0;
+        FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180", toGroup: true));
+        var announcements = new PrinterAnnouncements(Instance, _ => Interlocked.Increment(ref heard));
+
+        using var resolver = new PrinterResolver(
+            transport, PrinterNic, inventory: LocalAdapters, announcements: announcements);
+
+        Assert.Equal(IPAddress.Parse("192.168.12.180"), Resolve(resolver).Address, "the lookup is answered");
+        Thread.Sleep(100);
+
+        Assert.Equal(0, Volatile.Read(ref heard), "an answer to a lookup is that lookup's, and is not heard twice");
+    }
+
+    [TestCase("A fault while hearing the printer between lookups stops the reader, and the next lookup says why")]
+    [Requirement("REQ-RES-011")]
+    public static void Fault_while_hearing_stops_the_reader_loudly()
+    {
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        using var called = new ManualResetEventSlim();
+        var announcements = new PrinterAnnouncements(Instance, _ =>
+        {
+            called.Set();
+            throw new InvalidOperationException("a callback that throws, for the test");
+        });
+
+        using var resolver = new PrinterResolver(
+            transport, PrinterNic, inventory: LocalAdapters, announcements: announcements);
+
+        transport.Enqueue(PrinterReply("192.168.12.180", toGroup: true));
+
+        // The lookup starts only once the datagram has been handed over, so it
+        // cannot take the datagram for itself. Whether it starts before or after
+        // the reader stops, it ends with the reader's reason.
+        Assert.True(called.Wait(TimeSpan.FromSeconds(5)), "the datagram must reach the announcements");
+
+        PrinterResolutionException failure = Assert.Throws<PrinterResolutionException>(
+            () => Resolve(resolver, TimeSpan.FromSeconds(5)),
+            "a resolver whose reader has stopped must not answer");
+
+        Assert.True(failure.Message.Contains("hearing the printer between lookups", StringComparison.Ordinal),
+            $"the lookup names the fault, not a timeout: {failure.Message}");
+        Assert.True(failure.Message.Contains("a callback that throws, for the test", StringComparison.Ordinal),
+            "and carries its reason");
+    }
+
+    [TestCase("A lookup does not take a goodbye, a record whose TTL is 0, as its answer")]
+    [Requirement("REQ-RES-011")]
+    public static void Lookup_does_not_take_a_goodbye()
+    {
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        transport.OnSend = _ =>
+        {
+            // The printer saying goodbye from its old address just as it is
+            // asked, then answering from its new one.
+            transport.Enqueue(PrinterReply("192.168.12.186", ttl: 0));
+            transport.Enqueue(PrinterReply("192.168.12.180"));
+        };
+
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+        ResolvedPrinter resolved = Resolve(resolver);
+
+        Assert.Equal(IPAddress.Parse("192.168.12.180"), resolved.Address,
+            "RFC 6762 s10.1: a record with a TTL of 0 is going away, so it is not an answer");
+        Assert.Equal(120u, resolved.Ttl, "the answer is the record with a lifetime");
+    }
+
+    [TestCase("A lookup answered only by a goodbye fails as unanswered")]
+    [Requirement("REQ-RES-011")]
+    public static void Lookup_answered_only_by_a_goodbye_fails()
+    {
+        FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180", ttl: 0));
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        Assert.Throws<PrinterResolutionException>(
+            () => Resolve(resolver, TimeSpan.FromMilliseconds(300)),
+            "an answer whose lifetime is already over would make the printer reachable only to lose it at once");
     }
 
     // ---- Construction -------------------------------------------------------

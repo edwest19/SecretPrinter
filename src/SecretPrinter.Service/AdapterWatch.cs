@@ -5,6 +5,12 @@
 // Edwin West, 2026-10-10, for the SecretPrinter project, for REQ-RES-010.
 // Reviewed by a human before merge.
 //
+// "Only an answer does that", under "What it does not do", widened by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-22, when the printer's own records heard without being asked began
+// to make it reachable too (REQ-RES-011). Comment only; no behaviour changed.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Says when the printer-side adapter has become usable again, so that a
 //   printer held unreachable is asked at once (PrinterWatch.StartQuestionsOver)
@@ -35,8 +41,9 @@
 //   held reachable, nothing.
 //
 // What it does not do:
-//   It never says the printer is reachable. Only an answer does that
-//   (REQ-RES-008). It does not reopen the printer-side socket; the watch's next
+//   It never says the printer is reachable. Only the printer itself does
+//   that: an answer (REQ-RES-008), or its own records heard without being
+//   asked (REQ-RES-011). It does not reopen the printer-side socket; the watch's next
 //   question does, as it does before every question to a printer held
 //   unreachable (REQ-RES-009). A drop shorter than CheckInterval falls between
 //   two examinations and is not seen.

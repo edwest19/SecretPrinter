@@ -31,6 +31,12 @@
 // name but FIOS-STB-01 belongs in this repository. Comment only; no test
 // changed. Reviewed by a human before merge.
 //
+// Two tests of the destination a datagram was sent to, for REQ-RES-011, added
+// by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-22: one of SentToGroup alone, and one that sends a probe to
+// 224.0.0.251 from a second socket, with a multicast TTL of 0 so it stays on
+// this machine, and reads it back. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that MdnsSocket is configured the way the specification requires,
 //   by reading the options back from the operating system rather than trusting
@@ -735,6 +741,62 @@ internal static class MdnsSocketTests
             "the datagram must be attributed to the IPv6 entry for the adapter it arrived on");
     }
 
+    /// <summary>
+    /// Sends a unique payload to 224.0.0.251:5353 out of the interface holding
+    /// <paramref name="via"/>, from a socket of its own, with a multicast TTL
+    /// of 0 so that it is looped back on this machine and goes no further.
+    /// </summary>
+    private static byte[] SendLocalIPv4Probe(IPAddress via)
+    {
+        byte[] payload = Guid.NewGuid().ToByteArray();
+
+        using var sender = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        sender.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, via.GetAddressBytes());
+        sender.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 0);
+        sender.SendTo(payload, new IPEndPoint(MdnsSocket.MulticastGroup, MdnsSocket.MdnsPort));
+
+        return payload;
+    }
+
+    [TestCase("An IPv4 arrival sent to the mDNS group records the group as its destination")]
+    [RequiresNetwork]
+    [Requirement("REQ-RES-011")]
+    public static void IPv4_arrival_records_the_group_as_its_destination()
+    {
+        using MdnsSocket socket = OpenOrSkip(out IPAddress address);
+
+        byte[] expected = SendLocalIPv4Probe(address);
+
+        // The socket is joined on a live adapter, so the link's own mDNS traffic
+        // arrives here too. Read until the probe turns up, or give up.
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        MdnsDatagram? found = null;
+        try
+        {
+            while (found is null)
+            {
+                MdnsDatagram received = socket.ReceiveAsync(deadline.Token).GetAwaiter().GetResult();
+
+                if (received.Payload.AsSpan().SequenceEqual(expected))
+                {
+                    found = received;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw new AssertionException(
+                "The probe sent to 224.0.0.251 did not come back within 5s. This test depends on IPv4 "
+                + "multicast being looped back on this machine, which the service's own announcements "
+                + "show on Windows and which this project does not set.");
+        }
+
+        Assert.Equal(MdnsSocket.MulticastGroup, found!.Destination,
+            "the destination is the group the datagram was sent to, read from IP_PKTINFO");
+        Assert.True(found.SentToGroup, "and so it is told from a datagram sent by unicast");
+    }
+
     [TestCase("Two callers may receive at once without either being refused")]
     [RequiresNetwork]
     public static void Concurrent_receivers_are_serialised_not_refused()
@@ -883,6 +945,23 @@ internal static class MdnsSocketTests
             "RFC 6762 s6.7 identifies legacy queriers by a source port other than 5353");
         Assert.False(fromMdnsPort.IsLegacyUnicastQuerier,
             "a query from port 5353 is a normal multicast querier");
+    }
+
+    [TestCase("A datagram sent to the mDNS group is told from one sent by unicast, or to an unknown destination")]
+    [Requirement("REQ-RES-011")]
+    public static void Sent_to_group_is_told_from_unicast()
+    {
+        static MdnsDatagram To(IPAddress? destination) => new(
+            [], new IPEndPoint(IPAddress.Parse("192.0.2.10"), MdnsSocket.MdnsPort), 1, null, destination);
+
+        Assert.True(To(MdnsSocket.MulticastGroup).SentToGroup, "224.0.0.251 is the IPv4 mDNS group");
+        Assert.True(To(MdnsSocket.MulticastGroupV6).SentToGroup, "ff02::fb is the IPv6 mDNS group");
+        Assert.True(To(IPAddress.Parse("ff02::fb%7")).SentToGroup,
+            "a scope on the IPv6 group does not make it another address");
+        Assert.False(To(IPAddress.Parse("192.0.2.20")).SentToGroup, "a datagram sent to this machine's address is unicast");
+        Assert.False(To(IPAddress.Parse("224.0.0.252")).SentToGroup, "another multicast group is not the mDNS group");
+        Assert.False(To(IPAddress.Parse("fe80::10")).SentToGroup, "nor is a link-local unicast address");
+        Assert.False(To(null).SentToGroup, "a destination not known cannot be shown to be the group");
     }
 
     [TestCase("A datagram from an unconfigured interface has no ArrivedOn")]
