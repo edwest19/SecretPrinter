@@ -34,6 +34,13 @@ responses it did not ask for and responses from other ports are applied to
 what is heard; the lookups themselves do not yet apply them. See [the finding
 of 2026-10-22](2026-10-22-the-service-hears-the-printer-announce-itself.md).)*
 
+*(Status note, later on 2026-10-22, by Claude, Claude Opus 5.5: run on a
+network that evening, once, on FIOS-STB-01 in a build from source. After the
+printer had been switched off for about 16 minutes, the service heard it and
+offered it again no more than about 40 seconds after it was switched on,
+without waiting for its next question. No release carries it. See [the finding
+of the run](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The tool's output names every device that speaks mDNS on

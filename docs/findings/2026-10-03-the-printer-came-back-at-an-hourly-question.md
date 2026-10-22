@@ -40,6 +40,13 @@ on a network, and no release carries it. The hourly cap is unchanged. See
 [the finding of
 2026-10-22](2026-10-22-the-service-hears-the-printer-announce-itself.md).)*
 
+*(Status note, that evening, by Claude, Claude Opus 5.5: run on a network,
+once, on FIOS-STB-01 in a build from source. After the printer had been off
+for about 16 minutes, the service heard it and offered it again no more than
+about 40 seconds after it was switched on, when its next question was about 3
+minutes away. No release carries it. See [the finding of the
+run](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md).)*
+
 All times are UTC and on 2026-10-03 unless a date is given. In US Eastern time,
 where the machines are, they fall on the evening of 2026-10-02.
 

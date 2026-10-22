@@ -312,6 +312,12 @@ be slow", three sentences on the printer heard without being asked
 [finding](findings/2026-10-22-the-service-hears-the-printer-announce-itself.md)).
 Not run on a network. Reviewed by a human before merge.*
 
+*Later on 2026-10-22, by Claude (Anthropic model, Claude Opus 5.5) at the
+direction of Edwin West: in "Coming back can be slow", the words "and it has
+not been run on a network" replaced by a sentence on the run on FIOS-STB-01
+([finding](findings/2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -1485,9 +1491,12 @@ know:
   reachable again: it was heard on the printer-side interface without being
   asked`. The printer measured on 2026-10-21 announced itself when it was
   switched on, so a printer that does that is offered again when it is heard,
-  not at the next question; no release carries this yet, and it has not been
-  run on a network
+  not at the next question
   ([the finding](findings/2026-10-22-the-service-hears-the-printer-announce-itself.md)).
+  Run once on FIOS-STB-01 on 2026-10-22, in a build from source, it offered
+  the printer again no more than about 40 seconds after it was switched on,
+  when the next question was about 3 minutes away; no release carries this
+  yet ([the finding of the run](findings/2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md)).
   Restarting the service brings the printer back at once. Versions before this change, 0.1.0 among them, do
   not start over: after a long outage the printer may not reappear for up to
   an hour after the link returns. Run overnight on FIOS-STB-01 on 2026-10-10

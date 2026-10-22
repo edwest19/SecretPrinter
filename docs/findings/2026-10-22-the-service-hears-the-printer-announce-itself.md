@@ -18,6 +18,20 @@ Edwin West decided this on 2026-10-22, after the printer was seen the day
 before to announce itself eight times in the two minutes after it was switched
 on, while the service kept what arrived only for a question that was waiting.**
 
+*(Status note, later on 2026-10-22, by Claude, Claude Opus 5.5: run on a
+network, once, that evening. A build of `5a291c4` made from source on
+FIOS-STB-01, not signed, ran there. With the printer switched off for about 16
+minutes and held unreachable, the service logged `Printer reachable again: it
+was heard on the printer-side interface without being asked` no more than
+about 40 seconds after the printer was switched on, when by the code its next
+question was about 3 minutes away, and had the printer on offer 3 seconds
+later. It heard through a socket reopened while the printer was held
+unreachable, and a page printed afterwards. When the printer first announced
+itself was not measured, and that no line comes while it is held reachable was
+not exercised. About 5 minutes later the service lost the printer again and
+found it by one of its own questions; why is not shown. No release carries
+this. See [the finding of the run](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The addresses in the tests are made up or from the
