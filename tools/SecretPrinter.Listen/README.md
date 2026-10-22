@@ -12,6 +12,14 @@ replies, the TTL of every answer record, so the tool can show whether the
 service's goodbye records reach the network. Reviewed by a human before
 merge.*
 
+*Corrected 2026-10-22 by Claude (Anthropic model, Claude Opus 5.5) at the
+direction of Edwin West, under "Verification performed": it said the
+port-sharing behaviour "has not yet been observed on Windows", which has been
+untrue since 2026-09-01; that converting the checks into automated tests "is a
+tracked follow-up", which nothing in this repository tracks; and that the
+2026-09-23 change had been neither built nor run, without saying that it was
+built and run the same day. Reviewed by a human before merge.*
+
 ## The question
 
 > Can this process receive multicast DNS on UDP port 5353 while the Windows DNS
@@ -128,11 +136,20 @@ loopback-enabled interface:
 The project compiles with `TreatWarningsAsErrors` and zero warnings.
 
 These checks were ad-hoc, not a committed test suite. Converting them into
-automated tests is a tracked follow-up. Note also that the container is Linux;
-the port-sharing behaviour this tool exists to measure is
-**Windows-specific and has not yet been observed on Windows.** That is the run
-you are about to do.
+automated tests was called a tracked follow-up here; nothing in this
+repository tracks it, and no test project covers this tool. Note also that the
+container was Linux; the port-sharing behaviour this tool exists to measure is
+Windows-specific. It was first observed on Windows on 2026-09-01: the tool
+bound UDP 5353 beside the Windows DNS Client and Microsoft Edge, received 21
+packets in 60 seconds, and attributed each to the interface it arrived on
+([finding](../../docs/findings/2026-09-01-port-5353-sharing.md)).
 
 The 2026-09-23 change (UTC arrival times and answer TTLs) was written without a
-compiler, because there is no .NET SDK where Claude works. When it was delivered
-it had been neither built nor run, and nothing above covers it.
+compiler, because there was no .NET SDK where Claude worked then. When it was
+delivered it had been neither built nor run, and nothing above covers it. It
+was built and run on Windows the same day, when its lines showed the service's
+goodbye records on the network
+([finding](../../docs/findings/2026-09-23-the-goodbye-and-ipv4-on-the-wire.md)),
+and again on 2026-10-21
+([finding](../../docs/findings/2026-10-21-the-printer-announces-itself-when-it-starts.md)).
+The repository's CI builds it at every push, as part of the solution.
