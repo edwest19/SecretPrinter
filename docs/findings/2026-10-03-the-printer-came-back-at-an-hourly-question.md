@@ -22,6 +22,16 @@ Worked out from the code, a start over does not make every loss shorter. See
 [the finding of 2026-10-10](2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md).
 Logging each question, raised below, has not been built.)*
 
+*(Status note, 2026-10-22, by Claude, Claude Opus 5.5: on 2026-10-21 the
+printer was seen, once, to say goodbye when it was switched off and, when it
+came back about 40 seconds later, to announce itself eight times in about two
+minutes, as RFC 6762 §10.1 and §8.3 describe. The service drops what arrives
+from the printer while none of its own questions is waiting, so after a long
+outage it would not hear those announcements. Taking them as an answer is the
+third of the four courses under "Decided"; it has not been built, and is
+raised again in [the finding of
+2026-10-21](2026-10-21-the-printer-announces-itself-when-it-starts.md).)*
+
 All times are UTC and on 2026-10-03 unless a date is given. In US Eastern time,
 where the machines are, they fall on the evening of 2026-10-02.
 

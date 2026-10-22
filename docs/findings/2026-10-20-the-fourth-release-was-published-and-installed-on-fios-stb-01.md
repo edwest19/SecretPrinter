@@ -50,6 +50,15 @@ before 05:10:36Z is in neither log. The same day's Wi-Fi is in a status note on
 [the finding of 2026-10-20 on the
 Wi-Fi](2026-10-20-windows-reconnected-the-printer-side-wi-fi-by-itself.md).)*
 
+*(Status note, 2026-10-22, by Claude, Claude Opus 5.5: on the evening of
+2026-10-21 Edwin restarted the printer once more, for a test, and it announced
+itself eight times in about two minutes after it came back. The service keeps
+what arrives from the printer only while one of its own questions is waiting,
+and drops announcements made between its questions. Whether the printer
+announced itself after the restart of about 04:15Z, and so whether the service
+could have learned of it then, is not shown. See [the finding of
+2026-10-21](2026-10-21-the-printer-announces-itself-when-it-starts.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name or the printer's certificate fingerprint.

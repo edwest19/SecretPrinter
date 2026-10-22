@@ -216,7 +216,11 @@ entries were not read again that day. On 2026-10-15, in the commit that sets
 the version to 0.3.0, those two entries on releases 0.1.0 and 0.2.0 were
 changed to name 0.3.0 as the first version to carry each correction, and
 later that day, once 0.3.0 had been published, they were made exact; the other
-entries were not read again that day.)
+entries were not read again that day. On 2026-10-20 the entry on the
+printer-side network was given sentences on a Windows policy, which this note
+did not record until 2026-10-22; on 2026-10-22 it was given two on the
+printer's own announcements; the other entries were not read again on either
+day.)
 
 - **A print attempt can reach the printer and send no job.** On 2026-10-01 and
   2026-10-02, in three attempts, an iPhone connected through the proxy, had
@@ -245,6 +249,12 @@ entries were not read again that day.)
   the code, one loss in 0.1.0's record would have ended 26 to 35 minutes later
   with the start over than without it
   ([finding](docs/findings/2026-10-10-the-printer-is-asked-again-when-its-network-comes-back.md)).
+  On 2026-10-21 the printer was seen, once, to announce itself eight times in
+  about two minutes after it was switched on, as RFC 6762 §8.3 describes. The
+  service keeps what arrives from the printer only while one of its own
+  questions is waiting for an answer, so it does not use those announcements
+  unless a question happens to be waiting
+  ([finding](docs/findings/2026-10-21-the-printer-announces-itself-when-it-starts.md)).
   Overnight on FIOS-STB-01 on 2026-10-10 and 2026-10-11 the start over acted
   three times, each within 3 seconds of the Wi-Fi being reconnected, and the
   printer was offered again within 6 seconds of the reconnect. Each time the
@@ -269,7 +279,8 @@ entries were not read again that day.)
   returned. Changed 2026-10-11 by Claude, Claude Opus 5.5: in place of the
   sentence on the overnight run it said "None of this has been run on a
   network yet." Updated 2026-10-20 by Claude, Claude Opus 5.5: the sentences
-  on the Windows policy added.)
+  on the Windows policy added. Updated 2026-10-22 by Claude, Claude Opus 5.5:
+  the sentences on the printer's announcements added.)
 - **For a short time after the printer stops answering, it is still offered,
   and a print in that time fails.** The service holds the printer reachable
   until its records expire with no answer to the service's own questions; a

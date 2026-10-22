@@ -25,6 +25,16 @@ when the adapter comes back while the printer is held reachable did not come
 up on the network. See
 [the finding of 2026-10-11](2026-10-11-the-start-over-ran-overnight-on-fios-stb-01.md).)*
 
+*(Status note, 2026-10-22, by Claude, Claude Opus 5.5: on 2026-10-21 the
+printer was seen, once, to announce itself eight times in about two minutes
+after it was switched on, without being asked. The service drops those
+announcements unless one of its own questions happens to be waiting, so when
+the printer itself comes back, the service learns of it at its next question,
+started over or not; a printer's restart does not change the adapter, so it
+starts nothing over. Whether the service should hear them is raised, not
+decided, in [the finding of
+2026-10-21](2026-10-21-the-printer-announces-itself-when-it-starts.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding. Neither does an address in `169.254.0.0/16` that the service's log
 records for the printer-side adapter. The addresses in the tests are made up.
