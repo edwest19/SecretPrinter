@@ -64,6 +64,12 @@ line that is not a `Job:` line, with addresses, the printer's host name, UUIDs
 and numbers masked, counted the `Job:` lines, and listed each withdrawal with
 how it ended. The arithmetic was done in Claude's workspace.)*
 
+*(Status note, later on 2026-10-25, by Claude, Claude Opus 5.5: release 0.5.0,
+published that day and carrying this change, replaced this build on FIOS-STB-01
+at 22:29Z by the update steps with the signature check, and an iPhone printed a
+page through it. FIOS-STB-01 no longer runs this build. See [the finding of the
+release](2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does the printer's host name or any client's address.
 Addresses on the printer-side network are FIOS-STB-01's own (192.168.12.136)

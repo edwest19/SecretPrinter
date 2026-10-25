@@ -96,20 +96,32 @@ demands of people doing it a favour.
 
 **`0.1.0`, published on 2026-10-08, is the first release, `0.2.0`,
 published on 2026-10-11, the second, `0.3.0`, published on 2026-10-15, the
-third, `0.4.0`, published on 2026-10-20, the fourth, and `0.5.0` the fifth
-version meant as one.** Releases are published by the release workflow, from
+third, `0.4.0`, published on 2026-10-20, the fourth, and `0.5.0`, published on
+2026-10-25, the fifth.** Releases are published by the release workflow, from
 a tag, on this repository's Releases page and nowhere else, signed under the
 name given below.
 
 | Version | What it is | Reports about it |
 | --- | --- | --- |
-| `0.5.0` | The fifth version meant as a release. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.5.0` | The fifth release, published on 2026-10-25. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.4.0` | The fourth release, published on 2026-10-20. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.3.0` | The third release, published on 2026-10-15. It has a fault that `0.4.0` corrects: a client connection accepted in the moment the service stops, or withdraws the printer, can be left open (`REQ-LIF-002`). | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.2.0` | The second release, published on 2026-10-11. It has two faults that `0.3.0` corrects: it answers a legacy mDNS query by unicast to whatever address the query gives (`REQ-SEC-017`), and it does not stop cleanly when Windows shuts down (`REQ-LIF-009`); `README.md`, "Known problems", says more. It also has the fault of `0.3.0` that `0.4.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.1.0` | The first release, published on 2026-10-08. It has the same two faults as `0.2.0`, which `0.3.0` corrects, and the one `0.4.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.1.0-rc.1`, `0.1.0-rc.2`, `0.1.0-rc.3` | Trials of the release workflow, and a pre-release for testing. Only `0.1.0-rc.3` was published. | Not covered. `0.1.0` is compiled from the same source code as `0.1.0-rc.3`; see whether the problem happens on `0.1.0`. |
 | `main` | The source as it stands. | No support promise of any kind. A gap between the specification and the code is in scope, as above. |
+
+**The .NET runtime each release carries** is fixed when the release is built,
+and a fix to it arrives only in a new release. `0.5.0` carries 10.0.14, from
+Microsoft's out-of-band security update of 2026-10-25; `0.3.0` and `0.4.0`
+carry 10.0.13, and `0.1.0` and `0.2.0` carry 10.0.12. Microsoft's announcement
+of that update lists four advisories, and says its update of 2026-10-13, which
+brought 10.0.13, did not fully address two of them, one being CVE-2026-70197,
+in `System.Net.Sockets` on Windows. Whether any of the four concerns code
+SecretPrinter runs has not been worked out
+([finding](docs/findings/2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md)).
+(Paragraph added 2026-10-25 by Claude, Anthropic model, Claude Opus 5.5, at the
+direction of Edwin West, after release 0.5.0 was published.)
 
 Consequently: **a binary presented as SecretPrinter that does not come from
 this repository's Releases page, or is not signed under the name given below,
@@ -162,7 +174,10 @@ that sets the version to 0.5.0. No sentence was added to the rows for earlier
 versions. The one correction `0.5.0` carries, a lookup no longer taking a
 goodbye record, one with a TTL of 0, as its answer, was found by reading the
 code, and what it did in earlier versions has not been seen on a machine;
-`CHANGELOG.md` describes it.)
+`CHANGELOG.md` describes it. Later the same day, once 0.5.0 had been
+published, "the fifth version meant as one" became "published on 2026-10-25,
+the fifth", and "The fifth version meant as a release." in the row became "The
+fifth release, published on 2026-10-25.")
 
 (The first two paragraphs replaced 2026-10-07 by Claude, Anthropic model,
 Claude Opus 5.5, at the direction of Edwin West, who decided that day to

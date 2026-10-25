@@ -27,9 +27,10 @@ made exact the same day, once 0.3.0 had been published.) `0.4.0`, published
 on 2026-10-20, is the fourth. (Sentence added 2026-10-20 by Claude, Claude Opus
 5.5, in the commit that sets the version to 0.4.0, as "`0.4.0` is the fourth
 version meant as a release."; made exact the same day, once 0.4.0 had been
-published.) `0.5.0` is the fifth version meant as a release. (Sentence added
+published.) `0.5.0`, published on 2026-10-25, is the fifth. (Sentence added
 2026-10-25 by Claude, Claude Opus 5.5, in the commit that sets the version to
-0.5.0.) Every version
+0.5.0, as "`0.5.0` is the fifth version meant as a release."; made exact the
+same day, once 0.5.0 had been published.) Every version
 below `0.1.0` is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
 2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
 `0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
@@ -113,9 +114,18 @@ Nothing in how it is installed or configured changes.
   and a fix to it arrives only in a new release. In the release notes GitHub
   shows, the section "Built with" after this entry names it, and so does
   `SecretPrinter.Service.runtimeconfig.json` in the folder. Microsoft's latest
-  .NET 10 release on 2026-10-25 was still 10.0.13, of 2026-10-13, which
-  `0.4.0` carries. The one package SecretPrinter declares,
+  .NET 10 release on 2026-10-25 was 10.0.14, released that day as an
+  out-of-band security update, and this release carries it; `0.3.0` and
+  `0.4.0` carry 10.0.13. The one package SecretPrinter declares,
   `System.ServiceProcess.ServiceController`, stays at 10.0.11, as in `0.4.0`.
+  (Corrected 2026-10-25 by Claude, Claude Opus 5.5, after the release. The
+  sentence on Microsoft's latest release said "Microsoft's latest .NET 10
+  release on 2026-10-25 was still 10.0.13, of 2026-10-13, which `0.4.0`
+  carries." That was untrue when it was written: it came from one reading of
+  one page, and 10.0.14 had been announced before. The release notes GitHub
+  shows, taken from this file at the tag, carry that sentence, with a
+  correction added after publishing; see
+  [the finding](docs/findings/2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md).)
 - **Where it has run.** The changes since `0.4.0` have run in tests, on the
   development machine, on Windows, and in Claude's workspace, on Linux; and
   in one build from source of the same code, not signed and carrying .NET
@@ -149,6 +159,28 @@ Nothing in how it is installed or configured changes.
 - **Reporting a problem.** Security problems go to the repository's private
   vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
   response-time commitment is offered.
+- **What happened.** The workflow ran for this tag on 2026-10-25 and all three
+  of its jobs passed. It named .NET SDK 10.0.403 and the runtime
+  Microsoft.NETCore.App 10.0.14, on the run's page and in the section "Built
+  with" of the release notes. The signing job waited for Edwin West's approval.
+  Twelve SecretPrinter files were signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`, in a folder of 216
+  files. The release is on the repository's Releases page as
+  `SecretPrinter-0.5.0-win-x64.zip`, with SHA-256
+  `C16BD249362E0ED71EFECAB380369C4604AFC81DF8040296A3DA9C5D1FD7E568`, and its
+  `.sha256` file, marked Latest and not as a pre-release. A copy downloaded with
+  `curl.exe` on FIOS-STB-01, which runs Windows 10, passed both checks there and
+  was the same as the zip, file by file. **It carries .NET 10.0.14** and is
+  stamped `0.5.0+1f1f1ee984f8881528518a140d5e400d75f21ab2`. It was installed
+  there the same day by the update steps of `docs/operating.md` with the
+  signature check, in place of an unsigned build of `5a291c4` made there on
+  2026-10-22. The household had no printer for 10 seconds. The first line the
+  new service logged was
+  `SecretPrinter.Service version 0.5.0+1f1f1ee984f8881528518a140d5e400d75f21ab2`,
+  and an iPhone printed a page through it; see
+  [the finding](docs/findings/2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md).
+  (Added 2026-10-25 by Claude, Claude Opus 5.5, after the run. It is not in the
+  release notes GitHub shows, which were taken from this file at the tag.)
 
 ## [0.4.0] - 2026-10-20
 

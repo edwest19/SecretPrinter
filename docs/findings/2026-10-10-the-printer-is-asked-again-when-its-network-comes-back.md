@@ -49,6 +49,15 @@ on, without a question, and with no change to the printer-side adapter seen.
 No release carries
 it. See [the finding of the run](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md).)*
 
+*(Status note, 2026-10-25, by Claude, Claude Opus 5.5: release 0.5.0, published
+on 2026-10-25 and installed on FIOS-STB-01 that day, is the first to carry
+`REQ-RES-011`. In the three days before, the build of `5a291c4` lost the
+printer 31 more times after the run and heard it in none of them. See [the
+finding of the
+release](2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md)
+and the status note of 2026-10-25 on [the finding of the
+run](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding. Neither does an address in `169.254.0.0/16` that the service's log
 records for the printer-side adapter. The addresses in the tests are made up.

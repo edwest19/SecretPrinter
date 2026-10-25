@@ -59,6 +59,17 @@ announced itself after the restart of about 04:15Z, and so whether the service
 could have learned of it then, is not shown. See [the finding of
 2026-10-21](2026-10-21-the-printer-announces-itself-when-it-starts.md).)*
 
+*(Status note, 2026-10-25, by Claude, Claude Opus 5.5: release 0.4.0 has not
+run on FIOS-STB-01 since 21:33Z on 2026-10-22, when a build of `5a291c4` made
+there replaced it ([the
+finding](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md)).
+On 2026-10-25 release 0.5.0 replaced that build. 0.4.0 carries .NET 10.0.13.
+Microsoft's out-of-band security update of 2026-10-25, which 0.5.0 carries as
+10.0.14, says the update that brought 10.0.13 did not fully address two of its
+advisories; whether any concerns code SecretPrinter runs has not been worked
+out. See [the finding of the fifth
+release](2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name or the printer's certificate fingerprint.
