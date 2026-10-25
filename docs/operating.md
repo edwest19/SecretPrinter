@@ -324,6 +324,13 @@ that run, read from FIOS-STB-01's log
 ([finding](findings/2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md)).
 Reviewed by a human before merge.*
 
+*Under "Where the program comes from", the sentence on `0.5.0` added, and in
+"Coming back can be slow", "no release carries this yet" replaced by a
+sentence naming `0.5.0` as the first version to carry `REQ-RES-011`, by Claude
+(Anthropic model, Claude Opus 5.5) at the direction of Edwin West, 2026-10-25,
+in the commit that sets the version to 0.5.0.
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -351,7 +358,8 @@ visible on a second segment. That is why it confines itself to printing.
 **From a release.** Releases are published on the repository's Releases page,
 and `0.1.0`, published on 2026-10-08, is the first. `0.2.0`, published on
 2026-10-11, is the second. `0.3.0`, published on 2026-10-15, is the third.
-`0.4.0`, published on 2026-10-20, is the fourth. A
+`0.4.0`, published on 2026-10-20, is the fourth. `0.5.0` is the fifth
+version meant as one. A
 pre-release for testing,
 `0.1.0-rc.3`, was published there on 2026-10-07. It has the same form as a
 release and is checked and installed by the same steps; it is not a release.
@@ -1501,8 +1509,11 @@ know:
   ([the finding](findings/2026-10-22-the-service-hears-the-printer-announce-itself.md)).
   Run once on FIOS-STB-01 on 2026-10-22, in a build from source, it offered
   the printer again no more than about 40 seconds after it was switched on,
-  when the next question was about 3 minutes away; no release carries this
-  yet ([the finding of the run](findings/2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md)).
+  when the next question was about 3 minutes away; `0.5.0`, the fifth version
+  meant as a release, is the first to carry it
+  ([the finding of the run](findings/2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md)).
+  (Changed 2026-10-25 by Claude, Claude Opus 5.5, in the commit that sets the
+  version to 0.5.0: it said "no release carries this yet".)
   (Note, 2026-10-25, by Claude, Claude Opus 5.5: in the three days after the
   run, the same build lost the printer 31 more times on FIOS-STB-01 and heard
   it in none of them. Each ended when one of its own questions was answered,

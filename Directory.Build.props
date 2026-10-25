@@ -82,8 +82,14 @@
 
          Set to 0.4.0 on 2026-10-20 by Claude (Anthropic model, Claude Opus
          5.5) at the direction of Edwin West, the number he chose that day for
-         the fourth release, the first to log its own version (REQ-OBS-011). -->
-    <Version>0.4.0</Version>
+         the fourth release, the first to log its own version (REQ-OBS-011).
+
+         Set to 0.5.0 on 2026-10-25 by Claude (Anthropic model, Claude Opus
+         5.5) at the direction of Edwin West, the number he chose that day for
+         the fifth release, the first to take the printer's own records, heard
+         without being asked, as an answer while it holds the printer
+         unreachable (REQ-RES-011). -->
+    <Version>0.5.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>

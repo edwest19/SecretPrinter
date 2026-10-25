@@ -27,7 +27,9 @@ made exact the same day, once 0.3.0 had been published.) `0.4.0`, published
 on 2026-10-20, is the fourth. (Sentence added 2026-10-20 by Claude, Claude Opus
 5.5, in the commit that sets the version to 0.4.0, as "`0.4.0` is the fourth
 version meant as a release."; made exact the same day, once 0.4.0 had been
-published.) Every version
+published.) `0.5.0` is the fifth version meant as a release. (Sentence added
+2026-10-25 by Claude, Claude Opus 5.5, in the commit that sets the version to
+0.5.0.) Every version
 below `0.1.0` is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
 2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
 `0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
@@ -36,6 +38,117 @@ that `0.1.0-rc.3` was a pre-release for testing and not a release, and that it
 was published on 2026-10-07. Later the same day, once 0.1.0 had been
 published, "is the first version meant as a release" became "is the first
 release", and the sentence saying when it was published was added.)
+
+## [0.5.0] - 2026-10-25
+
+The fifth version of SecretPrinter meant as a release. While it holds the
+printer unreachable, the service now takes the printer's own records, heard on
+the printer-side network without being asked, as an answer, so a printer that
+announces itself as it starts is offered again when it is heard, not at the
+next question. A lookup no longer takes a goodbye record as its answer.
+Nothing in how it is installed or configured changes.
+
+- **Before you install it,** read two sections of `README.md`: "Read this
+  before installing" and, under it, "Known problems". This software was written
+  by an AI, Claude, directed by one person, and has had no outside security
+  review. Every measurement of it on a network was made in one household, with
+  one printer model, an Epson ET-3760, and almost always an iPhone as the
+  client.
+- **The printer is offered again when it is heard** (`REQ-RES-011`). After a
+  loss the service asks for the printer again after 1, 2, 4 and 8 seconds and
+  so on, doubling up to once an hour (`REQ-RES-008`), and until now it kept
+  what arrived from the printer only while one of those questions was waiting
+  for an answer. On 2026-10-21 the printer was seen to announce itself eight
+  times in about two minutes after it was switched on, as RFC 6762 section 8.3
+  describes; `0.4.0` and earlier use such an announcement only if a question
+  happens to be waiting. Now, while the printer is held unreachable, its
+  records heard on the printer-side interface make it reachable as an answer
+  does, when they hold the configured `_ipps._tcp` instance's SRV record and an
+  address record for the host that SRV names, each within its TTL, in one
+  datagram or several. They are taken only from a response sent to the mDNS
+  group from UDP port 5353, as RFC 6762 section 6 requires, and only from its
+  Answer and Additional sections. The service logs
+  `Printer reachable again: it was heard on the printer-side interface without being asked (an announcement, or its answer to another device).`
+  and offers the printer as after any answer. Nothing changes while the
+  printer is held reachable, and a goodbye still does not withdraw it. Edwin
+  West chose this on 2026-10-22.
+- **A goodbye is no longer taken as an answer.** A record with a TTL of 0 says
+  that the record is going away (RFC 6762 section 10.1). Until now a lookup
+  took an SRV or address record whatever its TTL. Now it does not, and nothing
+  heard between lookups is taken with a TTL of 0 either. Found by reading the
+  code on 2026-10-22; what earlier versions did with such an answer has not
+  been seen on a machine.
+- **What this means for a device on the printer network.** One could already
+  make the service offer the printer, by answering one of its questions with
+  records of its own. It can now do that whenever the printer is held
+  unreachable, not only while a question is waiting. A forged address sends
+  print jobs where nothing answers, or to a device whose certificate does not
+  match the pinned fingerprint, and the relay abandons them (`REQ-SEC-013`);
+  the client sees a failed print, as it would with the printer away. At most
+  16 address records, one SRV and one TXT are held. Nothing new is sent and no
+  new socket is opened. Not changed, and still open: no TTL is capped, so a
+  record with a very long TTL, whether it answers a question or is now heard,
+  holds the printer reachable without a question until 80% of it has passed;
+  and a lookup still takes a unicast response, and a response from any source
+  port, which RFC 6762 section 6 says a querier must ignore.
+- **Tests.** 35 were added, for 571 in all on the development machine (536 at
+  `0.4.0`). One sends a datagram to 224.0.0.251 and reads back its
+  destination address. The wiring in `ServiceHost.RunAsync` is run by no test.
+  Each change was also broken on purpose, one way at a time, to see which
+  tests catch it: of 40 such changes, 37 were caught, one changed nothing that
+  can be seen, and two were in the wiring no test runs.
+  `docs/findings/2026-10-22-the-service-hears-the-printer-announce-itself.md`
+  lists each.
+- **Updating from `0.1.0`, `0.2.0`, `0.3.0` or `0.4.0`:** `docs/operating.md`,
+  "Updating an installed service", "From a release". Check the new release
+  first, as below. The configuration file, the service registration, the
+  firewall rules and the data folder are the same as before.
+- **Check it before you install it.** `docs/operating.md`, "Checking a release
+  before you install it", gives two checks that need only PowerShell: the zip's
+  SHA-256 against the `.sha256` file published beside it, and the signature on
+  every program file. SecretPrinter's own files are signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`. A SecretPrinter file
+  that is unsigned, or signed under any other name, is not from this project.
+- **The .NET runtime inside it** is the one the build machine's SDK supplied,
+  and a fix to it arrives only in a new release. In the release notes GitHub
+  shows, the section "Built with" after this entry names it, and so does
+  `SecretPrinter.Service.runtimeconfig.json` in the folder. Microsoft's latest
+  .NET 10 release on 2026-10-25 was still 10.0.13, of 2026-10-13, which
+  `0.4.0` carries. The one package SecretPrinter declares,
+  `System.ServiceProcess.ServiceController`, stays at 10.0.11, as in `0.4.0`.
+- **Where it has run.** The changes since `0.4.0` have run in tests, on the
+  development machine, on Windows, and in Claude's workspace, on Linux; and
+  in one build from source of the same code, not signed and carrying .NET
+  10.0.12, installed as the service on FIOS-STB-01, which runs Windows 10, on
+  2026-10-22 in place of `0.4.0`. That evening, with the printer switched off
+  for about 16 minutes and held unreachable, the service logged that it had
+  heard the printer no more than about 40 seconds after it was switched on,
+  when its next question was about 3 minutes away, and an iPhone printed a
+  page through it before and after. Read on 2026-10-25, its first 71 hours 21
+  minutes there had no restart. It relayed 72 connections with the printer's
+  certificate matching the pin, and 12 could not connect to the printer, 11
+  of them in that test. It lost the printer 33 times and found it again each
+  time, but heard it in none of the 31 losses after the test: each ended when
+  one of its own questions was answered, three of them after the printer-side
+  adapter was usable again, and the longest after 4 hours 10 minutes, at an
+  hourly question. See
+  `docs/findings/2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md`
+  and its status note of 2026-10-25. Which versions of Windows it can run on: `README.md`,
+  open question 10.
+- **What has not been shown,** at the time this entry is written:
+  - This build itself. When this is written nobody has downloaded it, checked
+    it or run it; installing it on FIOS-STB-01 is the first.
+  - That this printer announces itself after a long silence, or when its own
+    Wi-Fi reconnects. On FIOS-STB-01 it was heard only when it was switched on;
+    whether it announced itself in any other loss is not shown.
+  - On a network, that nothing is logged when the printer announces itself
+    while it is held reachable, and a goodbye heard during a lookup. Tests
+    show both.
+  - Any printer but the one model, any household but one, and any client but
+    one iPhone and, once, a second device.
+- **Reporting a problem.** Security problems go to the repository's private
+  vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
+  response-time commitment is offered.
 
 ## [0.4.0] - 2026-10-20
 

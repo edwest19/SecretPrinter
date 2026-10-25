@@ -96,12 +96,14 @@ demands of people doing it a favour.
 
 **`0.1.0`, published on 2026-10-08, is the first release, `0.2.0`,
 published on 2026-10-11, the second, `0.3.0`, published on 2026-10-15, the
-third, and `0.4.0`, published on 2026-10-20, the fourth.** Releases are
-published by the release workflow, from a tag, on this repository's Releases
-page and nowhere else, signed under the name given below.
+third, `0.4.0`, published on 2026-10-20, the fourth, and `0.5.0` the fifth
+version meant as one.** Releases are published by the release workflow, from
+a tag, on this repository's Releases page and nowhere else, signed under the
+name given below.
 
 | Version | What it is | Reports about it |
 | --- | --- | --- |
+| `0.5.0` | The fifth version meant as a release. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.4.0` | The fourth release, published on 2026-10-20. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.3.0` | The third release, published on 2026-10-15. It has a fault that `0.4.0` corrects: a client connection accepted in the moment the service stops, or withdraws the printer, can be left open (`REQ-LIF-002`). | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.2.0` | The second release, published on 2026-10-11. It has two faults that `0.3.0` corrects: it answers a legacy mDNS query by unicast to whatever address the query gives (`REQ-SEC-017`), and it does not stop cleanly when Windows shuts down (`REQ-LIF-009`); `README.md`, "Known problems", says more. It also has the fault of `0.3.0` that `0.4.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
@@ -152,6 +154,16 @@ once 0.4.0 had been published, "the fourth version meant as one" became
 "published on 2026-10-20, the fourth", and "The fourth version meant as a
 release." in the row became "The fourth release, published on 2026-10-20.")
 
+(The row for `0.5.0` added, and "and `0.4.0`, published on 2026-10-20, the
+fourth" changed to "`0.4.0`, published on 2026-10-20, the fourth, and `0.5.0`
+the fifth version meant as one" in the first sentence, 2026-10-25 by Claude,
+Anthropic model, Claude Opus 5.5, at the direction of Edwin West, in the commit
+that sets the version to 0.5.0. No sentence was added to the rows for earlier
+versions. The one correction `0.5.0` carries, a lookup no longer taking a
+goodbye record, one with a TTL of 0, as its answer, was found by reading the
+code, and what it did in earlier versions has not been seen on a machine;
+`CHANGELOG.md` describes it.)
+
 (The first two paragraphs replaced 2026-10-07 by Claude, Anthropic model,
 Claude Opus 5.5, at the direction of Edwin West, who decided that day to
 publish a pre-release. They had said that no release had been tagged, that the
@@ -197,8 +209,8 @@ an official release.
 `v0.1.0-rc.2` were trials of the workflow, and nothing was published for
 either. `v0.1.0-rc.3` is the tag of a pre-release for testing. `v0.1.0` is the
 tag of the first version meant as a release, `v0.2.0` of the second,
-`v0.3.0` of the third, and `v0.4.0` of the fourth; see "Supported versions"
-above.
+`v0.3.0` of the third, `v0.4.0` of the fourth, and `v0.5.0` of the fifth; see
+"Supported versions" above.
 (Sentence about `v0.1.0-rc.3` added, and "The two tags that exist" reworded,
 2026-10-07 by Claude, Claude Opus 5.5. Reworded again 2026-10-08, in the commit
 that sets the version to 0.1.0: this paragraph began "There is still no
@@ -207,7 +219,9 @@ second" added 2026-10-11 by Claude, Claude Opus 5.5, in the commit that sets
 the version to 0.2.0. It became "`v0.2.0` of the second, and `v0.3.0` of the
 third" on 2026-10-15, by Claude, Claude Opus 5.5, in the commit that sets the
 version to 0.3.0. "and `v0.4.0` of the fourth" added 2026-10-20 by Claude,
-Claude Opus 5.5, in the commit that sets the version to 0.4.0.)
+Claude Opus 5.5, in the commit that sets the version to 0.4.0. It became
+"`v0.4.0` of the fourth, and `v0.5.0` of the fifth" on 2026-10-25, by Claude,
+Claude Opus 5.5, in the commit that sets the version to 0.5.0.)
 
 (This section replaced 2026-10-04 by Claude, Anthropic model, Claude Opus 5.5,
 at the direction of Edwin West. From here down it had said that all three
