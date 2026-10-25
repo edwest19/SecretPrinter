@@ -318,6 +318,12 @@ not been run on a network" replaced by a sentence on the run on FIOS-STB-01
 ([finding](findings/2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md)).
 Reviewed by a human before merge.*
 
+*On 2026-10-25, by Claude (Anthropic model, Claude Opus 5.5) at the direction
+of Edwin West: in "Coming back can be slow", a note on the three days after
+that run, read from FIOS-STB-01's log
+([finding](findings/2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -1497,6 +1503,12 @@ know:
   the printer again no more than about 40 seconds after it was switched on,
   when the next question was about 3 minutes away; no release carries this
   yet ([the finding of the run](findings/2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md)).
+  (Note, 2026-10-25, by Claude, Claude Opus 5.5: in the three days after the
+  run, the same build lost the printer 31 more times on FIOS-STB-01 and heard
+  it in none of them. Each ended when one of its own questions was answered,
+  three of them after the adapter was usable again; the longest, of 4 hours 10
+  minutes, ended at a question an hour after the one before
+  ([the finding's status note](findings/2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md)).)
   Restarting the service brings the printer back at once. Versions before this change, 0.1.0 among them, do
   not start over: after a long outage the printer may not reappear for up to
   an hour after the link returns. Run overnight on FIOS-STB-01 on 2026-10-10

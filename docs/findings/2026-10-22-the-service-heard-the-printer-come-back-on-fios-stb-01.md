@@ -19,6 +19,51 @@ schedule gives; why the printer went unanswered is not shown. FIOS-STB-01 now
 runs this build, which is not signed and carries .NET 10.0.12, one security
 release behind the 10.0.13 that 0.4.0 carries. No code changed.**
 
+*(Status note, 2026-10-25, by Claude, Claude Opus 5.5: this build's first
+three days on FIOS-STB-01 were read there on 2026-10-25, read-only, from the
+service's log, from the build's first line at 21:33:42Z on 2026-10-22 to the
+reading at 20:54:32Z on 2026-10-25: 71 hours 20 minutes 50 seconds. Nothing was
+run, restarted or changed for it. Windows last started at 20:55:31Z on
+2026-10-14, the service was running, and the log holds one start in the
+period, this build's, stamped `0.4.0+5a291c45bac4b2e72fdc35cfaa36bfce8e62f3b8`.
+It accepted 84 connections, each located from the resolver's cache, and
+refused none. 72 were relayed with the printer's certificate matching the
+pinned fingerprint and completed, and 12 failed, all with `Could not connect to
+the printer`. Eleven of those are the test's, in the minute the printer was
+switched off. The twelfth was logged in the minute from 15:14Z on 2026-10-23,
+1 to 2 minutes after the printer had been offered again at 15:13:00Z; why it
+failed is not shown. Every client address was an IPv6 link-local address,
+three in all, and none was IPv4. Which connections carried pages is not in the
+log; none after the test carried a million bytes or more, as each page of the
+test did. **The service lost the printer 33 times, the test's two among them,
+and found it again each time without a restart. It heard the printer without
+being asked once, in the test, and in none of the 31 losses after it.** Of
+those 31, 28 ended with `it answered` 0 to 4 seconds after a question was due
+by the schedule worked out from the code under "The arithmetic" below, carried
+on past 1,073 seconds: 2,102 and 4,155 seconds, then every 3,605, an hour's
+wait and a question's 5 seconds. The other three ended with `it answered`
+after a `The printer-side interface is usable again` line. The printer was not offered for
+6 hours 29 minutes 50 seconds in all, 9.1% of the period. One loss, from
+09:46:43Z to 13:56:20Z on 2026-10-25, accounts for 4 hours 9 minutes 37
+seconds of that; it ended with `it answered` at 13:56:17Z, 4 seconds after the
+question due 14,970 seconds after the loss, and the one due an hour before that
+went unanswered, or the log would say so. When the printer could have answered
+again, and whether it announced itself in any of the losses, is not shown. The
+other 32 losses lasted 2 hours 20 minutes 13 seconds together, the longest 35
+minutes 8 seconds. No warning or error was logged but those of the losses and
+the failures: no `Printer lookup failed` line and no `Could not reopen the
+printer-side socket` line. Release 0.3.0, read the same way over 74 hours 10
+minutes from 2026-10-15, lost the printer 34 times and did not offer it for
+14.8% of the time, with one loss of 10 hours 14 minutes while the printer did
+not answer on its own network
+([finding](2026-10-18-the-third-release-ran-three-days-on-fios-stb-01.md));
+those were other days, and nothing here attributes the difference to either
+build. Edwin's words on 2026-10-25: "it has been working great". The read was
+one command, run by Edwin in his SSH session and attached: it grouped every
+line that is not a `Job:` line, with addresses, the printer's host name, UUIDs
+and numbers masked, counted the `Job:` lines, and listed each withdrawal with
+how it ended. The arithmetic was done in Claude's workspace.)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does the printer's host name or any client's address.
 Addresses on the printer-side network are FIOS-STB-01's own (192.168.12.136)
@@ -298,6 +343,10 @@ Not held:
   nothing was heard before the question of about 22:18:49Z was answered.
 - **A long outage,** with the questions an hour apart, or a printer that comes
   back without being switched on, such as when its own Wi-Fi reconnects.
+  *(Status note, 2026-10-25, by Claude, Claude Opus 5.5: one loss of 4 hours
+  10 minutes came on 2026-10-25, with the questions an hour apart. The printer
+  was found by a question, not heard, and when it came back is not shown; see
+  the status note at the top.)*
 - **What made the connections** that were not Edwin's two pages.
 - **How far apart the two clocks were.**
 
@@ -306,7 +355,9 @@ Not held:
 - **What FIOS-STB-01 runs.** This build, unsigned and one security release
   behind, or release 0.4.0 again, which does not hear the printer; and when to
   release 0.5.0, which would carry `REQ-RES-011` and a current runtime. These
-  are Edwin's to decide.
+  are Edwin's to decide. *(Status note, 2026-10-25, by Claude, Claude Opus 5.5:
+  on 2026-10-25 Edwin chose to release 0.5.0, "Release 0.5.0 (Recommended)",
+  over keeping this build and going back to 0.4.0.)*
 - **Whether to look into the second loss,** and how. Edwin's to decide.
 - The items raised in [the finding of earlier
   today](2026-10-22-the-service-hears-the-printer-announce-itself.md) stand.
