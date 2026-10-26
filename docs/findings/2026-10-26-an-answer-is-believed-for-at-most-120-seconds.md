@@ -14,6 +14,14 @@ carry. When a lookup's answer is cut, the TTL received is kept and the startup
 log line says both. Until now an answer held for its TTL however long;
 releases `0.1.0` to `0.5.0` do so.**
 
+*(Status note, later on 2026-10-26, by Claude, Claude Opus 5.5: committed and
+pushed as `de1d171`; CI run 169 passed. Run once on a network that afternoon,
+on FIOS-STB-01, in a build of `de1d171` made on the development machine and
+not signed: both startup answers had a lifetime of 120 seconds, the startup
+lines ended `TTL 120s).` with nothing capped, and a page printed from an
+iPhone. No release carries it. See [the finding of the
+run](2026-10-26-the-build-of-de1d171-was-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The addresses in the tests are made up; the printer's
