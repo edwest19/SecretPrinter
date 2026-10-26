@@ -123,6 +123,31 @@
 //   record whatever its TTL, so a goodbye arriving while a lookup waited would
 //   have been taken as an answer whose lifetime was already over. Read from the
 //   code, never seen. A lookup now skips such records.
+//
+// What a lookup takes, by RFC 6762 s6 (REQ-RES-012):
+//   Added by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+//   Edwin West, 2026-10-26. Reviewed by a human before merge.
+//
+//   RFC 6762 s6 says a querier "MUST only accept unicast responses if they
+//   answer a recently sent query (e.g., sent within the last two seconds) that
+//   explicitly requested unicast responses" and "MUST silently ignore all other
+//   unicast responses", and that "Multicast DNS implementations MUST silently
+//   ignore any Multicast DNS responses they receive where the source UDP port
+//   is not 5353". Until 2026-10-26 a lookup applied neither: it took a response
+//   sent by unicast and one from any port, while the printer's announcements,
+//   heard between lookups, were already held to both (REQ-RES-011).
+//
+//   The lookup's questions never set the unicast-response bit, so no unicast
+//   response answers one of them. A lookup now takes a datagram only if it was
+//   sent to the mDNS group, as the destination address that IP_PKTINFO reports
+//   shows (MdnsDatagram.SentToGroup), and came from port 5353; a datagram whose
+//   destination is not known is not taken as one sent to the group. Nothing the
+//   service sends changes. s6 also says that, apart from three cases none of
+//   these questions is, "responses MUST NOT be sent via unicast". On 2026-10-21
+//   the printer's answers to the service's questions were heard by a listener
+//   on another machine on the printer-side network, which a unicast response to
+//   the service's machine would not have reached. See
+//   docs/findings/2026-10-26-a-lookup-takes-only-a-multicast-response-from-port-5353.md.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -539,6 +564,10 @@ public sealed class PrinterResolver : IDisposable
 
     [Requirement("REQ-RES-006",
         "Sends the query out of the printer-side interface only, and ignores replies that arrived on any other.")]
+    [Requirement("REQ-RES-012",
+        "Asks without the unicast-response bit, and takes an answer only from a response sent to the mDNS group "
+        + "from UDP port 5353; a unicast response, one from another port, or one whose destination is not known is "
+        + "ignored.")]
     private async Task<ResolvedPrinter> ReceiveAnswerAsync(
         DnsName instance,
         TimeSpan timeout,
@@ -598,6 +627,16 @@ public sealed class PrinterResolver : IDisposable
 
             // Replies from any other interface are not about our printer.
             if (datagram.InterfaceIndex != _printerInterface.Index)
+            {
+                continue;
+            }
+
+            // RFC 6762 s6 (REQ-RES-012): no question above asks for a unicast
+            // response, so a unicast response answers none of them, and a
+            // response from a port other than 5353 is silently ignored. A
+            // datagram whose destination is not known is not taken as sent to
+            // the group.
+            if (!datagram.SentToGroup || datagram.Source.Port != MdnsSocket.MdnsPort)
             {
                 continue;
             }

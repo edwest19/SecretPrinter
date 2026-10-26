@@ -34,6 +34,15 @@
 // docs/findings/2026-10-22-the-service-hears-the-printer-announce-itself.md.
 // Reviewed by a human before merge.
 //
+// Tests that a lookup takes no response sent by unicast and none from a port
+// other than 5353, as RFC 6762 s6 requires of a querier, added by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-26, for REQ-RES-012. PrinterReply now marks its reply as sent to
+// 224.0.0.251 unless told otherwise, as the printer's answers to the
+// service's questions were seen to be on 2026-10-21. See
+// docs/findings/2026-10-26-a-lookup-takes-only-a-multicast-response-from-port-5353.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that the printer is found by name rather than by remembered
 //   address, and that a stale answer is never returned.
@@ -94,12 +103,15 @@ internal static class PrinterResolverTests
     private static readonly DnsName PrinterHost = new(["EPSON000000", "local"]);
 
     /// <summary>
-    /// Builds the reply an Epson sends: SRV, TXT and A together. With
-    /// <paramref name="toGroup"/> it is marked as sent to 224.0.0.251, as a
-    /// multicast response is; otherwise its destination is not known.
+    /// Builds the reply an Epson sends: SRV, TXT and A together, from port
+    /// 5353. With <paramref name="toGroup"/>, the default, it is marked as sent
+    /// to 224.0.0.251, as a multicast response is, and as the printer's answers
+    /// to the service's questions were seen to be on 2026-10-21; otherwise its
+    /// destination is not known. A test that needs a unicast response, or one
+    /// from another port, changes the result with a <c>with</c> expression.
     /// </summary>
     private static MdnsDatagram PrinterReply(
-        string address, uint ttl = 120, int interfaceIndex = 11, DnsName? instance = null, bool toGroup = false)
+        string address, uint ttl = 120, int interfaceIndex = 11, DnsName? instance = null, bool toGroup = true)
     {
         DnsName target = instance ?? Instance;
 
@@ -700,6 +712,95 @@ internal static class PrinterResolverTests
         Assert.Throws<PrinterResolutionException>(
             () => Resolve(resolver, TimeSpan.FromMilliseconds(300)),
             "an answer whose lifetime is already over would make the printer reachable only to lose it at once");
+    }
+
+    // ---- What a lookup takes, by RFC 6762 s6 (REQ-RES-012) -------------------
+    //
+    // Each of the first three sends, in answer to the lookup's question, a
+    // response that must be ignored, naming an address the printer does not
+    // hold, and then the printer's own multicast answer. A lookup that took the
+    // first would report the wrong address.
+
+    [TestCase("A lookup does not take a response sent by unicast, since none of its questions asks for one")]
+    [Requirement("REQ-RES-012")]
+    public static void Lookup_does_not_take_a_unicast_response()
+    {
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        transport.OnSend = _ =>
+        {
+            transport.Enqueue(PrinterReply("192.168.12.186") with { Destination = PrinterNic.Address });
+            transport.Enqueue(PrinterReply("192.168.12.180"));
+        };
+
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        Assert.Equal(IPAddress.Parse("192.168.12.180"), Resolve(resolver).Address,
+            "RFC 6762 s6: a querier MUST silently ignore a unicast response to a question that did not ask for one");
+    }
+
+    [TestCase("A lookup does not take a response from a port other than 5353")]
+    [Requirement("REQ-RES-012")]
+    public static void Lookup_does_not_take_a_response_from_another_port()
+    {
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        transport.OnSend = _ =>
+        {
+            transport.Enqueue(PrinterReply("192.168.12.186") with
+            {
+                Source = new IPEndPoint(IPAddress.Parse("192.168.12.186"), 49152),
+            });
+            transport.Enqueue(PrinterReply("192.168.12.180"));
+        };
+
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        Assert.Equal(IPAddress.Parse("192.168.12.180"), Resolve(resolver).Address,
+            "RFC 6762 s6: a response whose source UDP port is not 5353 MUST be silently ignored");
+    }
+
+    [TestCase("A lookup does not take a response whose destination is not known")]
+    [Requirement("REQ-RES-012")]
+    public static void Lookup_does_not_take_a_response_whose_destination_is_not_known()
+    {
+        var transport = new FakeTransport(PrinterNic, ClientNic);
+        transport.OnSend = _ =>
+        {
+            transport.Enqueue(PrinterReply("192.168.12.186", toGroup: false));
+            transport.Enqueue(PrinterReply("192.168.12.180"));
+        };
+
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        Assert.Equal(IPAddress.Parse("192.168.12.180"), Resolve(resolver).Address,
+            "a response not shown to have been sent to the mDNS group is not taken as one that was");
+    }
+
+    [TestCase("A lookup answered only by unicast fails as unanswered")]
+    [Requirement("REQ-RES-012")]
+    public static void Lookup_answered_only_by_unicast_fails()
+    {
+        FakeTransport transport = TransportAnswering(
+            () => PrinterReply("192.168.12.180") with { Destination = PrinterNic.Address });
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        Assert.Throws<PrinterResolutionException>(
+            () => Resolve(resolver, TimeSpan.FromMilliseconds(300)),
+            "a unicast response answers no question of the service's, so the lookup is unanswered");
+    }
+
+    [TestCase("A lookup answered only from a port other than 5353 fails as unanswered")]
+    [Requirement("REQ-RES-012")]
+    public static void Lookup_answered_only_from_another_port_fails()
+    {
+        FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180") with
+        {
+            Source = new IPEndPoint(IPAddress.Parse("192.168.12.180"), 49152),
+        });
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        Assert.Throws<PrinterResolutionException>(
+            () => Resolve(resolver, TimeSpan.FromMilliseconds(300)),
+            "a response from another port is ignored, so the lookup is unanswered");
     }
 
     // ---- Construction -------------------------------------------------------

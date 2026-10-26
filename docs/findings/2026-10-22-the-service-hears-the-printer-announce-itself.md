@@ -41,6 +41,14 @@ release](2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01
 and the status note of 2026-10-25 on [the finding of the
 run](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md).)*
 
+*(Status note, 2026-10-26, by Claude, Claude Opus 5.5: the first item under
+"Raised, not decided" below is done. A lookup now applies the two rules of
+RFC 6762 §6 quoted below, as what is heard between lookups already did: it
+takes an answer only from a response sent to the mDNS group from port 5353
+(README `REQ-RES-012`). Measured against the code by tests; not run on a
+network, and no release carries it. See [the finding of
+2026-10-26](2026-10-26-a-lookup-takes-only-a-multicast-response-from-port-5353.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The addresses in the tests are made up or from the

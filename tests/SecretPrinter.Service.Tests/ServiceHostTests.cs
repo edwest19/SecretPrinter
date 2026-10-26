@@ -34,6 +34,13 @@
 // See docs/findings/2026-10-07-a-part-of-the-service-could-fail-and-nothing-stopped.md.
 // Reviewed by a human before merge.
 //
+// ServiceReply's datagram marked as sent to 224.0.0.251, because since
+// REQ-RES-012 a lookup ignores a response not shown to have been sent to the
+// mDNS group, by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+// Edwin West, 2026-10-26. See
+// docs/findings/2026-10-26-a-lookup-takes-only-a-multicast-response-from-port-5353.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies decisions ServiceHost makes that can be checked without opening a
 //   socket: which interfaces each of its two mDNS sockets joins, how each job's
@@ -120,7 +127,10 @@ internal static class ServiceHostTests
                 new AddressPayload(IPAddress.Parse(address))))
             .Build();
 
-        return new MdnsDatagram(payload, new IPEndPoint(IPAddress.Parse(address), 5353), Printer.Index, Printer);
+        // Sent to the mDNS group from port 5353, as the printer answers the
+        // service's questions; a lookup takes nothing else (REQ-RES-012).
+        return new MdnsDatagram(
+            payload, new IPEndPoint(IPAddress.Parse(address), 5353), Printer.Index, Printer, MdnsSocket.MulticastGroup);
     }
 
     /// <summary>

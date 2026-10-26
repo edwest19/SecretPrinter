@@ -50,6 +50,14 @@ release](2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01
 and the status note of 2026-10-25 on [the finding of the
 run](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md).)*
 
+*(Status note, 2026-10-26, by Claude, Claude Opus 5.5: the lookups now apply
+the two rules of RFC 6762 §6 as well (README `REQ-RES-012`). This finding's
+table is what shows the printer's answers to the service's questions were not
+sent by unicast to FIOS-STB-01: the listener, on another machine, heard them.
+Measured against the code by tests; not run on a network, and no release
+carries it. See [the finding of
+2026-10-26](2026-10-26-a-lookup-takes-only-a-multicast-response-from-port-5353.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The tool's output names every device that speaks mDNS on
