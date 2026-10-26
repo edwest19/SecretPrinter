@@ -44,13 +44,22 @@
 //   - Only records of class IN, from the Answer and Additional sections.
 //   - A record with a TTL of 0 is a goodbye (s10.1). It is never taken as a
 //     record held; it forgets the same record if it is held.
+//   - An SRV or address record is held for its TTL, but never for longer than
+//     ResolvedPrinter.LongestBelievedTtl, 120 seconds, the TTL RFC 6762 s10
+//     says such records SHOULD carry (REQ-RES-013). Added by Claude
+//     (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+//     2026-10-26; see
+//     docs/findings/2026-10-26-an-answer-is-believed-for-at-most-120-seconds.md.
+//     The TXT record is held for its own TTL: it decides only whether its
+//     strings are carried, never whether the printer can be reached.
 //
 // Records held:
 //   An announcement can spread its records over several datagrams; the
 //   printer measured on 2026-10-21 sent each announcement as three, with its
 //   address record in the first and the SRV in a later one. So records are
 //   held, each with the moment it stops being valid (its TTL from when it was
-//   heard), and the printer is reported heard when a datagram brings the
+//   heard, and for an SRV or address record at most 120 seconds, as above),
+//   and the printer is reported heard when a datagram brings the
 //   instance's SRV or an address record for the host it names, and the other
 //   is already held and still valid. A datagram that brings neither reports
 //   nothing, so traffic about other devices never does.
@@ -251,9 +260,19 @@ public sealed class PrinterAnnouncements
             return false;
         }
 
-        _srv = new Held<(DnsName, ushort)>((target, port), now, now + TimeSpan.FromSeconds(ttl));
+        _srv = new Held<(DnsName, ushort)>((target, port), now, BelievedUntil(now, ttl));
         return true;
     }
+
+    /// <summary>
+    /// When an SRV or address record taken now stops being held: after its TTL,
+    /// but never after <see cref="ResolvedPrinter.LongestBelievedTtl"/>.
+    /// </summary>
+    [Requirement("REQ-RES-013",
+        "Holds an SRV or address record heard without being asked for its TTL, but never for longer than 120 "
+        + "seconds.")]
+    private static DateTimeOffset BelievedUntil(DateTimeOffset now, uint ttl) =>
+        now + TimeSpan.FromSeconds(Math.Min(ttl, ResolvedPrinter.LongestBelievedTtl));
 
     /// <summary>Holds or forgets the instance's TXT strings.</summary>
     private void TakeTxt(IReadOnlyList<string> strings, uint ttl, DateTimeOffset now)
@@ -292,7 +311,7 @@ public sealed class PrinterAnnouncements
             MakeRoomForAnAddress(now);
         }
 
-        _addresses[host] = new Held<IPAddress>(address, now, now + TimeSpan.FromSeconds(ttl));
+        _addresses[host] = new Held<IPAddress>(address, now, BelievedUntil(now, ttl));
         return _srv is { } srv && srv.Value.Target.Equals(host);
     }
 

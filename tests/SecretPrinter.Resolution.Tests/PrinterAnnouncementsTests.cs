@@ -5,6 +5,12 @@
 // Edwin West, for the SecretPrinter project, 2026-10-22, for REQ-RES-011.
 // Reviewed by a human before merge.
 //
+// Tests that an SRV or address record heard with a TTL longer than 120
+// seconds is held for 120, added by Claude (Anthropic model, Claude Opus 5.5)
+// at the direction of Edwin West, 2026-10-26, for REQ-RES-013. See
+// docs/findings/2026-10-26-an-answer-is-believed-for-at-most-120-seconds.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that the printer is heard when it speaks without being asked, and
 //   only then: a response on the printer-side interface, sent to the mDNS
@@ -422,6 +428,46 @@ internal static class PrinterAnnouncementsTests
         announcements.Hear(Datagram(Response(Srv())), PrinterNic);
 
         Assert.Equal(0, heard.Count, "half a second left rounds down to a lifetime of 0, which is no answer");
+    }
+
+    // ---- No longer than 120 seconds (REQ-RES-013) ----------------------------
+
+    [TestCase("An SRV and an address heard with TTLs longer than 120 seconds are believed for 120")]
+    [Requirement("REQ-RES-013")]
+    public static void Long_ttls_are_believed_for_120_seconds()
+    {
+        (PrinterAnnouncements announcements, List<ResolvedPrinter> heard, _) = Listening();
+
+        announcements.Hear(Datagram(Response(Srv(ttl: 4500), Address(ttl: 4500))), PrinterNic);
+
+        Assert.Equal(1, heard.Count, "the printer is heard");
+        Assert.Equal(120u, heard[0].Ttl, "RFC 6762 s10 recommends 120 seconds for SRV and address records");
+    }
+
+    [TestCase("An SRV heard with a long TTL is forgotten after 120 seconds, so a later address does not complete it")]
+    [Requirement("REQ-RES-013")]
+    public static void Srv_with_a_long_ttl_is_forgotten_after_120_seconds()
+    {
+        (PrinterAnnouncements announcements, List<ResolvedPrinter> heard, TestClock clock) = Listening();
+
+        announcements.Hear(Datagram(Response(Srv(ttl: 4500))), PrinterNic);
+        clock.Advance(TimeSpan.FromSeconds(121));
+        announcements.Hear(Datagram(Response(Address())), PrinterNic);
+
+        Assert.Equal(0, heard.Count, "an SRV heard 121 s ago is no longer believed, whatever its TTL");
+    }
+
+    [TestCase("An address heard with a long TTL is forgotten after 120 seconds, so a later SRV does not complete it")]
+    [Requirement("REQ-RES-013")]
+    public static void Address_with_a_long_ttl_is_forgotten_after_120_seconds()
+    {
+        (PrinterAnnouncements announcements, List<ResolvedPrinter> heard, TestClock clock) = Listening();
+
+        announcements.Hear(Datagram(Response(Address(ttl: 4500))), PrinterNic);
+        clock.Advance(TimeSpan.FromSeconds(121));
+        announcements.Hear(Datagram(Response(Srv())), PrinterNic);
+
+        Assert.Equal(0, heard.Count, "an address heard 121 s ago is no longer believed, whatever its TTL");
     }
 
     // ---- Bounded -------------------------------------------------------------

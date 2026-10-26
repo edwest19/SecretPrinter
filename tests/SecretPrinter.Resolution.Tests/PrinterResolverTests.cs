@@ -43,6 +43,13 @@
 // docs/findings/2026-10-26-a-lookup-takes-only-a-multicast-response-from-port-5353.md.
 // Reviewed by a human before merge.
 //
+// Tests that a lookup believes an answer for no longer than 120 seconds,
+// however long a TTL its records carry, and says when it capped one, added by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// later on 2026-10-26, for REQ-RES-013. See
+// docs/findings/2026-10-26-an-answer-is-believed-for-at-most-120-seconds.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that the printer is found by name rather than by remembered
 //   address, and that a stale answer is never returned.
@@ -801,6 +808,78 @@ internal static class PrinterResolverTests
         Assert.Throws<PrinterResolutionException>(
             () => Resolve(resolver, TimeSpan.FromMilliseconds(300)),
             "a response from another port is ignored, so the lookup is unanswered");
+    }
+
+    // ---- How long an answer is believed (REQ-RES-013) ------------------------
+
+    [TestCase("A lookup believes an answer for no longer than 120 seconds, however long a TTL its records carry")]
+    [Requirement("REQ-RES-013")]
+    public static void Lookup_believes_a_long_ttl_for_120_seconds()
+    {
+        FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180", ttl: 4500));
+        var clock = new FakeClock(DateTimeOffset.UnixEpoch);
+        using var resolver = new PrinterResolver(transport, PrinterNic, clock, LocalAdapters);
+
+        ResolvedPrinter resolved = Resolve(resolver);
+
+        Assert.Equal(120u, resolved.Ttl,
+            "RFC 6762 s10 recommends 120 seconds for the SRV and A records an answer is made of");
+        Assert.Equal((uint?)4500, resolved.CappedFrom, "the TTL the records came with is kept, so the log can say it");
+        Assert.True(resolved.IsFreshAt(clock.GetUtcNow().AddSeconds(119)), "still fresh just before 120 seconds");
+        Assert.False(resolved.IsFreshAt(clock.GetUtcNow().AddSeconds(121)),
+            "no longer fresh after 120 seconds, whatever the records said");
+    }
+
+    [TestCase("An answer whose TTL is 120 seconds keeps it, and is not marked as capped")]
+    [Requirement("REQ-RES-013")]
+    public static void Lookup_keeps_a_ttl_of_120_seconds()
+    {
+        FakeTransport transport = TransportAnswering(() => PrinterReply("192.168.12.180", ttl: 120));
+        using var resolver = new PrinterResolver(transport, PrinterNic, inventory: LocalAdapters);
+
+        ResolvedPrinter resolved = Resolve(resolver);
+
+        Assert.Equal(120u, resolved.Ttl, "a TTL at the cap is the TTL received");
+        Assert.Null(resolved.CappedFrom, "nothing was capped");
+    }
+
+    [TestCase("A printer that moved is found at its new address 120 seconds after an answer with a long TTL")]
+    [Requirement("REQ-RES-013")]
+    public static void Printer_that_moved_is_found_after_120_seconds_despite_a_long_ttl()
+    {
+        // The cache (REQ-RES-004) holds an answer for its lifetime. With a TTL
+        // of 4500 believed, a printer that moved would be looked for at its old
+        // address for 75 minutes.
+        string current = "192.168.12.186";
+        FakeTransport transport = TransportAnswering(() => PrinterReply(current, ttl: 4500));
+        var clock = new FakeClock(DateTimeOffset.UnixEpoch);
+        using var resolver = new PrinterResolver(transport, PrinterNic, clock, LocalAdapters);
+
+        Assert.Equal(IPAddress.Parse("192.168.12.186"), Resolve(resolver).Address, "first lookup");
+
+        current = "192.168.12.180";
+        clock.Advance(TimeSpan.FromSeconds(121));
+
+        Assert.Equal(IPAddress.Parse("192.168.12.180"), Resolve(resolver).Address,
+            "after 120 seconds the printer is asked again and found where it now is");
+    }
+
+    [TestCase("An answer's description says when its lifetime was capped, and from what")]
+    [Requirement("REQ-RES-013")]
+    public static void Description_says_when_the_ttl_was_capped()
+    {
+        using var cappingResolver = new PrinterResolver(
+            TransportAnswering(() => PrinterReply("192.168.12.180", ttl: 4500)), PrinterNic, inventory: LocalAdapters);
+        using var keepingResolver = new PrinterResolver(
+            TransportAnswering(() => PrinterReply("192.168.12.180", ttl: 120)), PrinterNic, inventory: LocalAdapters);
+
+        ResolvedPrinter capped = Resolve(cappingResolver);
+        ResolvedPrinter kept = Resolve(keepingResolver);
+
+        Assert.True(capped.ToString().EndsWith("TTL 120s, capped from 4500s)", StringComparison.Ordinal),
+            $"the startup log prints this, and must not show the cap as the TTL received: {capped}");
+        Assert.True(kept.ToString().EndsWith("TTL 120s)", StringComparison.Ordinal),
+            $"an answer not capped is described as before: {kept}");
     }
 
     // ---- Construction -------------------------------------------------------

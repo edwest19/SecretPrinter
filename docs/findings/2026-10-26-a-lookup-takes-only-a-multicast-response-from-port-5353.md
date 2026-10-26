@@ -13,6 +13,14 @@ destination and source port; releases `0.1.0` to `0.5.0` do so. The printer's
 records heard between lookups were already held to both rules (`REQ-RES-011`).
 Nothing the service sends changes.**
 
+*(Status note, later on 2026-10-26, by Claude, Claude Opus 5.5: committed and
+pushed as `1b4358b`; CI run 168 passed. Edwin West chose that it wait for a
+network run together with the next change. That change answers the first of
+the items carried from the finding of 2026-10-22 under "Raised, not decided"
+below, no TTL capped: no answer is now believed for
+longer than 120 seconds (README `REQ-RES-013`). See [its
+finding](2026-10-26-an-answer-is-believed-for-at-most-120-seconds.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The addresses in the tests are made up; the printer's

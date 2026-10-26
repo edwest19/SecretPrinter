@@ -49,6 +49,15 @@ takes an answer only from a response sent to the mDNS group from port 5353
 network, and no release carries it. See [the finding of
 2026-10-26](2026-10-26-a-lookup-takes-only-a-multicast-response-from-port-5353.md).)*
 
+*(Status note, later on 2026-10-26, by Claude, Claude Opus 5.5: the second
+item under "Raised, not decided" below, and the second bullet under
+"Security", are answered. No answer is now believed for longer than 120
+seconds, whatever TTL its records carry, and an SRV or address record heard
+between lookups is held for no longer than that (README `REQ-RES-013`).
+Measured against the code by tests; not run on a network, and no release
+carries it. See [the
+finding](2026-10-26-an-answer-is-believed-for-at-most-120-seconds.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The addresses in the tests are made up or from the

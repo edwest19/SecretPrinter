@@ -148,6 +148,29 @@
 //   on another machine on the printer-side network, which a unicast response to
 //   the service's machine would not have reached. See
 //   docs/findings/2026-10-26-a-lookup-takes-only-a-multicast-response-from-port-5353.md.
+//
+// How long an answer is believed (REQ-RES-013):
+//   Added by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+//   Edwin West, later on 2026-10-26. Reviewed by a human before merge.
+//
+//   An answer's lifetime decides how long the cache (REQ-RES-004) reuses its
+//   address without asking, and when the watch next asks (REQ-RES-008). Until
+//   2026-10-26 it was the shortest TTL of the SRV and A records used, however
+//   long: a device on the printer-side network that answered one of the
+//   service's questions with a TTL of a year would have had its address
+//   reused by print jobs, and the printer held reachable, for most of a year
+//   before the service asked again. Read from the code; never seen.
+//
+//   The lifetime is now never more than ResolvedPrinter.LongestBelievedTtl,
+//   120 seconds, the TTL RFC 6762 s10 says records like these SHOULD carry.
+//   On 2026-10-21 the service's questions to the printer came 96.7 to 98.7
+//   seconds apart, each answered at once, which fits 80 to 82% of an answer
+//   lifetime of 120 seconds; an answer of 120 seconds is not changed by the
+//   cap. Which TTL the printer gives each record on its own was not shown.
+//   When the cap cuts a TTL, the answer keeps the TTL received
+//   (ResolvedPrinter.CappedFrom), and the startup log line says both. The TXT
+//   record's TTL never counted towards the lifetime, and still does not. See
+//   docs/findings/2026-10-26-an-answer-is-believed-for-at-most-120-seconds.md.
 // -----------------------------------------------------------------------------
 
 using System.Net;
@@ -169,7 +192,18 @@ namespace SecretPrinter.Resolution;
 /// from a live observation rather than from anything stored (REQ-ADV-010).
 /// </param>
 /// <param name="ResolvedAt">When the answer was obtained.</param>
-/// <param name="Ttl">Shortest TTL among the records used, in seconds.</param>
+/// <param name="Ttl">
+/// How long the answer holds, in seconds: the shortest TTL among the records
+/// used, and never more than <see cref="LongestBelievedTtl"/> (REQ-RES-013).
+/// </param>
+/// <param name="CappedFrom">
+/// Set by a lookup when the shortest TTL its records came with was longer than
+/// <see cref="LongestBelievedTtl"/>: that TTL, so that what the printer said
+/// can still be told from what is believed. Null when a lookup capped nothing.
+/// An answer heard without being asked (<see cref="PrinterAnnouncements"/>)
+/// holds each record for no longer than the cap and never sets it; those
+/// answers are not logged with their lifetime.
+/// </param>
 public sealed record ResolvedPrinter(
     DnsName Instance,
     DnsName Host,
@@ -177,13 +211,32 @@ public sealed record ResolvedPrinter(
     ushort Port,
     IReadOnlyList<string> TxtStrings,
     DateTimeOffset ResolvedAt,
-    uint Ttl)
+    uint Ttl,
+    uint? CappedFrom = null)
 {
+    /// <summary>
+    /// The longest an answer is believed, in seconds, whatever TTL its records
+    /// came with (README REQ-RES-013). An answer is made of an SRV record and an
+    /// A record, and RFC 6762 s10 says: "As a general rule, the recommended TTL
+    /// value for Multicast DNS resource records with a host name as the
+    /// resource record's name (e.g., A, AAAA, HINFO) or a host name contained
+    /// within the resource record's rdata (e.g., SRV, reverse mapping PTR
+    /// record) SHOULD be 120 seconds."
+    /// </summary>
+    public const uint LongestBelievedTtl = 120;
+
     public DateTimeOffset ExpiresAt => ResolvedAt + TimeSpan.FromSeconds(Ttl);
 
     public bool IsFreshAt(DateTimeOffset now) => now < ExpiresAt;
 
-    public override string ToString() => $"{Instance} at {Address}:{Port} (host {Host}, TTL {Ttl}s)";
+    /// <summary>
+    /// The answer in one line, as the startup log prints it. A lifetime that
+    /// was capped is given with the TTL the records came with, so the cap is
+    /// never shown as the TTL the printer sent.
+    /// </summary>
+    public override string ToString() =>
+        $"{Instance} at {Address}:{Port} (host {Host}, TTL {Ttl}s"
+        + (CappedFrom is { } received ? $", capped from {received}s)" : ")");
 }
 
 /// <summary>Thrown when the printer could not be located. Never swallowed.</summary>
@@ -568,6 +621,9 @@ public sealed class PrinterResolver : IDisposable
         "Asks without the unicast-response bit, and takes an answer only from a response sent to the mDNS group "
         + "from UDP port 5353; a unicast response, one from another port, or one whose destination is not known is "
         + "ignored.")]
+    [Requirement("REQ-RES-013",
+        "Gives the answer the shortest TTL of the SRV and A records used, but never more than 120 seconds, and keeps "
+        + "the TTL received when it was longer.")]
     private async Task<ResolvedPrinter> ReceiveAnswerAsync(
         DnsName instance,
         TimeSpan timeout,
@@ -687,9 +743,15 @@ public sealed class PrinterResolver : IDisposable
 
             if (host is not null && address is not null)
             {
+                // Believed for the shortest TTL received, but never for longer
+                // than LongestBelievedTtl; a TTL that was cut is kept, so the
+                // log can say what the records said (REQ-RES-013).
+                uint received = ttl == uint.MaxValue ? 0 : ttl;
+                uint believed = Math.Min(received, ResolvedPrinter.LongestBelievedTtl);
+
                 return new ResolvedPrinter(
                     instance, host, address, port, txt ?? [], _clock.GetUtcNow(),
-                    ttl == uint.MaxValue ? 0 : ttl);
+                    believed, received > believed ? received : null);
             }
 
             // The SRV arrived without an address alongside it. Ask for the host
