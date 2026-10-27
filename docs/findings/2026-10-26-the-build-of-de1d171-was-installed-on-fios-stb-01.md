@@ -17,6 +17,53 @@ first attempt to print said it could not contact the printer, while the
 service relayed every connection to the printer and logged no failure; the
 second attempt printed a page. No release carries these changes.**
 
+*(Status note, 2026-10-27, by Claude, Claude Opus 5.5: this build's first 26
+hours on FIOS-STB-01 were read there on 2026-10-27, read-only, from the
+service's log, from the build's first line at 18:38:40Z on 2026-10-26 to the
+reading at 20:52:29Z on 2026-10-27: 26 hours 13 minutes 49 seconds. Nothing
+was run, restarted or changed for it. Windows last started at 20:55:31Z on
+2026-10-14, the service was running, and the log holds one start in the
+period, this build's, stamped `0.5.0+de1d17138166363d4b291cffa3c323486f798d01`.
+No line in the period says `capped from`. It accepted 27 connections, the
+eleven below among them, and refused none; each was located from the
+resolver's cache, relayed over TLS 1.2 with the printer's certificate matching
+the pinned fingerprint, and completed. None failed. Every client address was
+the same IPv6 link-local address. Only connection 9 below sent a million bytes
+or more; which of the others carried pages is not in the log. **The service
+lost the printer 13 times and found it again each time without a restart,
+each time by one of its own questions being answered; it heard the printer
+without being asked in none of them.** This build takes an answer only by
+multicast from port 5353 (`REQ-RES-012`), so the printer went on answering
+that way. Eight of the losses ended with `it answered` 0 to 3 seconds after a
+question was due by the schedule under "The arithmetic" in the
+[finding of 2026-10-22](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md),
+counted from the loss. The other five ended after a `The printer-side
+interface is usable again` line, which starts the questions over on the same
+schedule, and each ended 0 or 1 second after a question due counted from that
+line: three at the first question, two at the one due 35 seconds after it. In
+one of those five, at 12:10:51Z on 2026-10-27, in the second the printer was
+lost, the service logged `Could not reopen the printer-side socket: Interface
+'Wi-Fi' holds … but is not up`, and at 12:10:57Z that the interface was usable
+again and the socket reopened. From the code, the service reopens that socket
+before each question it puts to a printer it holds unreachable. Claude had
+predicted no such line. The printer was not offered for 3 hours 13 minutes 42
+seconds in all, counted from each `Printer unreachable` line to its
+`Advertisement restored` line, 12.3% of the period. The two longest losses,
+from 05:34:25Z and from 18:49:16Z on 2026-10-27, kept it off offer for 1 hour
+9 minutes 21 seconds each, each ending at the question due 4,155 seconds after
+the loss.
+Why the printer went unanswered in any loss is not shown. The build of
+`5a291c4`, read the same way over 71 hours from 2026-10-22, did not offer the
+printer for 9.1% of its period; those were other days, and nothing here
+attributes the difference to either build. No warning or error was logged but
+those of the losses and the one line above: no `Printer lookup failed` line.
+The read was two commands, run by Edwin in his SSH session. The first grouped
+every line that is not a `Job:` line, with addresses, the printer's host name,
+UUIDs, the pin and numbers masked, counted the `Job:` lines, and listed each
+loss with how it ended; it printed only the first and last time of each group,
+so the second printed the time of each interface line. The arithmetic was done
+in Claude's workspace.)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name, the certificate pin or a user name. The log lines quoted
@@ -161,7 +208,8 @@ lines; the service cannot write that text, so it came from the copy, as on
 ## What this does not show
 
 - **Anything over hours or days.** The build is left running; its log will
-  show how it fares.
+  show how it fares. *(Status note, 2026-10-27, by Claude, Claude Opus 5.5:
+  its first 26 hours were read; see the status note at the top.)*
 - **That the printer's records heard between lookups are taken by this
   build.** The printer was not restarted.
 - **That the first attempt's failure has nothing to do with these changes.**
