@@ -23,7 +23,15 @@ against, rather than taking our word for what a printer advertises.
 1. Opens one UDP socket bound to an interface address you name explicitly, on an
    operating-system-assigned ephemeral port.
 2. Sends DNS-SD PTR queries to `224.0.0.251:5353` out of that interface.
-3. Listens for replies until a timeout elapses.
+3. Listens for replies until a timeout elapses. It keeps a reply only when it
+   was sent from port 5353 and carries the identifier of the query just sent,
+   as [RFC 6762 §6](https://www.rfc-editor.org/rfc/rfc6762#section-6) and
+   §6.7 require, and prints a line for any other datagram saying why it was
+   not kept. *(Changed 2026-10-28 by Claude, Claude Opus 5.5, `REQ-SEC-018`.
+   Until then every DNS response that reached its socket was kept.)* Which
+   replies it keeps does not make them trustworthy: its question goes to the
+   mDNS group, so any device on the network can see it and answer as a
+   printer would.
 4. Sends follow-up SRV/TXT queries for any instance found, then A queries for
    any host name those SRV records point at.
 5. Prints a report and exits.

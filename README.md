@@ -233,7 +233,9 @@ and the entry on a print attempt that sends no job given a sentence; the other
 entries were not read again that day. On 2026-10-27 the entry on a conflict
 shown by a response sent by unicast or from another port was added
 (REQ-ADV-030), and changed that evening, after a build carrying it ran on
-FIOS-STB-01; the other entries were not read again that day.)
+FIOS-STB-01; the other entries were not read again that day. On 2026-10-28 the
+entry on the probe keeping any DNS response that reaches it was added
+(REQ-SEC-018); the other entries were not read again that day.)
 
 - **A print attempt can reach the printer and send no job.** On 2026-10-01 and
   2026-10-02, in three attempts, an iPhone connected through the proxy, had
@@ -527,6 +529,22 @@ FIOS-STB-01; the other entries were not read again that day.)
   ([finding](docs/findings/2026-10-27-the-build-of-0b51fcc-was-installed-on-fios-stb-01.md)).
   (Entry added 2026-10-27 by Claude, Claude Opus 5.5. Changed that evening: it
   said "not yet run on a network".)
+- **The probe in releases up to 0.5.0 keeps any DNS response that reaches it.**
+  The probe, `SecretPrinter.Probe`, asks from a port the operating system
+  chooses, so a responder answers it by unicast (RFC 6762 §6.7). It kept every
+  DNS response that reached that port, from any port and with any identifier,
+  printed it in its report, and asked its next round of questions about the
+  names in it. RFC 6762 §6 says every mDNS response comes from port 5353 and
+  that a querier "MUST only accept unicast responses if they answer a recently
+  sent query", and §6.7 that such an answer "MUST repeat the query ID". Read
+  from the code; not seen. Corrected on `main` on 2026-10-28 (REQ-SEC-018);
+  measured against the code by tests, and run once on the printer-side network
+  from the development machine, where the printer's replies were kept as
+  before; no release carries the correction
+  ([finding](docs/findings/2026-10-28-the-probe-keeps-only-a-reply-from-port-5353-to-its-own-question.md)).
+  The correction does not make a reply trustworthy: any device on that network
+  can see the probe's question and answer it as the printer would.
+  (Entry added 2026-10-28 by Claude, Claude Opus 5.5.)
 
 ---
 
@@ -803,6 +821,7 @@ How print jobs are moved.
 | REQ-SEC-015 | MUST | The documentation states, prominently, that print jobs travel unencrypted on the client network and are encrypted only between the proxy and the printer. |
 | REQ-SEC-016 | MUST NOT | The probe, `SecretPrinter.Probe`, which a release includes beside the service (REQ-DIST-011), starts another program, reads or writes the Windows registry, makes an HTTP request, or writes a file. It does open a socket, and only its own assembly can: it puts its questions over UDP to the network of the interface address it is given, and reads the replies. (Added 2026-10-06 by Claude, Claude Opus 5.5. The probe has been in the release folder since 2026-10-04, and until this requirement nothing in this specification or its tests covered it; see [the finding](docs/findings/2026-10-06-the-probe-was-in-the-release-and-outside-the-security-checks.md).) |
 | REQ-SEC-017 | MUST NOT | The service sends an mDNS answer by unicast to an address that is not on the network the query arrived from. Over IPv4 that network is the client network as the relay works it out from the client interface's address (REQ-SEC-012). Over IPv6 the address must be a link-local address carrying the scope of the interface the query arrived on, compared with that interface's IPv6 index; a link-local address with no scope is refused, because which link it is on cannot be told. A legacy unicast query (REQ-ADV-017) from any other address is not answered, and the first line of the stop summary counts such queries apart from the others. A query about a name the service does not hold is counted as that, whatever its address. An answer sent by multicast is not affected: it goes to the group on the link the query arrived on. The check is needed because the service sets the adapter its multicasts leave by and not the one a unicast datagram leaves by, which Windows chooses from its routing table (Microsoft documents `IP_MULTICAST_IF` as the outgoing interface "for sending IPv4 multicast traffic", and `IP_UNICAST_IF`, which the service does not set, for other traffic). RFC 6762 §5.5 asks the same of a query sent by unicast: responders "SHOULD check that the source address in the query packet matches the local subnet for that link (or, in the case of IPv6, the source address has an on-link prefix) and silently ignore the packet if not". (Added 2026-10-13 by Claude, Claude Opus 5.5. Until then a legacy query was answered by unicast to whatever address it gave, so a device on the client network that forged the source address of a query could have had the service's answer sent out of the printer-side adapter, or through a router to an address on neither network. Releases 0.1.0 and 0.2.0 do that. Measured against the code by tests with a fake transport; not seen on a network, and whether Windows passes on a query whose source address is not on the network it arrived on has not been measured. See [the finding](docs/findings/2026-10-13-a-unicast-answer-went-to-any-address-a-question-gave.md).) (Note, later on 2026-10-13, by Claude, Claude Opus 5.5: the same check governs an answer sent by unicast because a question asked for one (REQ-ADV-028). From an address it refuses, those records go by multicast instead, and the query is not counted as refused.) (Note, later on 2026-10-13, by Claude, Claude Opus 5.5: run on a network once, with REQ-ADV-028. 29 answers went by unicast, each to an address the check allowed, and none was refused; no legacy querier is known to have asked. Whether the IPv6 source address of a received datagram carries its scope on Windows is still not established. See [the finding of the run](docs/findings/2026-10-13-twenty-nine-answers-went-by-unicast-on-a-network.md).) |
+| REQ-SEC-018 | MUST | The probe, `SecretPrinter.Probe`, keeps a reply only when it was sent from UDP port 5353 and carries the identifier of the query the probe sent in that round. The probe asks from a port the operating system chooses, so a responder answers it as a legacy querier, by unicast (RFC 6762 §6.7), and every question it asks sets the unicast-response bit. RFC 6762 §6 says "The source UDP port in all Multicast DNS responses MUST be 5353", that implementations "MUST silently ignore any Multicast DNS responses they receive where the source UDP port is not 5353", and that a querier "MUST only accept unicast responses if they answer a recently sent query (e.g., sent within the last two seconds) that explicitly requested unicast responses"; §6.7 says a legacy unicast response "MUST repeat the query ID and the question given in the query message". A datagram from any other port is not read, and a response carrying another identifier is not kept. Nothing is sent back for either; the probe prints a line for each, saying it was ignored and why, because it is a diagnostic that reports what came back. The probe listens in each round for the time `--timeout` gives, 5 seconds unless set; §6 gives two seconds as an example, and this was not changed. Neither check makes a reply trustworthy: the probe sends its query, identifier included, to the mDNS group, so any device on that network can see it and answer from port 5353 as a printer would, and mDNS gives no way to tell them apart. (Added 2026-10-28 by Claude, Claude Opus 5.5. Until then the probe kept every DNS response that reached its socket, from any port and with any identifier; every release up to 0.5.0 does so. Measured against the code by tests, and run once on the printer-side network from the development machine, where the printer's two replies were kept and nothing was ignored. See [the finding](docs/findings/2026-10-28-the-probe-keeps-only-a-reply-from-port-5353-to-its-own-question.md).) |
 
 ## 9. Requirements: lifecycle and observability (LIF, OBS)
 

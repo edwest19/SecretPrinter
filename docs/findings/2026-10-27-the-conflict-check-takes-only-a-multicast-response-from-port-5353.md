@@ -228,7 +228,11 @@ predicts a difference on this network; a run would show that nothing broke.
 - **The probe** (`tools/SecretPrinter.Probe`), carried from the finding of
   2026-10-26: it asks as a legacy querier under §6.7, from a port the
   operating system chooses, and reads the unicast replies that brings. Whether
-  §6's port rule should apply to it was not worked out.
+  §6's port rule should apply to it was not worked out. *(Status note,
+  2026-10-28, by Claude, Claude Opus 5.5: worked out and changed; see the
+  status note of that day on the same item in
+  [the finding of 2026-10-26](2026-10-26-a-lookup-takes-only-a-multicast-response-from-port-5353.md),
+  and [the finding of the change](2026-10-28-the-probe-keeps-only-a-reply-from-port-5353-to-its-own-question.md).)*
 - **Goodbyes** are heard and not acted on, by Edwin's choice of 2026-10-22,
   carried.
 

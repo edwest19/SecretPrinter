@@ -780,6 +780,12 @@ From a clone of the repository, which needs the .NET SDK:
 dotnet run --project tools\SecretPrinter.Probe -- --interface <printer-side-ipv4>
 ```
 
+The probe keeps only replies sent from port 5353 that carry the identifier of
+its own question. For anything else it receives it prints a line saying it was
+ignored and why, ending `(RFC 6762 s6)` or `(RFC 6762 s6, s6.7)`, and nothing
+from it is in the report. (Paragraph added 2026-10-28 by Claude, Claude Opus
+5.5, with `REQ-SEC-018`. The probe of a release up to 0.5.0 keeps every reply.)
+
 Take the `INSTANCE` lines verbatim, spaces included. Two go into the
 configuration. `printerInstance` is the one ending in `._ipp._tcp.local`: the
 printer's capabilities, which the advertisement is built from, come from it.

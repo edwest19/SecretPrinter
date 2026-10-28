@@ -10,6 +10,15 @@
 // first commit. Comment only; no behaviour changed. Reviewed by a human before
 // merge.
 //
+// Which replies are kept changed by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-28 (REQ-SEC-018). A reply is now kept
+// only when it came from UDP port 5353 and carries the identifier of the query
+// the round sent, as RFC 6762 s6 and s6.7 require; any other datagram is
+// printed as ignored, with why. Until then every DNS response that reached the
+// socket was kept, from any port and with any identifier. The decision is made
+// in Judge, which the receive loop hands every datagram to. Reviewed by a human
+// before merge.
+//
 // Purpose:
 //   A read-only diagnostic. It asks the local network what print services are
 //   being advertised over mDNS, and prints exactly what came back.
@@ -18,7 +27,9 @@
 //   1. Opens one UDP socket bound to an interface address you name explicitly,
 //      on an operating-system-assigned ephemeral port.
 //   2. Sends DNS-SD PTR queries to 224.0.0.251:5353 out of that interface.
-//   3. Listens for replies until a timeout elapses.
+//   3. Listens for replies until a timeout elapses. It keeps a reply only when
+//      it came from port 5353 and carries the identifier of the query just
+//      sent, and prints a line for any other datagram saying why it was not.
 //   4. If round one named any instance, sends a second round of SRV and TXT
 //      queries for each. If that leaves an SRV target with no address, sends
 //      a third round of A queries for those host names.
@@ -57,6 +68,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using SecretPrinter.Dns;
+using SecretPrinter.Spec;
 
 namespace SecretPrinter.Probe;
 
@@ -135,13 +147,14 @@ internal static class Program
         Console.WriteLine();
 
         // ---- Round 1: PTR queries for each service type -----------------------
-        var round1 = new DnsQueryBuilder(NextQueryId());
+        ushort round1Id = NextQueryId();
+        var round1 = new DnsQueryBuilder(round1Id);
         foreach (string serviceType in options.ServiceTypes)
         {
             round1.AddQuestion(DnsName.Parse(serviceType), DnsRecordType.Ptr, requestUnicastResponse: true);
         }
 
-        List<Reply> replies = await QueryAsync(socket, round1.Build(), options, "1").ConfigureAwait(false);
+        List<Reply> replies = await QueryAsync(socket, round1.Build(), round1Id, options, "1").ConfigureAwait(false);
 
         // Collect instance names from PTR answers.
         var instances = new List<DnsName>();
@@ -163,14 +176,15 @@ internal static class Program
             Console.WriteLine($"Round 1 named {instances.Count} instance(s). Sending round 2 (details).");
             Console.WriteLine();
 
-            var round2 = new DnsQueryBuilder(NextQueryId());
+            ushort round2Id = NextQueryId();
+            var round2 = new DnsQueryBuilder(round2Id);
             foreach (DnsName instance in instances)
             {
                 round2.AddQuestion(instance, DnsRecordType.Srv, requestUnicastResponse: true);
                 round2.AddQuestion(instance, DnsRecordType.Txt, requestUnicastResponse: true);
             }
 
-            replies.AddRange(await QueryAsync(socket, round2.Build(), options, "2").ConfigureAwait(false));
+            replies.AddRange(await QueryAsync(socket, round2.Build(), round2Id, options, "2").ConfigureAwait(false));
 
             // Any SRV target host we have not yet resolved gets an A query.
             var hosts = new List<DnsName>();
@@ -203,13 +217,14 @@ internal static class Program
                 Console.WriteLine($"Resolving {hosts.Count} host name(s). Sending round 3 (addresses).");
                 Console.WriteLine();
 
-                var round3 = new DnsQueryBuilder(NextQueryId());
+                ushort round3Id = NextQueryId();
+                var round3 = new DnsQueryBuilder(round3Id);
                 foreach (DnsName host in hosts)
                 {
                     round3.AddQuestion(host, DnsRecordType.A, requestUnicastResponse: true);
                 }
 
-                replies.AddRange(await QueryAsync(socket, round3.Build(), options, "3").ConfigureAwait(false));
+                replies.AddRange(await QueryAsync(socket, round3.Build(), round3Id, options, "3").ConfigureAwait(false));
             }
         }
 
@@ -218,7 +233,9 @@ internal static class Program
     }
 
     /// <summary>Sends one query and collects replies until the timeout elapses.</summary>
-    private static async Task<List<Reply>> QueryAsync(Socket socket, byte[] query, Options options, string label)
+    /// <param name="queryId">The identifier <paramref name="query"/> was built with.</param>
+    private static async Task<List<Reply>> QueryAsync(
+        Socket socket, byte[] query, ushort queryId, Options options, string label)
     {
         await socket.SendToAsync(query, SocketFlags.None, new IPEndPoint(MdnsGroup, MdnsPort))
                     .ConfigureAwait(false);
@@ -245,28 +262,16 @@ internal static class Program
             }
 
             var source = (IPEndPoint)result.RemoteEndPoint;
+            Arrival arrival = Judge(source, buffer, result.ReceivedBytes, queryId, label);
 
-            try
+            if (arrival.Line is { } line)
             {
-                DnsMessage message = DnsMessage.Parse(buffer, result.ReceivedBytes);
-                if (!message.IsResponse)
-                {
-                    continue; // Someone else's query, not an answer to ours.
-                }
-
-                var raw = new byte[result.ReceivedBytes];
-                Array.Copy(buffer, raw, result.ReceivedBytes);
-                replies.Add(new Reply(source, message, raw));
-
-                Console.WriteLine(
-                    $"  [round {label}] {result.ReceivedBytes,5} bytes from {source.Address}: "
-                    + $"{message.Answers.Count} answer(s), {message.Additionals.Count} additional(s)");
+                Console.WriteLine(line);
             }
-            catch (InvalidDataException ex)
+
+            if (arrival.Reply is { } reply)
             {
-                // Report rather than hide. A malformed reply is itself a finding.
-                Console.WriteLine($"  [round {label}] unparseable {result.ReceivedBytes} bytes from " +
-                                  $"{source.Address}: {ex.Message}");
+                replies.Add(reply);
             }
         }
 
@@ -274,11 +279,82 @@ internal static class Program
         return replies;
     }
 
+    /// <summary>
+    /// Decides what one datagram that reached the probe's socket is: a reply to
+    /// keep, or not, and the line to print about it.
+    /// </summary>
+    /// <remarks>
+    /// The probe asks from a port the operating system chooses, so responders
+    /// answer it as a legacy querier, by unicast (RFC 6762 s6.7). RFC 6762 s6:
+    /// "The source UDP port in all Multicast DNS responses MUST be 5353", and
+    /// implementations "MUST silently ignore any Multicast DNS responses they
+    /// receive where the source UDP port is not 5353"; and a querier "MUST only
+    /// accept unicast responses if they answer a recently sent query". s6.7: a
+    /// legacy unicast response "MUST repeat the query ID and the question given
+    /// in the query message". So a real answer always comes from port 5353 and
+    /// carries the identifier of the query it answers, and neither check loses
+    /// one. "Silently" is taken to mean that nothing is sent back and nothing
+    /// is kept: this is a diagnostic, so it still prints a line saying what it
+    /// ignored and why. The port is checked before the datagram is read.
+    /// </remarks>
+    [Requirement("REQ-SEC-018",
+        "Keeps a reply only when it came from UDP port 5353 and carries the identifier of the round's query; prints any other datagram as ignored, with why, and keeps nothing of it.")]
+    internal static Arrival Judge(IPEndPoint source, byte[] datagram, int length, ushort queryId, string label)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(datagram);
+
+        if (source.Port != MdnsPort)
+        {
+            return new Arrival(
+                null,
+                $"  [round {label}] {length,5} bytes from {source.Address} port {source.Port}: "
+                + $"ignored, not sent from port {MdnsPort} (RFC 6762 s6).");
+        }
+
+        DnsMessage message;
+        try
+        {
+            message = DnsMessage.Parse(datagram, length);
+        }
+        catch (InvalidDataException ex)
+        {
+            // Report rather than hide. A malformed reply is itself a finding.
+            return new Arrival(null, $"  [round {label}] unparseable {length} bytes from {source.Address}: {ex.Message}");
+        }
+
+        if (!message.IsResponse)
+        {
+            return new Arrival(null, null); // Someone else's query, not an answer to ours.
+        }
+
+        if (message.Id != queryId)
+        {
+            return new Arrival(
+                null,
+                $"  [round {label}] {length,5} bytes from {source.Address}: ignored, query ID {message.Id} "
+                + $"is not this round's, {queryId} (RFC 6762 s6, s6.7).");
+        }
+
+        var raw = new byte[length];
+        Array.Copy(datagram, raw, length);
+
+        return new Arrival(
+            new Reply(source, message, raw),
+            $"  [round {label}] {length,5} bytes from {source.Address}: "
+            + $"{message.Answers.Count} answer(s), {message.Additionals.Count} additional(s)");
+    }
+
     private static ushort NextQueryId() => (ushort)Random.Shared.Next(1, ushort.MaxValue);
 }
 
 /// <summary>One reply, retained with its source and original bytes.</summary>
 internal sealed record Reply(IPEndPoint Source, DnsMessage Message, byte[] RawBytes);
+
+/// <summary>What the probe makes of one datagram that reached its socket.</summary>
+/// <param name="Reply">The reply to keep, or null when the datagram is not kept.</param>
+/// <param name="Line">The line to print about it, or null to print nothing.</param>
+internal sealed record Arrival(Reply? Reply, string? Line);
 
 internal sealed class OptionException(string message) : Exception(message);
 

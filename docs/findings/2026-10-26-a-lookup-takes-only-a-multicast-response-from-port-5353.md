@@ -212,7 +212,12 @@ look, in the log, like any other unanswered question.
 - **The probe** (`tools/SecretPrinter.Probe`) asks from a port the operating
   system chooses, as a legacy querier under §6.7 by design, and reads the
   unicast replies that brings. It is not changed. Whether §6's port rule
-  should apply to a legacy querier was not worked out.
+  should apply to a legacy querier was not worked out. *(Status note,
+  2026-10-28, by Claude, Claude Opus 5.5: worked out and changed. The probe
+  now keeps a reply only when it was sent from port 5353 and carries the
+  identifier of its query (README `REQ-SEC-018`); measured against the code by
+  tests, and run once on the printer-side network. See
+  [its finding](2026-10-28-the-probe-keeps-only-a-reply-from-port-5353-to-its-own-question.md).)*
 - Carried from the finding of 2026-10-22, unchanged: no TTL is capped; the
   startup wait does not use what is heard; goodbyes are heard and not acted
   on, by Edwin's choice.

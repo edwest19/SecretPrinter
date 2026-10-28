@@ -59,6 +59,10 @@
 // ProgramVersionTests registered by Claude (Anthropic model, Claude Opus 5.5)
 // at the direction of Edwin West, 2026-10-18, for REQ-OBS-011. Reviewed by a
 // human before merge.
+//
+// ProbeRepliesTests registered by Claude (Anthropic model, Claude Opus 5.5) at
+// the direction of Edwin West, 2026-10-28, for REQ-SEC-018. Reviewed by a human
+// before merge.
 // -----------------------------------------------------------------------------
 
 using SecretPrinter.TestKit;
@@ -96,6 +100,7 @@ internal static class Program
             typeof(TestHarnessTests),
             typeof(SecurityClaimsTests),
             typeof(ProbeClaimsTests),
+            typeof(ProbeRepliesTests),
             typeof(ServiceHostTests),
             typeof(FileServiceLogTests),
             typeof(PrinterWatchTests),
