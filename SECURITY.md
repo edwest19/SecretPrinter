@@ -117,11 +117,21 @@ Microsoft's out-of-band security update of 2026-10-25; `0.3.0` and `0.4.0`
 carry 10.0.13, and `0.1.0` and `0.2.0` carry 10.0.12. Microsoft's announcement
 of that update lists four advisories, and says its update of 2026-10-13, which
 brought 10.0.13, did not fully address two of them, one being CVE-2026-70197,
-in `System.Net.Sockets` on Windows. Whether any of the four concerns code
-SecretPrinter runs has not been worked out
-([finding](docs/findings/2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md)).
+in `System.Net.Sockets` on Windows. Read against SecretPrinter on 2026-10-28,
+by what Microsoft says each fault needs, SecretPrinter reaches none of the
+four: it decompresses nothing (CVE-2026-111497, the Brotli decoder), never
+hands one `SocketAsyncEventArgs` from an IPv4 socket to an IPv6 one
+(CVE-2026-70197), is neither built nor installed from a Linux archive
+(CVE-2026-114148), and uses no Blazor package (CVE-2026-102870). `0.1.0` to
+`0.4.0` still carry a runtime Microsoft lists as affected by the first two;
+`0.5.0` carries the corrected one, and moving to it settles both without
+relying on that reading
+([finding](docs/findings/2026-10-28-the-four-advisories-of-2026-10-25-were-read-against-secretprinter.md)).
 (Paragraph added 2026-10-25 by Claude, Anthropic model, Claude Opus 5.5, at the
-direction of Edwin West, after release 0.5.0 was published.)
+direction of Edwin West, after release 0.5.0 was published. Changed 2026-10-28
+by Claude, Claude Opus 5.5: until then it ended "Whether any of the four
+concerns code SecretPrinter runs has not been worked out", with a link to the
+finding of the fifth release.)
 
 Consequently: **a binary presented as SecretPrinter that does not come from
 this repository's Releases page, or is not signed under the name given below,

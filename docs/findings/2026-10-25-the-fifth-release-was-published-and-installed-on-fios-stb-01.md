@@ -200,6 +200,12 @@ creates no `SocketAsyncEventArgs`: `MdnsSocket` receives with
 probe uses `ReceiveFromAsync` on one socket. Whether the runtime's own code
 under those calls is what the advisory describes is not worked out here. None
 of the other three advisories was examined against SecretPrinter either.
+*(Status note, 2026-10-28, by Claude, Claude Opus 5.5: worked out for all four.
+By what Microsoft says each fault needs, SecretPrinter reaches none of them.
+For this one, the runtime keeps the object behind those calls with the socket
+it is called on, so one is never handed from the IPv4 socket to the IPv6 one;
+read in the runtime shipped in releases 0.1.0, 0.4.0 and 0.5.0. See
+[the finding](2026-10-28-the-four-advisories-of-2026-10-25-were-read-against-secretprinter.md).)*
 
 ## The checks on FIOS-STB-01
 
@@ -362,7 +368,9 @@ Known problems entry on the printer-side network), `SECURITY.md` and
 - **A download with a browser.** Both checks were run on a copy `curl.exe`
   fetched.
 - **Whether any of the four advisories of 2026-10-25 concerns code
-  SecretPrinter runs,** above.
+  SecretPrinter runs,** above. *(Status note, 2026-10-28, by Claude, Claude
+  Opus 5.5: worked out; see the status note above and
+  [the finding](2026-10-28-the-four-advisories-of-2026-10-25-were-read-against-secretprinter.md).)*
 
 ## How it was read
 

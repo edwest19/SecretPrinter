@@ -70,6 +70,12 @@ advisories; whether any concerns code SecretPrinter runs has not been worked
 out. See [the finding of the fifth
 release](2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md).)*
 
+*(Status note, 2026-10-28, by Claude, Claude Opus 5.5: the four advisories were
+read against SecretPrinter. By what Microsoft says each fault needs,
+SecretPrinter reaches none of them, though 0.4.0 carries a runtime Microsoft
+lists as affected by two. See
+[the finding](2026-10-28-the-four-advisories-of-2026-10-25-were-read-against-secretprinter.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name or the printer's certificate fingerprint.
