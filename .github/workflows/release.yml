@@ -79,6 +79,24 @@
 #   (The two sentences above about the release job were reworded, and this
 #   paragraph added, by Claude (Anthropic model, Claude Opus 5.5) at the
 #   direction of Edwin West, 2026-10-07. Comments only; no step changed.)
+#   Its fourth to eighth runs passed in all three jobs, each sign job after a
+#   person's approval, and each published a release:
+#     run 4, 2026-10-08, v0.1.0, the first not marked as a pre-release:
+#       docs/findings/2026-10-08-the-first-release-was-published.md
+#     run 5, 2026-10-11, v0.2.0:
+#       docs/findings/2026-10-11-the-second-release-was-published-and-installed-on-fios-stb-01.md
+#     run 6, 2026-10-15, v0.3.0:
+#       docs/findings/2026-10-15-the-third-release-was-published-and-installed-on-fios-stb-01.md
+#     run 7, 2026-10-20, v0.4.0, the first run of "Name the SDK and the
+#       runtime":
+#       docs/findings/2026-10-20-the-fourth-release-was-published-and-installed-on-fios-stb-01.md
+#     run 8, 2026-10-25, v0.5.0:
+#       docs/findings/2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md
+#   README.md, under the release workflow, says the same of each run.
+#   (Runs four to eight added by Claude (Anthropic model, Claude Opus 5.5) at
+#   the direction of Edwin West, 2026-10-28. Until then this paragraph stopped
+#   at the third run, while README.md and the findings recorded every run.
+#   Comments only; no step changed.)
 #
 # What the release notes hold:
 #   The CHANGELOG.md entry for the version, then a section "Built with" that
