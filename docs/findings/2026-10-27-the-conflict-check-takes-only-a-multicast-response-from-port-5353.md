@@ -13,6 +13,13 @@ arrived on a client interface was read for conflicts, whatever its destination
 and source port; releases `0.1.0` to `0.5.0` do so. Nothing the service sends
 changes.**
 
+*(Status note, later on 2026-10-27, by Claude, Claude Opus 5.5: committed and
+pushed as `0b51fcc`; CI run 172 passed. Run once on a network that evening, on
+FIOS-STB-01, in a build of `0b51fcc` made on the development machine and not
+signed: its probe at startup came back clear, and a page printed from an
+iPhone at the first attempt. No release carries it. See [the finding of the
+run](2026-10-27-the-build-of-0b51fcc-was-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The addresses in the tests are made up.

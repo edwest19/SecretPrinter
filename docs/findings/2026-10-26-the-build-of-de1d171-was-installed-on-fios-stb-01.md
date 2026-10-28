@@ -64,6 +64,13 @@ loss with how it ended; it printed only the first and last time of each group,
 so the second printed the time of each interface line. The arithmetic was done
 in Claude's workspace.)*
 
+*(Status note, later on 2026-10-27, by Claude, Claude Opus 5.5: a build of
+`0b51fcc`, which also carries `REQ-ADV-030`, replaced this build on FIOS-STB-01
+at 00:58:46Z on 2026-10-28, a little over 30 hours after it started; an iPhone
+printed through it. This build's stop summary counted 71 queries served of
+10,109 seen. The 4 hours 6 minutes from the read above to the stop were not
+read. See [the finding of that run](2026-10-27-the-build-of-0b51fcc-was-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name, the certificate pin or a user name. The log lines quoted
