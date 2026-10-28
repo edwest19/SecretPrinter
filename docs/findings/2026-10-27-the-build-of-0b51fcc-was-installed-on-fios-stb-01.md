@@ -15,6 +15,82 @@ startup lookups were answered within about a second, each with a lifetime of
 120 seconds and nothing capped, and the printer was off offer for 7 seconds. An
 iPhone printed a page at the first attempt. No release carries these changes.**
 
+*(Status note, 2026-10-28, by Claude, Claude Opus 5.5: this build's first 16
+hours on FIOS-STB-01 were read there on 2026-10-28, read-only, from the
+service's log, from the build's first line at 00:58:49Z to the reading at
+16:59:03Z: 16 hours 0 minutes 14 seconds. A second read, at 17:08:48Z, printed
+every line from 16:21:12Z with its time. Nothing was run, restarted or changed
+for them. Windows last started at 20:55:31Z on 2026-10-14, the service was
+running, and the log holds one start in the period, this build's. No line in
+the period says `capped from` or `Printer lookup failed`, and none reports a
+conflict. **The service lost the printer 6 times and found it again each time
+without a restart, each time by one of its own questions being answered; it
+heard the printer without being asked in none of them.** Each loss ended with
+`it answered` 2 or 3 seconds after a question due by the schedule under "The
+arithmetic" in the
+[finding of 2026-10-22](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md),
+counted from the loss: the questions due 162, 556, 1,073, 295, 2,102 and 295
+seconds after the losses at 08:24:47Z, 10:03:41Z, 10:23:08Z, 14:15:58Z,
+15:27:44Z and 16:16:12Z. No `The printer-side interface is usable again` line
+and no `Could not reopen` line was logged. The printer was not offered for 1
+hour 15 minutes 15 seconds in all, counted from each `Printer unreachable` line
+to its `Advertisement restored` line, 7.8% of the period; the longest loss,
+from 15:27:44Z, kept it off offer for 35 minutes 8 seconds. Before offering the
+printer again after each loss, the service probed for its names, as it did at
+startup: seven probes, each logged `Probe clear`, and no conflict was logged at
+any other time, so the check that `REQ-ADV-030` changed found none. To the
+second read the build accepted 31 connections and refused none. Every one came
+from an IPv6 link-local address, the 22 to the first read all from the same one
+(the second read hid the address), and every one was located from the
+resolver's cache: the five of the page below, which all completed; 17 between
+16:51:37Z and 16:57:21Z; and 9 between 17:03:18Z and 17:05:14Z. 28 were relayed
+over TLS 1.2 with the printer's certificate matching the pinned fingerprint,
+and completed; none carried a million bytes or more. **Three failed.** They
+were accepted together at 16:57:21Z and each failed at 16:57:31Z, after 10.02
+or 10.03 seconds, with no bytes relayed either way: `Could not connect to the
+printer at …:631: The TLS handshake with the printer at …:631 did not complete
+within 10s.` From the code (`TlsConnectionFactory.ConnectAsync`), that message
+is written only after the TCP connection to the printer's address has been
+made, when the 10 seconds allowed for the connection and its handshake together
+run out during the handshake. So each time a TCP connection was made and the
+handshake was not finished in what was left of the 10 seconds. The printer had
+been on offer since 16:21:12Z, and its answer was in the resolver's cache,
+which holds one for at most 120 seconds (`REQ-RES-013`). One connection,
+accepted at 16:52:10Z, was open the whole time; it completed at 16:57:31Z,
+after 320.98 seconds, with 109,985 bytes sent and 86,662 received, logged just
+after the three failures in the same second. At 17:05:14Z three connections
+were opened while another long one was open, and all three completed. Why those
+three handshakes were not finished is not shown. One TLS handshake with the
+printer had timed out before, on 2026-10-02: item 9 under "Also seen" in
+[that day's finding](2026-10-02-an-iphone-printed-after-its-host-name-question-was-answered-with-an-nsec.md).
+Edwin said that in this time he had been opening the printer's supply levels on
+the iPhone, through SecretPrinter, to see that it was working, and had printed
+no page: "i checked to see if it is working so i select printer secretprinter
+and get supply info. it seems like it sends something to the printer so i have
+been doing that and it is working now. so yes i sent supply info not a print
+page but it worked." Which connections belong to which of his checks is not
+shown; the clocks were not compared. The first read began at 20:47:28Z on
+2026-10-27, before the reading of the build of `de1d171` at 20:52:29Z that day,
+so as to take in that build's last hours too; its first line was at 21:02:35Z,
+so no line was read twice. It grouped every line that is not a `Job:` line,
+with addresses, the printer's host name, UUIDs, the pin and numbers masked,
+counted the `Job:` lines, and listed each loss with how it ended. The second
+printed the lines from 16:21:12Z with the same values hidden, IPv4 addresses
+too. Both were given by Claude, tested first in Claude's workspace with
+PowerShell 7.4.6 on a made-up log, and run by Edwin in his SSH session. The
+arithmetic was done in Claude's workspace. Claude predicted, and it did not
+hold: that the first line would be at 20:47:28Z; that no connection would fail;
+that the printer would be off offer for about a tenth of the time (it was 6.5%
+of the whole span read, 7.8% of this build's part); and that the check at about
+12:57 pm Eastern would show a connection opened then that completed, besides
+the three that failed (none did; the one that completed then had been opened at
+16:52:10Z). Held: the time Windows started, the service running, the stop and
+start lines of the swap, 4 to 16 losses (7, one of them the build of
+`de1d171`'s), each ended by an answer, no `Could not reopen` line, one client
+address in the first read, every connection located from the cache, no
+connection of a million bytes or more, the three failures accepted at
+16:57:21Z, and the checks after the first read logged after 16:57:31Z.)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name, the certificate pin or a user name. The log lines quoted
@@ -128,10 +204,13 @@ and 2026-10-26.
 ## What this does not show
 
 - **Anything over hours or days.** The build is left running; its log will
-  show how it fares.
+  show how it fares. *(Status note, 2026-10-28, by Claude, Claude Opus 5.5:
+  its first 16 hours were read; see the status note at the top.)*
 - **The last hours of the build of `de1d171`,** from the read at 20:52:29Z on
   2026-10-27 to its stop at 00:58:46Z on 2026-10-28, 4 hours 6 minutes, were
-  not read.
+  not read. *(Status note, 2026-10-28, by Claude, Claude Opus 5.5: read on
+  2026-10-28; see the status note at the top, and that day's on
+  [that build's finding](2026-10-26-the-build-of-de1d171-was-installed-on-fios-stb-01.md).)*
 
 ## What Claude predicted, and what it did not
 

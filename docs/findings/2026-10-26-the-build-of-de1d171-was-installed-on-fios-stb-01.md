@@ -71,6 +71,22 @@ printed through it. This build's stop summary counted 71 queries served of
 10,109 seen. The 4 hours 6 minutes from the read above to the stop were not
 read. See [the finding of that run](2026-10-27-the-build-of-0b51fcc-was-installed-on-fios-stb-01.md).)*
 
+*(Status note, 2026-10-28, by Claude, Claude Opus 5.5: the 4 hours 6 minutes 17
+seconds from the read at 20:52:29Z on 2026-10-27 to this build's stop at
+00:58:46Z on 2026-10-28 were read on FIOS-STB-01 on 2026-10-28, read-only, in
+the same read as the first 16 hours of the build of `0b51fcc`. In them the
+service lost the printer once, at 21:02:35Z on 2026-10-27, and found it again
+without a restart when the question due 162 seconds after the loss was
+answered, 2 seconds after it was due; the printer was off offer for 2 minutes
+47 seconds. Its probe before offering the printer again came back clear. The
+build accepted no connection in that time. Over its whole run on FIOS-STB-01,
+30 hours 20 minutes 6 seconds, it lost the printer 14 times, each ended by one
+of its own questions being answered and none by the printer being heard without
+being asked; it did not offer the printer for 3 hours 16 minutes 29 seconds,
+10.8% of the run; and it accepted 27 connections, none of which failed or was
+refused. See the status note of 2026-10-28 on
+[the finding of the build of `0b51fcc`](2026-10-27-the-build-of-0b51fcc-was-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name, the certificate pin or a user name. The log lines quoted
