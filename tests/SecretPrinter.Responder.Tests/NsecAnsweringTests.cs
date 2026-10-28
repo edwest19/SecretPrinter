@@ -17,6 +17,15 @@
 // checked before. The rule itself is tested in OncePerSecondTests.cs.
 // Reviewed by a human before merge.
 //
+// The two responses handed to the responder, another device's and its own sent
+// back, given the mDNS group as their destination by Claude (Anthropic model,
+// Claude Opus 5.5) at the direction of Edwin West, 2026-10-27, when the
+// responder began to read a response for conflicts only when it was sent to the
+// group from UDP port 5353 (README REQ-ADV-030). A response built without a
+// destination would no longer be read, and a test that it is not taken for a
+// conflict would pass for the wrong reason. No test changed what it checks.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Checks when the responder sends an NSEC record, where in the message it
 //   goes, and what it says (README REQ-ADV-022).
@@ -432,7 +441,8 @@ internal static class NsecAnsweringTests
                 new AddressPayload(IPAddress.Parse("192.168.1.50"))))
             .Build();
         Handle(responder, new MdnsDatagram(
-            theirs, new IPEndPoint(IPAddress.Parse("192.168.1.50"), 5353), ClientNic.Index, ClientNic));
+            theirs, new IPEndPoint(IPAddress.Parse("192.168.1.50"), 5353), ClientNic.Index, ClientNic,
+            MdnsResponderTests.GroupFor(ClientNic)));
         Assert.True(responder.Conflict is not null, "another device's address for the host is a conflict");
 
         Assert.False(Handle(responder, Query((host, Https))),
@@ -683,7 +693,8 @@ internal static class NsecAnsweringTests
             foreach (SentDatagram sent in transport.Sent.ToList())
             {
                 Handle(responder, new MdnsDatagram(
-                    sent.Payload, new IPEndPoint(ClientNic.Address, 5353), ClientNic.Index, ClientNic));
+                    sent.Payload, new IPEndPoint(ClientNic.Address, 5353), ClientNic.Index, ClientNic,
+                    MdnsResponderTests.GroupFor(ClientNic)));
             }
 
             Assert.True(responder.Conflict is null,

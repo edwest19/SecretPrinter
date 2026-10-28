@@ -5,6 +5,14 @@
 // Edwin West, 2026-10-13, for the SecretPrinter project. Reviewed by a human
 // before merge.
 //
+// The response built by ConflictFor given the mDNS group as its destination by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-27, when the responder began to read a response for conflicts only
+// when it was sent to the group from UDP port 5353 (README REQ-ADV-030). A
+// response built without a destination would no longer be read, and a test that
+// it is not taken for a conflict would pass for the wrong reason. No test
+// changed what it checks. Reviewed by a human before merge.
+//
 // Purpose:
 //   Checks that the responder waits a random 20 to 120 ms before an answer
 //   that other responders may be sending too, and not before one it alone
@@ -157,7 +165,9 @@ internal static class RandomAnswerDelayTests
         byte[] payload = new DnsResponseBuilder()
             .AddAnswer(new OutgoingRecord(host, DnsRecordType.A, 120, CacheFlush: true, new AddressPayload(IPAddress.Parse(Prober))))
             .Build();
-        return new MdnsDatagram(payload, new IPEndPoint(IPAddress.Parse(Prober), 5353), ClientNic.Index, ClientNic);
+        return new MdnsDatagram(
+            payload, new IPEndPoint(IPAddress.Parse(Prober), 5353), ClientNic.Index, ClientNic,
+            MdnsResponderTests.GroupFor(ClientNic));
     }
 
     private static bool Handle(Setup s, MdnsDatagram datagram) =>

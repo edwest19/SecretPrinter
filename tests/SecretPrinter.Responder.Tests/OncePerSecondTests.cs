@@ -5,6 +5,15 @@
 // Edwin West, 2026-10-12, for the SecretPrinter project. Reviewed by a human
 // before merge.
 //
+// The other device's response in
+// A_conflict_heard_while_an_announcement_waits_stops_it given the mDNS group as
+// its destination by Claude (Anthropic model, Claude Opus 5.5) at the direction
+// of Edwin West, 2026-10-27, when the responder began to read a response for
+// conflicts only when it was sent to the group from UDP port 5353 (README
+// REQ-ADV-030). A response built without a destination would no longer be read,
+// and a test that it is not taken for a conflict would pass for the wrong
+// reason. No test changed what it checks. Reviewed by a human before merge.
+//
 // Purpose:
 //   Checks that the responder does not multicast a record on an interface
 //   again until a second has passed since it last multicast it there (README
@@ -507,7 +516,9 @@ internal static class OncePerSecondTests
                     new AddressPayload(IPAddress.Parse("192.0.2.77"))))
                 .Build();
             responder!.HandleAsync(
-                new MdnsDatagram(theirs, new IPEndPoint(IPAddress.Parse("192.0.2.77"), 5353), ClientNic.Index, ClientNic),
+                new MdnsDatagram(
+                    theirs, new IPEndPoint(IPAddress.Parse("192.0.2.77"), 5353), ClientNic.Index, ClientNic,
+                    MdnsResponderTests.GroupFor(ClientNic)),
                 token).GetAwaiter().GetResult();
             return clock.Delay(wait, token);
         }

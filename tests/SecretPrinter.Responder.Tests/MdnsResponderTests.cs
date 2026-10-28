@@ -66,6 +66,15 @@
 // they check what they checked before. The rule itself is tested in
 // OncePerSecondTests.cs. Reviewed by a human before merge.
 //
+// GroupFor added, and the response built by ForeignResponse given the mDNS
+// group as its destination, by Claude (Anthropic model, Claude Opus 5.5) at the
+// direction of Edwin West, 2026-10-27, when the responder began to read a
+// response for conflicts only when it was sent to the group from UDP port 5353
+// (README REQ-ADV-030). A response built without a destination would no longer
+// be read, and a test that it is not taken for a conflict would pass for the
+// wrong reason. No test changed what it checks. Reviewed by a human before
+// merge.
+//
 // Purpose:
 //   Verifies which queries get answered, which are ignored, what the answers
 //   contain, and how they are addressed.
@@ -138,6 +147,17 @@ internal static class MdnsResponderTests
             new ProxyIdentity("SecretPrinter", "secretprinter", Guid.Parse("b6f4e2a1-9c37-4d58-8e0b-7a1f3d6c5e94"), 631),
             ClientNic.Address,
             linkLocalAddresses: linkLocal);
+
+    /// <summary>
+    /// The mDNS group a datagram arriving on <paramref name="arrivedOn"/> is sent
+    /// to when it is multicast: 224.0.0.251 over IPv4, ff02::fb over IPv6. Every
+    /// response these tests hand the responder is given it as its destination,
+    /// as IP_PKTINFO or IPV6_PKTINFO would report it, because the responder
+    /// reads a response for conflicts only when it was sent to the group
+    /// (README REQ-ADV-030).
+    /// </summary>
+    internal static IPAddress GroupFor(MdnsInterface arrivedOn) =>
+        arrivedOn.IsIPv6 ? MdnsSocket.MulticastGroupV6 : MdnsSocket.MulticastGroup;
 
     private static (MdnsResponder Responder, FakeTransport Transport) Build()
     {
@@ -510,7 +530,8 @@ internal static class MdnsResponderTests
             payload,
             new IPEndPoint(IPAddress.Parse("192.168.12.77"), 5353),
             interfaceIndex,
-            interfaceIndex == ClientNic.Index ? ClientNic : null);
+            interfaceIndex == ClientNic.Index ? ClientNic : null,
+            MdnsSocket.MulticastGroup);
     }
 
     [TestCase("A response from another device is never re-emitted")]

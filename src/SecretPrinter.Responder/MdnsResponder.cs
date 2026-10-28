@@ -187,6 +187,14 @@
 // docs/findings/2026-10-13-an-answer-others-may-send-too-waits-at-random.md.
 // Reviewed by a human before merge.
 //
+// The comment where HandleAsync passes a response to NoteConflicts now says
+// that only a response sent to the mDNS group from UDP port 5353 is read
+// (REQ-ADV-030), by Claude (Anthropic model, Claude Opus 5.5) at the direction
+// of Edwin West, 2026-10-27. The rule is in NoteConflicts, in
+// MdnsResponder.Probing.cs; nothing in this file changed but the comment. See
+// docs/findings/2026-10-27-the-conflict-check-takes-only-a-multicast-response-from-port-5353.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   The loop that joins the two halves the service already has:
 //   AdvertisementBuilder decides WHAT to publish, MdnsSocket moves the bytes,
@@ -968,7 +976,9 @@ public sealed partial class MdnsResponder
         {
             // Somebody else's answer, or our own multicast looping back. Never
             // answered and never re-emitted: read only for records about the
-            // names this responder claims (REQ-ADV-024).
+            // names this responder claims (REQ-ADV-024), and only when it was
+            // sent to the mDNS group from UDP port 5353 (REQ-ADV-030).
+            // NoteConflicts ignores any other silently.
             NoteConflicts(query, datagram, arrivedOn, entry.Advertisement);
             return false;
         }

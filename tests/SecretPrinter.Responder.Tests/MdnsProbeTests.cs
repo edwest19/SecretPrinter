@@ -14,6 +14,14 @@
 // by Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
 // 2026-09-28. Reviewed by a human before merge.
 //
+// The response built by ResponseFrom given the mDNS group as its destination by
+// Claude (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-27, when the responder began to read a response for conflicts only
+// when it was sent to the group from UDP port 5353 (README REQ-ADV-030). A
+// response built without a destination would no longer be read, and a test that
+// it is not taken for a conflict would pass for the wrong reason. No test
+// changed what it checks. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the probe the responder sends before it claims its names, and how
 //   it treats what it hears while probing (README REQ-ADV-023 and REQ-ADV-024;
@@ -103,7 +111,9 @@ internal static class MdnsProbeTests
             builder.AddAnswer(record);
         }
 
-        return new MdnsDatagram(builder.Build(), new IPEndPoint(IPAddress.Parse(source), 5353), arrivedOn.Index, arrivedOn);
+        return new MdnsDatagram(
+            builder.Build(), new IPEndPoint(IPAddress.Parse(source), 5353), arrivedOn.Index, arrivedOn,
+            MdnsResponderTests.GroupFor(arrivedOn));
     }
 
     /// <summary>A probe from another device: a question for the name, and what it proposes.</summary>

@@ -203,7 +203,12 @@ look, in the log, like any other unanswered question.
   implementations", not only to queriers. Found while reading the code for
   this change, on 2026-10-26; not changed here, one thing at a time. Whether
   the first rule, on unicast responses, applies to it as well was not worked
-  out.
+  out. *(Status note, 2026-10-27, by Claude, Claude Opus 5.5: changed. Both
+  rules apply, the second because the responder's only queries are its
+  probes, which ask for multicast answers. The conflict check now reads a
+  response only when it was sent to the mDNS group from port 5353 (README
+  `REQ-ADV-030`); measured against the code by tests, not run on a network.
+  See [its finding](2026-10-27-the-conflict-check-takes-only-a-multicast-response-from-port-5353.md).)*
 - **The probe** (`tools/SecretPrinter.Probe`) asks from a port the operating
   system chooses, as a legacy querier under §6.7 by design, and reads the
   unicast replies that brings. It is not changed. Whether §6's port rule

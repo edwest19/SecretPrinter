@@ -402,7 +402,26 @@ corrected; the table gives the last run of each.
   holds the printer reachable without a question until 80% of it. Whether to
   cap the lifetime the service believes is a question for later.
 - **The startup wait does not use what is heard.** A service that starts while
-  the printer is away waits for its own questions, as before.
+  the printer is away waits for its own questions, as before. *(Status note,
+  2026-10-27, by Claude, Claude Opus 5.5: settled by Claude as not changed.
+  In the 44 losses read from FIOS-STB-01's log since the service began to
+  listen, 31 of the build of `5a291c4` read on 2026-10-25 and 13 of the build
+  of `de1d171` read on 2026-10-27, the printer was never heard without being
+  asked; each loss ended when one of the service's own questions was
+  answered. Only the test of 2026-10-22, when Edwin switched the printer off
+  and on, ended by hearing it. A printer that does not answer at startup is
+  absent in the same way, so on this record using what is heard there would
+  have shortened no wait. Either way of using it costs something. Asking at
+  once whenever the printer is heard would let a device that sends the
+  printer's records again and again bring the questions back to every few
+  seconds, where RFC 6762 §5.2 has the interval between them at least
+  double. Taking what is heard as the answer would build the advertisement
+  from records nobody asked for, which needs the `_ipp._tcp` instance's
+  records too, not only the `_ipps._tcp` ones held now (README `REQ-RES-007`).
+  Not put to Edwin West as a choice. See the finding of 2026-10-27 on [the
+  conflict check](2026-10-27-the-conflict-check-takes-only-a-multicast-response-from-port-5353.md),
+  the change made instead, and [the read of
+  2026-10-27](2026-10-26-the-build-of-de1d171-was-installed-on-fios-stb-01.md).)*
 - **Goodbyes,** Edwin's choice of 2026-10-22: heard and not acted on.
 
 ## How it was measured

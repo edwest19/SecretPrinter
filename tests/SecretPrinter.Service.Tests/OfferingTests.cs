@@ -24,6 +24,14 @@
 // 5.5) at the direction of Edwin West, 2026-10-20. Reviewed by a human before
 // merge.
 //
+// The response built by HearConflict given the IPv6 mDNS group, ff02::fb, as
+// its destination by Claude (Anthropic model, Claude Opus 5.5) at the direction
+// of Edwin West, 2026-10-27, when the responder began to read a response for
+// conflicts only when it was sent to the group from UDP port 5353 (README
+// REQ-ADV-030). Without a destination it would no longer be read, and the
+// tests that hear a conflict would fail. No test changed what it checks.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies the decisions ServiceHost hands to Offering: when the printer is
 //   offered to the client network and when it is not (README REQ-ADV-023,
@@ -129,7 +137,8 @@ internal static class OfferingTests
 
             Responder.HandleAsync(
                     new MdnsDatagram(
-                        builder.Build(), new IPEndPoint(IPAddress.Parse("192.168.1.50"), 5353), ClientNicV6.Index, ClientNicV6),
+                        builder.Build(), new IPEndPoint(IPAddress.Parse("192.168.1.50"), 5353), ClientNicV6.Index, ClientNicV6,
+                        MdnsSocket.MulticastGroupV6),
                     CancellationToken.None)
                 .GetAwaiter().GetResult();
         }

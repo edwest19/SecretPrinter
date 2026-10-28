@@ -37,6 +37,15 @@
 // 224.0.0.251 from a second socket, with a multicast TTL of 0 so it stays on
 // this machine, and reads it back. Reviewed by a human before merge.
 //
+// IPv6_arrival_is_attributed_to_the_ipv6_entry given one more check, that the
+// datagram it sends to ff02::fb is read back as sent to the group, by Claude
+// (Anthropic model, Claude Opus 5.5) at the direction of Edwin West,
+// 2026-10-27. The responder now reads a response for conflicts only when it was
+// sent to the group (REQ-ADV-030), so a conflict heard over IPv6 depends on the
+// destination IPV6_PKTINFO reports, which no test had read back over IPv6. The
+// test needs IPv6 and is skipped where there is none; it was not run in
+// Claude's workspace before the commit. Reviewed by a human before merge.
+//
 // Purpose:
 //   Verifies that MdnsSocket is configured the way the specification requires,
 //   by reading the options back from the operating system rather than trusting
@@ -739,6 +748,13 @@ internal static class MdnsSocketTests
 
         Assert.True(datagram.ArrivedOn.Matches(ipv6),
             "the datagram must be attributed to the IPv6 entry for the adapter it arrived on");
+
+        // The responder reads a response for conflicts only when it was sent
+        // to the group (REQ-ADV-030), so the destination read from
+        // IPV6_PKTINFO must be ff02::fb for a datagram sent there.
+        Assert.True(datagram.SentToGroup,
+            "a datagram sent to ff02::fb is read back as sent to the group "
+            + $"(destination read: {datagram.Destination?.ToString() ?? "none"})");
     }
 
     /// <summary>

@@ -33,6 +33,18 @@
 // sends none".) The REQ-ADV-024 note on NoteConflicts now says how an NSEC is
 // judged, as README REQ-ADV-024 does. Reviewed by a human before merge.
 //
+// A response read for conflicts only when it was sent to the mDNS group from
+// UDP port 5353, by Claude (Anthropic model, Claude Opus 5.5) at the direction
+// of Edwin West, 2026-10-27, for REQ-ADV-030. RFC 6762 s6 has an mDNS
+// implementation silently ignore a response from any other port, and a querier
+// ignore a unicast response that answers no query of its own that asked for
+// one. Before, NoteConflicts read every response that arrived on a client
+// interface, whatever its port and destination; releases 0.1.0 to 0.5.0 do so.
+// Found on 2026-10-26 while the lookups were held to the same two rules
+// (REQ-RES-012). See
+// docs/findings/2026-10-27-the-conflict-check-takes-only-a-multicast-response-from-port-5353.md.
+// Reviewed by a human before merge.
+//
 // Purpose:
 //   Before a responder may treat a name as its own, RFC 6762 s8.1 has it ask
 //   whether anyone else already uses it. This file is that question, and the
@@ -275,12 +287,36 @@ public sealed partial class MdnsResponder
     /// not the record's own name and process the rest as usual. An NSEC the
     /// reader kept as raw bytes, outside the restricted form, cannot be shown to
     /// agree, so it is a conflict.
+    /// <para>
+    /// A response is read only when it was sent to the mDNS group, 224.0.0.251
+    /// or ff02::fb, as IP_PKTINFO or IPV6_PKTINFO reports its destination, and
+    /// came from UDP port 5353 (README REQ-ADV-030). Any other is silently
+    /// ignored, and so is one whose destination is not known. RFC 6762 s6:
+    /// "Multicast DNS implementations MUST silently ignore any Multicast DNS
+    /// responses they receive where the source UDP port is not 5353." And: "A
+    /// Multicast DNS querier MUST silently ignore all other unicast responses",
+    /// those that do not answer a recent query that asked for a unicast
+    /// response. This responder's only queries are its probes, which ask for
+    /// multicast answers (see the top of this file), so no unicast response
+    /// answers one of them. A unicast to this machine's port 5353 may also be
+    /// meant for the other socket on that port, the Windows DNS Client's
+    /// (REQ-ADV-014).
+    /// </para>
     /// </remarks>
+    [Requirement("REQ-ADV-030",
+        "Reads a response for conflicts only when it was sent to the mDNS group, 224.0.0.251 or ff02::fb, as the destination that IP_PKTINFO or IPV6_PKTINFO reports shows, and came from UDP port 5353; any other response, and one whose destination is not known, is silently ignored (RFC 6762 s6).")]
     [Requirement("REQ-ADV-024",
         "Defines a conflict: a class IN record from another device, for a claimed name, that this responder would not itself publish - another type, or the same type with different data. Identical records are not one. An NSEC record is judged by the types it lists: one listing exactly the types claimed at its name is not a conflict, and one listing anything else, or not in the restricted form, is. The first conflict is kept for the life of the responder and reported once.")]
     private void NoteConflicts(DnsMessage response, MdnsDatagram datagram, MdnsInterface arrivedOn, Advertisement advertisement)
     {
         if (Conflict is not null)
+        {
+            return;
+        }
+
+        // RFC 6762 s6, both rules; see the remarks above. Silently: nothing
+        // is logged, counted or kept.
+        if (!datagram.SentToGroup || datagram.Source.Port != MdnsSocket.MdnsPort)
         {
             return;
         }
