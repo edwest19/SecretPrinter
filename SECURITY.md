@@ -20,6 +20,18 @@ in his own time.
 no third-party assessment. Every security claim in this repository rests on the
 specification, the tests, and a reader checking them.
 
+**GitHub's code scanning reads it on every push.** Since 02:45Z on 2026-10-22,
+CodeQL, GitHub's code scanning tool, has analysed this repository in GitHub's
+"default setup", which is switched on in the repository's settings on GitHub
+and has no file in this repository. It reads every C# file, the tests and tools
+included, and both workflow files, on each push to `main` and on a schedule,
+and reports what it finds as alerts on the Security tab. To 2026-10-28 it had
+run 19 times and raised no alert. It is an automated check of code patterns,
+not a review, and the paragraph above stands
+([finding](docs/findings/2026-10-28-github-code-scanning-runs-on-every-push-and-has-raised-no-alert.md)).
+(Paragraph added 2026-10-28 by Claude, Anthropic model, Claude Opus 5.5, at the
+direction of Edwin West.)
+
 **It forwards print jobs between two networks.** SecretPrinter accepts IPP
 connections on one network and relays the bytes to a printer on another. Your
 documents pass through the machine running it, in memory. `REQ-PXY-004` requires
