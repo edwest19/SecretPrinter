@@ -85,6 +85,24 @@ lists the dependency graph "On", Dependabot alerts "On", Dependabot security
 updates "Off", malware alerts "Off", secret protection with push protection
 "On", and the AI scan features "Off". Their results were not read.
 
+*(Status note, 2026-10-29, by Claude, Claude Opus 5.5: the results of two of
+them were read on 2026-10-29, read-only, in the browser pane. **Dependabot
+alerts:** "There are no open Dependabot alerts for this repository", 0 open
+and 0 closed, with the dependency files last checked at 18:41:44Z on
+2026-10-28. **The dependency graph** lists 10 dependencies: nine are the
+GitHub Actions of the two workflow files, each pinned to a commit, and one is
+the NuGet package `System.ServiceProcess.ServiceController` 10.0.11, from
+`src/SecretPrinter.Service/SecretPrinter.Service.csproj`. It does not list
+`System.Diagnostics.EventLog` 10.0.11, which that package brings with it and
+which ships; the README's Dependencies table lists both. So "no open alerts"
+was reported over a graph that does not list that package. Whether Dependabot
+would raise an alert for it is not shown: GitHub's page "Dependency graph
+supported package ecosystems", as read with the fetch tool, does not say
+whether transitive NuGet dependencies are detected. **Secret scanning:** "No
+secrets found", 0 open and 0 closed. No alert on these pages means only that
+nothing matched; like CodeQL, neither is a review. The pages were opened by
+their addresses, and nothing on them was clicked or changed.)*
+
 ## How it was read
 
 In the browser pane of the Claude desktop app on the development machine: the
