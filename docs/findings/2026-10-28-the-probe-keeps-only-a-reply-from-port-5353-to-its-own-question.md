@@ -244,6 +244,20 @@ was pasted.
 - The report says `TXT (not received)` under `_ipps._tcp.local` in both runs,
   with and without the change. Not looked into.
 
+  *(Status note, 2026-10-29, by Claude, Claude Opus 5.5: looked into on
+  2026-10-29. Asked about `_ipps._tcp.local` alone, the printer sent that TXT
+  record; why it was left out of the usual run is not shown. See the status
+  note of that date in
+  [the finding of 2026-09-01](2026-09-01-printer-capabilities.md). That run
+  was the second in which the changed probe got the printer's replies, again on
+  the development machine, at `ef23654`: one reply in each round, both kept,
+  and no line saying `ignored`. It has still not run from a release folder or
+  on FIOS-STB-01. **A
+  mistake of Claude's:** the command that printed that run hid IPv4 and IPv6
+  addresses, the printer's host name, UUIDs and hardware addresses, but not
+  the value of the TXT record's `note` key, so the paste held the name of a
+  network. In the conversation only; it is not in the repository.)*
+
 ## What Claude predicted, and what it did not
 
 - **Held:** the five tests failing and the three controls passing before the

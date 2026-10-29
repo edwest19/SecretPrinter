@@ -92,6 +92,35 @@ response TTLs. Do not design timing against that number.
 response-size effect. If the proxy ever advertises IPPS, those values need a
 separate measurement.
 
+*(Status note, 2026-10-29, by Claude, Claude Opus 5.5: "most likely a
+response-size effect" was a guess, and it is still not shown. On 2026-10-29
+the probe was run on the printer-side network from the development machine,
+built from its working folder at `ef23654`, asking about
+`_ipps._tcp.local` alone (`--service _ipps._tcp.local`). **The printer sent the
+`_ipps._tcp` TXT record.** Round 1 brought one reply of 713 bytes, 1 answer and
+6 additionals, naming one instance, `EPSON ET-3760 Series._ipps._tcp.local`.
+Round 2, the SRV and TXT questions for that instance, brought one reply of 705
+bytes, 2 answers and 4 additionals. The report showed the SRV record, port 631,
+and a TXT record of 21 entries. They are the 21 keys of the `_ipp._tcp` record
+above, in the same order, and every value is the one above but for three:
+`note`, empty above, held the name of a network, which is not written here
+(see [the pre-publication audit](2026-09-04-pre-publication-audit.md)); and
+`UUID` and the host name in `adminurl`, which the command that printed the run
+hid, so they were not compared. Those are the values this caveat asked for. The
+proxy does not advertise IPPS: it advertises `_ipp._tcp` (`REQ-ADV-001`), and
+nothing in `SecretPrinter.Advertising` names `_ipps` (read from the code). In
+the probe's usual run, which asks about five service types, round 2 asks for
+the SRV and the TXT of each of four instances, eight questions. On 2026-10-28
+the printer answered them with one reply of 1,344 bytes holding 7 answers, and
+the `_ipps._tcp` TXT record was in neither of that run's replies
+([the finding of 2026-10-28](2026-10-28-the-probe-keeps-only-a-reply-from-port-5353-to-its-own-question.md)).
+So the printer has the record, sends it when asked about `_ipps._tcp` alone,
+and left it out when asked about the other services with it. Why is not shown.
+A limit on the size of a reply would fit that, but nothing measured shows one:
+the probe does not print a reply's truncation flag, and no reply was dumped.
+Nothing depends on it: the printer's capabilities come from the `_ipp._tcp` TXT
+record (`REQ-RES-007`).)*
+
 **The printer is on DHCP and moves.** It was observed at `.186` and later at
 `.180` during a single session. Any design that stores its address will break.
 This is why REQ-RES-001 requires resolution at connection time.
