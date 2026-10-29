@@ -56,6 +56,22 @@ was found to be recorded here and in `SECURITY.md`.
 
 - **Which queries it runs.** The query suite, and the schedule's frequency, are
   behind a menu on the settings page that was not opened.
+
+  *(Status note, 2026-10-29, by Claude, Claude Opus 5.5: the query suite has
+  now been read, from a run's own log rather than from the settings page: it
+  is the default suite. The log of the "Analyze (csharp)" job of run 21, for
+  `9f58175` at 19:33Z on 2026-10-29, carries the workflow GitHub generates for
+  default setup, packed into its `CODE_SCANNING_WORKFLOW_FILE` value.
+  Unpacked, its step "Initialize CodeQL" passes `queries: ""`, with the
+  comment `# Default query suite`, to `github/codeql-action/init@v4`, for both
+  jobs. The same log shows CodeQL 2.27.3 loading 59 queries for C# from the
+  pack `codeql/csharp-queries` 1.10.2. The generated workflow names no
+  schedule (it runs `on: dynamic`), so how often the schedule runs is still
+  not read. GitHub's page "Configuring default setup for code scanning" speaks
+  of "the weekly schedule", and from 2026-10-22 to 2026-10-28 one scheduled
+  run was seen. The log was opened by its address, the one the job page links
+  to for the raw log, and the workflow was unpacked by a short script in the
+  page; nothing was clicked or changed.)*
 - **That the code is free of faults.** No alert means CodeQL's queries matched
   nothing. It is not a review, and `SECURITY.md` still says, truly, that the
   project has had no outside security review.
