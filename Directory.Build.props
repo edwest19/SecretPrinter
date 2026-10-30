@@ -88,8 +88,16 @@
          5.5) at the direction of Edwin West, the number he chose that day for
          the fifth release, the first to take the printer's own records, heard
          without being asked, as an answer while it holds the printer
-         unreachable (REQ-RES-011). -->
-    <Version>0.5.0</Version>
+         unreachable (REQ-RES-011).
+
+         Set to 0.6.0 on 2026-10-30 by Claude (Anthropic model, Claude Opus
+         5.5) at the direction of Edwin West, the number he chose that day for
+         the sixth release, the first to take an answer about the printer, or
+         a sign of a conflict over its own names, only from a response sent to
+         the mDNS group from port 5353 (REQ-RES-012, REQ-ADV-030), to believe
+         no answer for more than 120 seconds (REQ-RES-013), and whose probe
+         keeps only a reply to its own question (REQ-SEC-018). -->
+    <Version>0.6.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>

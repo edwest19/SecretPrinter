@@ -108,18 +108,19 @@ demands of people doing it a favour.
 
 **`0.1.0`, published on 2026-10-08, is the first release, `0.2.0`,
 published on 2026-10-11, the second, `0.3.0`, published on 2026-10-15, the
-third, `0.4.0`, published on 2026-10-20, the fourth, and `0.5.0`, published on
-2026-10-25, the fifth.** Releases are published by the release workflow, from
-a tag, on this repository's Releases page and nowhere else, signed under the
-name given below.
+third, `0.4.0`, published on 2026-10-20, the fourth, `0.5.0`, published on
+2026-10-25, the fifth, and `0.6.0` the sixth version meant as one.** Releases
+are published by the release workflow, from a tag, on this repository's
+Releases page and nowhere else, signed under the name given below.
 
 | Version | What it is | Reports about it |
 | --- | --- | --- |
-| `0.5.0` | The fifth release, published on 2026-10-25. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
-| `0.4.0` | The fourth release, published on 2026-10-20. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
-| `0.3.0` | The third release, published on 2026-10-15. It has a fault that `0.4.0` corrects: a client connection accepted in the moment the service stops, or withdraws the printer, can be left open (`REQ-LIF-002`). | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
-| `0.2.0` | The second release, published on 2026-10-11. It has two faults that `0.3.0` corrects: it answers a legacy mDNS query by unicast to whatever address the query gives (`REQ-SEC-017`), and it does not stop cleanly when Windows shuts down (`REQ-LIF-009`); `README.md`, "Known problems", says more. It also has the fault of `0.3.0` that `0.4.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
-| `0.1.0` | The first release, published on 2026-10-08. It has the same two faults as `0.2.0`, which `0.3.0` corrects, and the one `0.4.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.6.0` | The sixth version meant as a release. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.5.0` | The fifth release, published on 2026-10-25. It has four problems that `0.6.0` corrects, each found in the code and none seen to happen on a machine: a lookup takes a response sent by unicast, or from a port other than 5353, as its answer (`REQ-RES-012`), and believes an answer for as long as its TTL says, however long (`REQ-RES-013`); the conflict check on the client network reads such a response (`REQ-ADV-030`); and the probe keeps any DNS response that reaches it (`REQ-SEC-018`). `README.md`, "Known problems", says more. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.4.0` | The fourth release, published on 2026-10-20. It has the four problems of `0.5.0` that `0.6.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.3.0` | The third release, published on 2026-10-15. It has a fault that `0.4.0` corrects: a client connection accepted in the moment the service stops, or withdraws the printer, can be left open (`REQ-LIF-002`). It also has the four problems of `0.5.0` that `0.6.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.2.0` | The second release, published on 2026-10-11. It has two faults that `0.3.0` corrects: it answers a legacy mDNS query by unicast to whatever address the query gives (`REQ-SEC-017`), and it does not stop cleanly when Windows shuts down (`REQ-LIF-009`); `README.md`, "Known problems", says more. It also has the fault of `0.3.0` that `0.4.0` corrects, and the four problems of `0.5.0` that `0.6.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.1.0` | The first release, published on 2026-10-08. It has the same two faults as `0.2.0`, which `0.3.0` corrects, the one `0.4.0` corrects, and the four problems `0.6.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.1.0-rc.1`, `0.1.0-rc.2`, `0.1.0-rc.3` | Trials of the release workflow, and a pre-release for testing. Only `0.1.0-rc.3` was published. | Not covered. `0.1.0` is compiled from the same source code as `0.1.0-rc.3`; see whether the problem happens on `0.1.0`. |
 | `main` | The source as it stands. | No support promise of any kind. A gap between the specification and the code is in scope, as above. |
 
@@ -201,6 +202,19 @@ published, "the fifth version meant as one" became "published on 2026-10-25,
 the fifth", and "The fifth version meant as a release." in the row became "The
 fifth release, published on 2026-10-25.")
 
+(The row for `0.6.0` added, "and `0.5.0`, published on 2026-10-25, the fifth"
+changed to "`0.5.0`, published on 2026-10-25, the fifth, and `0.6.0` the sixth
+version meant as one" in the first sentence, and a sentence on the four
+problems `0.6.0` corrects added to the rows for `0.5.0` to `0.1.0`, 2026-10-30
+by Claude, Anthropic model, Claude Opus 5.5, at the direction of Edwin West, in
+the commit that sets the version to 0.6.0. Unlike the correction `0.5.0`
+carries, for which no sentence was added, each of the four has an entry in
+"Known problems" in `README.md` naming the releases up to 0.5.0, so the rows
+now say the same. Each was found in the code; none was seen to happen on a
+machine. They are called problems, the word of "Known problems", and not
+faults, because one of them, `REQ-RES-013`, departs from what RFC 6762
+recommends, not from what it requires.)
+
 (The first two paragraphs replaced 2026-10-07 by Claude, Anthropic model,
 Claude Opus 5.5, at the direction of Edwin West, who decided that day to
 publish a pre-release. They had said that no release had been tagged, that the
@@ -246,8 +260,8 @@ an official release.
 `v0.1.0-rc.2` were trials of the workflow, and nothing was published for
 either. `v0.1.0-rc.3` is the tag of a pre-release for testing. `v0.1.0` is the
 tag of the first version meant as a release, `v0.2.0` of the second,
-`v0.3.0` of the third, `v0.4.0` of the fourth, and `v0.5.0` of the fifth; see
-"Supported versions" above.
+`v0.3.0` of the third, `v0.4.0` of the fourth, `v0.5.0` of the fifth, and
+`v0.6.0` of the sixth; see "Supported versions" above.
 (Sentence about `v0.1.0-rc.3` added, and "The two tags that exist" reworded,
 2026-10-07 by Claude, Claude Opus 5.5. Reworded again 2026-10-08, in the commit
 that sets the version to 0.1.0: this paragraph began "There is still no
@@ -258,7 +272,9 @@ third" on 2026-10-15, by Claude, Claude Opus 5.5, in the commit that sets the
 version to 0.3.0. "and `v0.4.0` of the fourth" added 2026-10-20 by Claude,
 Claude Opus 5.5, in the commit that sets the version to 0.4.0. It became
 "`v0.4.0` of the fourth, and `v0.5.0` of the fifth" on 2026-10-25, by Claude,
-Claude Opus 5.5, in the commit that sets the version to 0.5.0.)
+Claude Opus 5.5, in the commit that sets the version to 0.5.0, and
+"`v0.5.0` of the fifth, and `v0.6.0` of the sixth" on 2026-10-30, by Claude,
+Claude Opus 5.5, in the commit that sets the version to 0.6.0.)
 
 (This section replaced 2026-10-04 by Claude, Anthropic model, Claude Opus 5.5,
 at the direction of Edwin West. From here down it had said that all three

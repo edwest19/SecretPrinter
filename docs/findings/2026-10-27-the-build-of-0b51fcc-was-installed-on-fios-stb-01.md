@@ -91,6 +91,76 @@ address in the first read, every connection located from the cache, no
 connection of a million bytes or more, the three failures accepted at
 16:57:21Z, and the checks after the first read logged after 16:57:31Z.)*
 
+*(Status note, 2026-10-30, by Claude, Claude Opus 5.5: two more reads of the
+service's log on FIOS-STB-01, read-only, each from where the one before ended:
+at 18:17:29Z on 2026-10-29, from 17:08:48Z on 2026-10-28; and at 18:27:19Z on
+2026-10-30, from 16:50:56Z on 2026-10-29, one second after the last line the
+first had read. Nothing was run, restarted or changed for them. At both,
+Windows had last started at 20:55:31Z on 2026-10-14 and the service was
+running. The first read 172 lines, from 19:16:43Z to 16:50:55Z; the second 148,
+from 22:20:12Z on 2026-10-29 to 16:59:43Z on 2026-10-30. Every line is
+accounted for: 28 and 72 lines that are not `Job:` lines, and 36 and 19
+connections of four `Job:` lines each. No line says `capped from`,
+`Printer lookup failed` or `Could not reopen`, none reports a conflict, and the
+service did not restart. **The service lost the printer 3 times in the first
+read and 8 in the second, and found it again each time by one of its own
+questions being answered; it heard the printer without being asked in none of
+them.** Counted from the loss, each answer came 0 to 2 seconds after a question
+due by the schedule under "The arithmetic" in the
+[finding of 2026-10-22](2026-10-22-the-service-heard-the-printer-come-back-on-fios-stb-01.md):
+the questions due 0 and 295 seconds after the losses at 19:16:43Z and 12:15:51Z
+in the first read, and 556, 35, 162, 6, 22, 0, 93 and 0 seconds after the
+losses at 22:20:12Z, 05:31:35Z, 12:39:08Z, 12:43:52Z, 12:46:00Z, 12:49:59Z,
+12:53:43Z and 13:00:31Z in the second. The answer that ended the third loss of
+the first read, at 16:48:52Z, is counted from elsewhere: at 16:50:52Z the
+service logged `The printer-side interface is usable again`, so the
+printer-side Wi-Fi had been seen not usable; its questions started over from
+that line, and the printer answered at 16:50:53Z. When the Wi-Fi dropped is not
+shown, because nothing is logged then. Off offer, counted as before: 7 minutes
+6 seconds in the first read, 0.47% of the 25 hours 9 minutes it covers, and 15
+minutes 6 seconds in the second, 0.98% of 25 hours 36 minutes; the longest
+loss, from 22:20:12Z on 2026-10-29, took 9 minutes 21 seconds. Six of the
+second read's eight losses fell between 12:39:08Z and 13:00:34Z on 2026-10-30,
+5 minutes 6 seconds off offer in all. Two of them began 120 and 121 seconds, by
+the log's whole seconds, after the answer that had ended the loss before, the
+longest an answer is believed (`REQ-RES-013`): so in each the printer answered
+one question and then nothing that was taken for those 120 seconds. Why is not
+shown. Each loss was followed by one probe before the printer was offered
+again, and each came back clear. In each read every connection, 36 and then 19,
+came from one IPv6 link-local address; whether it was the same one in both is
+not shown, as the reads hid it. Every one was located from the resolver's
+cache, relayed over TLS 1.2 with the printer's certificate matching the pinned
+fingerprint, to one printer endpoint, and completed. None failed, none was
+refused, none carried a million bytes or more, and no TLS handshake failed to
+complete. Edwin's reading of the losses, on 2026-10-29: "the losses i think are
+the printer. when it is down, it is not answering on either network." **This
+build's whole run, from 00:58:46Z on 2026-10-28 to the read at 18:27:19Z on
+2026-10-30, 65 hours 28 minutes 33 seconds:** no restart; 17 losses, each ended
+by an answer to one of its own questions; 1 hour 37 minutes 27 seconds off
+offer, 2.5%; 18 probes, at startup and after each loss, all clear; and 86
+connections accepted and none refused, of which 83 completed and 3 failed, the
+three of 16:57:31Z on 2026-10-28 above. Claude predicted, and it did not hold:
+the first read's first line at 17:08:48Z, the time of the read before it and
+not of its last line (19:16:43Z); 8 to 12 losses and 5% to 11% off offer in the
+first read (3, 0.47%), and no `usable again` line (one); 1 to 6 losses in the
+second (8), and the second read at about 18:3xZ (18:27:19Z). Held: the time
+Windows started, the service running, no restart, each loss ended by an answer
+and none heard, every connection located from the cache, relayed over TLS 1.2
+with the pin matching and completed, and none failing. Each read was one
+read-only command given by Claude and run by Edwin in his SSH session, which
+grouped every line that is not a `Job:` line with addresses, the printer's host
+name, UUIDs, the pin and numbers masked, counted the `Job:` lines with every
+failure and every connection of a million bytes or more, and listed each loss
+with how it ended; the arithmetic was done in Claude's workspace. On
+2026-10-29, at Edwin's direction, leftover builds and zips were removed from
+his profile on both machines, each listed first and then removed by name: on
+FIOS-STB-01, of the builds and zips there, all but the unpacked folders of this
+build and of release 0.5.0; on the development machine all of them, this
+build's and that of `de1d171` included. So "Left as they are" below no longer
+holds: going back to 0.5.0 is the install command with its folder, and going
+back to the build of `de1d171` would need a new build. This build is still
+running.)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name, the certificate pin or a user name. The log lines quoted
@@ -205,7 +275,9 @@ and 2026-10-26.
 
 - **Anything over hours or days.** The build is left running; its log will
   show how it fares. *(Status note, 2026-10-28, by Claude, Claude Opus 5.5:
-  its first 16 hours were read; see the status note at the top.)*
+  its first 16 hours were read; see the status note at the top.)* *(Status
+  note, 2026-10-30, by Claude, Claude Opus 5.5: read to 65 hours 29 minutes;
+  see the second status note at the top.)*
 - **The last hours of the build of `de1d171`,** from the read at 20:52:29Z on
   2026-10-27 to its stop at 00:58:46Z on 2026-10-28, 4 hours 6 minutes, were
   not read. *(Status note, 2026-10-28, by Claude, Claude Opus 5.5: read on

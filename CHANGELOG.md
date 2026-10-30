@@ -30,7 +30,9 @@ version meant as a release."; made exact the same day, once 0.4.0 had been
 published.) `0.5.0`, published on 2026-10-25, is the fifth. (Sentence added
 2026-10-25 by Claude, Claude Opus 5.5, in the commit that sets the version to
 0.5.0, as "`0.5.0` is the fifth version meant as a release."; made exact the
-same day, once 0.5.0 had been published.) Every version
+same day, once 0.5.0 had been published.) `0.6.0` is the sixth version meant
+as a release. (Sentence added 2026-10-30 by Claude, Claude Opus 5.5, in the
+commit that sets the version to 0.6.0.) Every version
 below `0.1.0` is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
 2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
 `0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
@@ -39,6 +41,156 @@ that `0.1.0-rc.3` was a pre-release for testing and not a release, and that it
 was published on 2026-10-07. Later the same day, once 0.1.0 had been
 published, "is the first version meant as a release" became "is the first
 release", and the sentence saying when it was published was added.)
+
+## [0.6.0] - 2026-10-30
+
+The sixth version of SecretPrinter meant as a release. The service now ignores,
+as RFC 6762 section 6 requires, a response sent by unicast or from a port other
+than 5353, both when it looks the printer up and when it checks for a conflict
+over its own names. No answer about the printer is believed for longer than
+120 seconds, whatever TTL it carries. The probe keeps only a reply from port
+5353 that carries the identifier of its own question. Nothing in how it is
+installed or configured changes.
+
+- **Before you install it,** read two sections of `README.md`: "Read this
+  before installing" and, under it, "Known problems". This software was written
+  by an AI, Claude, directed by one person, and has had no outside security
+  review. Every measurement of it on a network was made in one household, with
+  one printer model, an Epson ET-3760, and almost always an iPhone as the
+  client.
+- **A lookup takes only a multicast answer from port 5353** (`REQ-RES-012`).
+  Every question the service puts to the printer asks for a multicast answer.
+  RFC 6762 section 6 says a querier must silently ignore a unicast response
+  that answers no question asking for one, and any response whose source port
+  is not 5353. Until now a lookup took any response that arrived on the
+  printer-side interface, whatever its destination and source port; `0.1.0` to
+  `0.5.0` do so. Now it takes one only when it was sent to the mDNS group, as
+  the destination address that IP_PKTINFO reports shows, and came from port
+  5353. The printer's records heard between lookups were already held to both
+  rules (`REQ-RES-011`). Whether a response this now ignores ever reached the
+  service is not known.
+- **No answer is believed for longer than 120 seconds** (`REQ-RES-013`). Until
+  now an answer about the printer held for as long as its TTL said, however
+  long, so a device on the printer-side network that answered one of the
+  service's questions with a very long TTL would have had its address reused
+  by print jobs, and the printer held reachable, for most of that time before
+  the service asked again; `0.1.0` to `0.5.0` do so. Read from the code; not
+  seen. Now a lookup's answer holds for the shorter of the TTLs of the SRV and
+  A records it is made of, and never more than 120 seconds, the TTL RFC 6762
+  section 10 recommends for such records; the records heard between lookups are
+  held the same way. The cap is a choice made from that recommendation, not
+  something the RFC requires. When it cuts the answer the service logs at
+  startup, that line ends `, capped from` and the TTL received, so the cap is
+  never shown as what the printer sent. On FIOS-STB-01 the printer's answers
+  carried 120 seconds, and nothing was capped.
+- **The conflict check takes only a multicast response from port 5353**
+  (`REQ-ADV-030`). Before it offers the printer, and at any time after, the
+  service listens on the client network for another device answering for the
+  names it claims, and withdraws if one does (`REQ-ADV-024`). Until now it read
+  every response that arrived there, whatever its port and destination, so a
+  response that RFC 6762 section 6 says must be ignored could withdraw the
+  service until a restart; `0.1.0` to `0.5.0` do so. Read from the code; not
+  seen. Now it reads one only when it was sent to the mDNS group, 224.0.0.251
+  or ff02::fb, and came from port 5353. A device on the client network can
+  still make the service withdraw by answering for its names; what changes is
+  that a response that should have been ignored is no longer read.
+- **The probe keeps only a reply from port 5353 to its own question**
+  (`REQ-SEC-018`). The probe asks from a port Windows chooses, so a responder
+  answers it by unicast (RFC 6762 section 6.7). Until now it kept every DNS
+  response that reached that port, from any port and with any identifier, and
+  asked its next questions about the names in it; the probe in `0.1.0` to
+  `0.5.0` does so. Read from the code; not seen. Now it keeps a reply only when
+  it came from port 5353 and carries the identifier of the question it sent in
+  that round, and for anything else prints a line saying it was ignored and
+  why, ending `(RFC 6762 s6)` or `(RFC 6762 s6, s6.7)`. `docs/operating.md`
+  says more.
+- **What these checks do not do.** None of them makes an answer trustworthy.
+  The service's questions and the probe's go to the mDNS group, so any device
+  on that network can see them and answer from port 5353, to the group, as the
+  printer would, and mDNS gives no way to tell them apart. A job sent to a
+  forged address still has to meet the pinned certificate, and the relay
+  abandons it when it does not (`REQ-SEC-013`). The two things the `0.5.0`
+  entry listed as still open, no TTL capped and lookups taking unicast
+  responses and responses from any port, are what this version changes.
+- **Tests.** 27 were added, for 598 in all on the development machine (571 at
+  `0.5.0`). Each was written before its change and run against the code
+  without it: 21 failed, and the other 6, which check what must not change,
+  passed. Responder tests that handed it a response with no destination now
+  give it the mDNS group, so that none passes for the wrong reason. Each change
+  was also broken on purpose, one way at a time, to see which tests catch it:
+  of 16 such changes, every one was caught. The findings list each:
+  `docs/findings/2026-10-26-a-lookup-takes-only-a-multicast-response-from-port-5353.md`,
+  `docs/findings/2026-10-26-an-answer-is-believed-for-at-most-120-seconds.md`,
+  `docs/findings/2026-10-27-the-conflict-check-takes-only-a-multicast-response-from-port-5353.md`
+  and
+  `docs/findings/2026-10-28-the-probe-keeps-only-a-reply-from-port-5353-to-its-own-question.md`.
+- **Updating from `0.1.0`, `0.2.0`, `0.3.0`, `0.4.0` or `0.5.0`:**
+  `docs/operating.md`, "Updating an installed service", "From a release".
+  Check the new release first, as below. The configuration file, the service
+  registration, the firewall rules and the data folder are the same as before.
+- **Check it before you install it.** `docs/operating.md`, "Checking a release
+  before you install it", gives two checks that need only PowerShell: the zip's
+  SHA-256 against the `.sha256` file published beside it, and the signature on
+  every program file. SecretPrinter's own files are signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`. A SecretPrinter file
+  that is unsigned, or signed under any other name, is not from this project.
+- **The .NET runtime inside it** is the one the build machine's SDK supplied,
+  and a fix to it arrives only in a new release. In the release notes GitHub
+  shows, the section "Built with" after this entry names it, and so does
+  `SecretPrinter.Service.runtimeconfig.json` in the folder. On 2026-10-30
+  Microsoft's .NET release index on GitHub and its .NET 10 download page both
+  gave 10.0.14, of 2026-10-25, with SDK 10.0.403, as the latest .NET 10
+  release; `0.5.0` carries 10.0.14. This entry does not say what this build
+  will carry; the section "Built with" does. The one package SecretPrinter
+  declares, `System.ServiceProcess.ServiceController`, stays at 10.0.11, as in
+  `0.5.0`.
+- **Where it has run.** The changes since `0.5.0` have run in tests, on the
+  development machine, on Windows, and in Claude's workspace, on Linux. The
+  three changes to the service have also run in two builds from source, each
+  made on the development machine by `publish-release.ps1` with SDK 10.0.403,
+  so carrying runtime 10.0.14, not signed, and installed in turn as the
+  service on FIOS-STB-01, which runs Windows 10:
+  - A build of `de1d171`, carrying `REQ-RES-012` and `REQ-RES-013`, from
+    2026-10-26 in place of `0.5.0`, for 30 hours 20 minutes. It lost the
+    printer 14 times and found it again each time by one of its own questions
+    being answered, was off offer 10.8% of the time, and accepted 27
+    connections, none failing. An iPhone's first attempt to print through it
+    said it could not contact the printer while every connection was relayed;
+    the second printed a page. `README.md`, "Known problems", has an entry on
+    such attempts.
+  - A build of `0b51fcc`, carrying all three, from 00:58:46Z on 2026-10-28 in
+    place of that build. An iPhone printed a page through it at the first
+    attempt. Read on 2026-10-30, its first 65 hours 29 minutes had no restart.
+    It lost the printer 17 times and found it again each time by one of its
+    own questions being answered, never by hearing it unasked, and was off
+    offer 1 hour 37 minutes 27 seconds, 2.5% of the time. Each of its 18 probes
+    came back clear, and no conflict was logged. It accepted 86 connections
+    and refused none: 83 were relayed over TLS 1.2 with the printer's
+    certificate matching the pin, and completed; 3, accepted together at
+    16:57:21Z on 2026-10-28, failed because the TLS handshake with the printer
+    did not complete within 10 seconds, and why is not shown.
+  - The probe's change ran from a clone on the development machine, on the
+    printer-side network, on 2026-10-28 and 2026-10-29: it kept the printer's
+    replies and ignored nothing. It has not run from a release folder or on
+    FIOS-STB-01.
+
+  See `docs/findings/2026-10-26-the-build-of-de1d171-was-installed-on-fios-stb-01.md`
+  and `docs/findings/2026-10-27-the-build-of-0b51fcc-was-installed-on-fios-stb-01.md`,
+  with its status notes of 2026-10-28 and 2026-10-30. Which versions of
+  Windows it can run on: `README.md`, open question 10.
+- **What has not been shown,** at the time this entry is written:
+  - This build itself. When this is written nobody has downloaded it, checked
+    it or run it; installing it on FIOS-STB-01, and running its probe there
+    from the release folder, are the first.
+  - On a network, a response or reply that any of the three checks ignores.
+    None was seen to arrive; the service does not log one it ignores, and only
+    tests show what happens to one.
+  - A TTL longer than 120 seconds capped on a network. This printer gives 120.
+  - Any printer but the one model, any household but one, and any client but
+    one iPhone and, once, a second device.
+- **Reporting a problem.** Security problems go to the repository's private
+  vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
+  response-time commitment is offered.
 
 ## [0.5.0] - 2026-10-25
 
