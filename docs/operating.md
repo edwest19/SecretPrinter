@@ -347,6 +347,17 @@ Reviewed by a human before merge.*
 in the commit that sets the version to 0.6.0.
 Reviewed by a human before merge.*
 
+*Later on 2026-10-30, once release 0.6.0 had been published and installed on
+FIOS-STB-01, by Claude (Anthropic model, Claude Opus 5.5) at the direction of
+Edwin West: under "Where the program comes from", "`0.6.0` is the sixth
+version meant as one" became "`0.6.0`, published on 2026-10-30, is the
+sixth", and a sentence on its install added; under "Checking a release before
+you install it", a sentence on both checks run on 0.6.0; under "Updating an
+installed service", a sentence on this update and the stamp 0.6.0 printed;
+and a note on the probe of 0.6.0 run on FIOS-STB-01
+([finding](findings/2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md)).
+Reviewed by a human before merge.*
+
 Everything an operator has to do by hand, and why the software does not do it
 for them.
 
@@ -375,7 +386,7 @@ visible on a second segment. That is why it confines itself to printing.
 and `0.1.0`, published on 2026-10-08, is the first. `0.2.0`, published on
 2026-10-11, is the second. `0.3.0`, published on 2026-10-15, is the third.
 `0.4.0`, published on 2026-10-20, is the fourth. `0.5.0`, published on
-2026-10-25, is the fifth. `0.6.0` is the sixth version meant as one. A
+2026-10-25, is the fifth. `0.6.0`, published on 2026-10-30, is the sixth. A
 pre-release for testing,
 `0.1.0-rc.3`, was published there on 2026-10-07. It has the same form as a
 release and is checked and installed by the same steps; it is not a release.
@@ -421,6 +432,11 @@ On 2026-10-25 release 0.5.0 was downloaded there the same way, checked,
 compared with its zip file by file, and installed by the same steps in place
 of an unsigned build of `5a291c4` made there; an iPhone printed through it
 ([the finding](findings/2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md)).
+On 2026-10-30 release 0.6.0 was downloaded there the same way, checked,
+compared with its zip file by file, and installed by the same steps in place
+of an unsigned build of `0b51fcc` made on the development machine; an iPhone
+read the printer's supply levels through it
+([the finding](findings/2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md)).
 
 **From source, today.** Clone the repository and install the .NET 10 SDK.
 
@@ -556,6 +572,11 @@ the same results: the two values the same, and four lines, every one `Valid`
 and timestamped, 12 files under the name above and 190 signed by Microsoft.
 Check 2 was run again on the installed folder, with the same four lines
 ([the finding](findings/2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md)).
+On 2026-10-30 both were run, as printed, on release 0.6.0 on FIOS-STB-01, with
+the same results: the two values the same, and four lines, every one `Valid`
+and timestamped, 12 files under the name above and 190 signed by Microsoft.
+Check 2 was run again on the installed folder, with the same four lines
+([the finding](findings/2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md)).
 
 ---
 
@@ -790,6 +811,11 @@ its own question. For anything else it receives it prints a line saying it was
 ignored and why, ending `(RFC 6762 s6)` or `(RFC 6762 s6, s6.7)`, and nothing
 from it is in the report. (Paragraph added 2026-10-28 by Claude, Claude Opus
 5.5, with `REQ-SEC-018`. The probe of a release up to 0.5.0 keeps every reply.)
+(Note, 2026-10-30, by Claude, Claude Opus 5.5: release 0.6.0 is the first
+whose probe does this. Run from its folder on FIOS-STB-01 that day, it kept
+both of the printer's replies and printed no such line, the second time it was
+run; the first time the printer did not answer it
+([the finding](findings/2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md)).)
 
 Take the `INSTANCE` lines verbatim, spaces included. Two go into the
 configuration. `printerInstance` is the one ending in `._ipp._tcp.local`: the
@@ -1098,6 +1124,8 @@ the first update from one release to the next
 (Until then this paragraph ended "An update from one release to the next has
 not yet been made.") On 2026-10-25 they replaced an unsigned build made there
 with release 0.5.0 ([the finding](findings/2026-10-25-the-fifth-release-was-published-and-installed-on-fios-stb-01.md)).
+On 2026-10-30 they replaced an unsigned build made on the development machine
+with release 0.6.0 ([the finding](findings/2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md)).
 
 #### From a release
 
@@ -1172,7 +1200,9 @@ commit its tag names. On 2026-10-09 release 0.1.0 printed
 `0.4.0+22b5252ee16e589bb7159bea2c3a7fe27b49dc42`, and `22b5252` is the commit
 `v0.4.0` names. On 2026-10-25 release 0.5.0 printed
 `0.5.0+1f1f1ee984f8881528518a140d5e400d75f21ab2`, and `1f1f1ee` is the commit
-`v0.5.0` names. (Note, 2026-10-18, by Claude, Claude Opus 5.5: since that day
+`v0.5.0` names. On 2026-10-30 release 0.6.0 printed
+`0.6.0+49e8602a5b192ec856c0d6232c4519f0240c41e1`, and `49e8602` is the commit
+`v0.6.0` names. (Note, 2026-10-18, by Claude, Claude Opus 5.5: since that day
 the service also writes this stamp as the first line of its log at every start
 (`REQ-OBS-011`), so the log read in step 5 shows it too. Releases 0.1.0, 0.2.0
 and 0.3.0 do not.) (Note, 2026-10-20, by Claude, Claude Opus 5.5: release

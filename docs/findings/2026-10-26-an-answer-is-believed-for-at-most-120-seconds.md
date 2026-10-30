@@ -22,6 +22,12 @@ lines ended `TTL 120s).` with nothing capped, and a page printed from an
 iPhone. No release carries it. See [the finding of the
 run](2026-10-26-the-build-of-de1d171-was-installed-on-fios-stb-01.md).)*
 
+*(Status note, 2026-10-30, by Claude, Claude Opus 5.5: release 0.6.0, published
+that day, is the first release to carry it. Installed on FIOS-STB-01 the same
+day, in place of the build of `0b51fcc`, its two startup answers each had a
+lifetime of 120 seconds and nothing was capped. See
+[the finding of the sixth release](2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The addresses in the tests are made up; the printer's

@@ -14,6 +14,16 @@ every release up to `0.5.0` does so. On the network, the printer's two replies
 were kept, as they were by the probe before the change. Neither check makes a
 reply trustworthy, for the reason under "Security".**
 
+*(Status note, 2026-10-30, by Claude, Claude Opus 5.5: release 0.6.0, published
+that day, is the first release to carry it. Its probe was run from the
+release's own folder on FIOS-STB-01 that day, on the printer-side Wi-Fi, with
+the service running. The first time, the printer did not answer within the 5
+seconds of the first round. The second time, the probe kept both of the
+printer's replies, of 1,412 and 1,344 bytes, and no line said a datagram was
+ignored. So it has now run from a release folder and on FIOS-STB-01; on any
+other printer it has not. See
+[the finding of the sixth release](2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network or the
 printer's host name. The addresses in the tests are made up, from a range set
@@ -229,6 +239,9 @@ was pasted.
   network. None arrived; only the tests show it.
 - Anything about a forged reply that follows the protocol: see "Security".
 - A run from a release folder, on FIOS-STB-01, or on any other printer.
+  *(Status note, 2026-10-30, by Claude, Claude Opus 5.5: run from the folder
+  of release 0.6.0 on FIOS-STB-01; see the status note at the top. On any
+  other printer, not.)*
 - Anything over IPv6. The probe asks over IPv4 only.
 - Why steps 1 and 2 got nothing, beyond what Edwin said: that the printer
   network was not up on the development machine.

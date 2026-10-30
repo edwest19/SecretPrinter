@@ -109,13 +109,14 @@ demands of people doing it a favour.
 **`0.1.0`, published on 2026-10-08, is the first release, `0.2.0`,
 published on 2026-10-11, the second, `0.3.0`, published on 2026-10-15, the
 third, `0.4.0`, published on 2026-10-20, the fourth, `0.5.0`, published on
-2026-10-25, the fifth, and `0.6.0` the sixth version meant as one.** Releases
-are published by the release workflow, from a tag, on this repository's
-Releases page and nowhere else, signed under the name given below.
+2026-10-25, the fifth, and `0.6.0`, published on 2026-10-30, the sixth.**
+Releases are published by the release workflow, from a tag, on this
+repository's Releases page and nowhere else, signed under the name given
+below.
 
 | Version | What it is | Reports about it |
 | --- | --- | --- |
-| `0.6.0` | The sixth version meant as a release. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
+| `0.6.0` | The sixth release, published on 2026-10-30. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.5.0` | The fifth release, published on 2026-10-25. It has four problems that `0.6.0` corrects, each found in the code and none seen to happen on a machine: a lookup takes a response sent by unicast, or from a port other than 5353, as its answer (`REQ-RES-012`), and believes an answer for as long as its TTL says, however long (`REQ-RES-013`); the conflict check on the client network reads such a response (`REQ-ADV-030`); and the probe keeps any DNS response that reaches it (`REQ-SEC-018`). `README.md`, "Known problems", says more. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.4.0` | The fourth release, published on 2026-10-20. It has the four problems of `0.5.0` that `0.6.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
 | `0.3.0` | The third release, published on 2026-10-15. It has a fault that `0.4.0` corrects: a client connection accepted in the moment the service stops, or withdraws the printer, can be left open (`REQ-LIF-002`). It also has the four problems of `0.5.0` that `0.6.0` corrects. | Wanted, as described above, with no response-time commitment. A fix, if one is made, comes as a new release. |
@@ -125,8 +126,9 @@ Releases page and nowhere else, signed under the name given below.
 | `main` | The source as it stands. | No support promise of any kind. A gap between the specification and the code is in scope, as above. |
 
 **The .NET runtime each release carries** is fixed when the release is built,
-and a fix to it arrives only in a new release. `0.5.0` carries 10.0.14, from
-Microsoft's out-of-band security update of 2026-10-25; `0.3.0` and `0.4.0`
+and a fix to it arrives only in a new release. `0.6.0` and `0.5.0` carry
+10.0.14, from Microsoft's out-of-band security update of 2026-10-25, which was
+still the latest .NET 10 release when 0.6.0 was built; `0.3.0` and `0.4.0`
 carry 10.0.13, and `0.1.0` and `0.2.0` carry 10.0.12. Microsoft's announcement
 of that update lists four advisories, and says its update of 2026-10-13, which
 brought 10.0.13, did not fully address two of them, one being CVE-2026-70197,
@@ -137,14 +139,19 @@ hands one `SocketAsyncEventArgs` from an IPv4 socket to an IPv6 one
 (CVE-2026-70197), is neither built nor installed from a Linux archive
 (CVE-2026-114148), and uses no Blazor package (CVE-2026-102870). `0.1.0` to
 `0.4.0` still carry a runtime Microsoft lists as affected by the first two;
-`0.5.0` carries the corrected one, and moving to it settles both without
-relying on that reading
+`0.5.0` and `0.6.0` carry the corrected one, and moving to either settles both
+without relying on that reading
 ([finding](docs/findings/2026-10-28-the-four-advisories-of-2026-10-25-were-read-against-secretprinter.md)).
 (Paragraph added 2026-10-25 by Claude, Anthropic model, Claude Opus 5.5, at the
 direction of Edwin West, after release 0.5.0 was published. Changed 2026-10-28
 by Claude, Claude Opus 5.5: until then it ended "Whether any of the four
 concerns code SecretPrinter runs has not been worked out", with a link to the
-finding of the fifth release.)
+finding of the fifth release. Changed 2026-10-30 by Claude, Claude Opus 5.5,
+after release 0.6.0 was published: the second sentence began "`0.5.0` carries
+10.0.14, from Microsoft's out-of-band security update of 2026-10-25", and the
+one on the corrected runtime said "`0.5.0` carries the corrected one, and
+moving to it settles both"; see
+[the finding of the sixth release](docs/findings/2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md).)
 
 Consequently: **a binary presented as SecretPrinter that does not come from
 this repository's Releases page, or is not signed under the name given below,
@@ -213,7 +220,10 @@ carries, for which no sentence was added, each of the four has an entry in
 now say the same. Each was found in the code; none was seen to happen on a
 machine. They are called problems, the word of "Known problems", and not
 faults, because one of them, `REQ-RES-013`, departs from what RFC 6762
-recommends, not from what it requires.)
+recommends, not from what it requires. Later the same day, once 0.6.0 had been
+published, "the sixth version meant as one" became "published on 2026-10-30,
+the sixth", and "The sixth version meant as a release." in the row became "The
+sixth release, published on 2026-10-30.")
 
 (The first two paragraphs replaced 2026-10-07 by Claude, Anthropic model,
 Claude Opus 5.5, at the direction of Edwin West, who decided that day to

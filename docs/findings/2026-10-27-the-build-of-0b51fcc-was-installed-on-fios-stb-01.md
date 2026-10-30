@@ -161,6 +161,17 @@ holds: going back to 0.5.0 is the install command with its folder, and going
 back to the build of `de1d171` would need a new build. This build is still
 running.)*
 
+*(Status note, later on 2026-10-30, by Claude, Claude Opus 5.5: release 0.6.0,
+published that day, carries the three changes this build ran, and the service's
+code has not changed since `0b51fcc`. At 19:29:40Z it replaced this build on
+FIOS-STB-01, by the update steps with the signature check. This build logged
+its stop, its goodbye records and its summary, which counts from its only
+start, 2 days 18 hours 30 minutes 51 seconds before: 247 queries served of
+22,463 seen. Its last 2 hours 30 minutes, from 16:59:44Z to the stop, were not
+read line by line; a status check of Edwin's own counted, for the last 24
+hours, 8 losses and 23 connections, all completed, the same as the reads. See
+[the finding of the sixth release](2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name, the certificate pin or a user name. The log lines quoted

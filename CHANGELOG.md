@@ -30,9 +30,11 @@ version meant as a release."; made exact the same day, once 0.4.0 had been
 published.) `0.5.0`, published on 2026-10-25, is the fifth. (Sentence added
 2026-10-25 by Claude, Claude Opus 5.5, in the commit that sets the version to
 0.5.0, as "`0.5.0` is the fifth version meant as a release."; made exact the
-same day, once 0.5.0 had been published.) `0.6.0` is the sixth version meant
-as a release. (Sentence added 2026-10-30 by Claude, Claude Opus 5.5, in the
-commit that sets the version to 0.6.0.) Every version
+same day, once 0.5.0 had been published.) `0.6.0`, published on 2026-10-30,
+is the sixth. (Sentence added 2026-10-30 by Claude, Claude Opus 5.5, in the
+commit that sets the version to 0.6.0, as "`0.6.0` is the sixth version meant
+as a release."; made exact the same day, once 0.6.0 had been published.) Every
+version
 below `0.1.0` is a pre-release or a trial, not a release: `0.1.0-rc.3` was published on
 2026-10-07 for testing, and nothing was published for `0.1.0-rc.1` or
 `0.1.0-rc.2`. (Rewritten 2026-10-08 by Claude, Claude Opus 5.5, in the commit
@@ -191,6 +193,31 @@ installed or configured changes.
 - **Reporting a problem.** Security problems go to the repository's private
   vulnerability reporting, as `SECURITY.md` says, and not to a public issue. No
   response-time commitment is offered.
+- **What happened.** The workflow ran for this tag on 2026-10-30 and all three
+  of its jobs passed. It named .NET SDK 10.0.403 and the runtime
+  Microsoft.NETCore.App 10.0.14, on the run's page and in the section "Built
+  with" of the release notes. The signing job waited for Edwin West's approval.
+  Twelve SecretPrinter files were signed as
+  `CN=Edwin West, O=Edwin West, L=Huntington, S=ny, C=US`, in a folder of 216
+  files. The release is on the repository's Releases page as
+  `SecretPrinter-0.6.0-win-x64.zip`, with SHA-256
+  `4DCF9A67A4868091FA1F04245AAE9C95EDD62CB084899597A95CDE72A31D2FAE`, and its
+  `.sha256` file, marked Latest and not as a pre-release. A copy downloaded with
+  `curl.exe` on FIOS-STB-01, which runs Windows 10, passed both checks there and
+  was the same as the zip, file by file. **It carries .NET 10.0.14** and is
+  stamped `0.6.0+49e8602a5b192ec856c0d6232c4519f0240c41e1`. It was installed
+  there the same day by the update steps of `docs/operating.md` with the
+  signature check, in place of the build of `0b51fcc` named above. The
+  household had no printer for 12 seconds. The first line the new service
+  logged was
+  `SecretPrinter.Service version 0.6.0+49e8602a5b192ec856c0d6232c4519f0240c41e1`,
+  and an iPhone read the printer's supply levels through it; no page was
+  printed through it that day. The release's probe, run on FIOS-STB-01, kept
+  the printer's replies and ignored nothing, the second time it was run; the
+  first time the printer did not answer it. See
+  [the finding](docs/findings/2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md).
+  (Added 2026-10-30 by Claude, Claude Opus 5.5, after the run. It is not in the
+  release notes GitHub shows, which were taken from this file at the tag.)
 
 ## [0.5.0] - 2026-10-25
 

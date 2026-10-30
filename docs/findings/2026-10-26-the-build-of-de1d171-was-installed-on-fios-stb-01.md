@@ -87,6 +87,11 @@ being asked; it did not offer the printer for 3 hours 16 minutes 29 seconds,
 refused. See the status note of 2026-10-28 on
 [the finding of the build of `0b51fcc`](2026-10-27-the-build-of-0b51fcc-was-installed-on-fios-stb-01.md).)*
 
+*(Status note, 2026-10-30, by Claude, Claude Opus 5.5: release 0.6.0, published
+that day, carries the two changes this build ran, `REQ-RES-012` and
+`REQ-RES-013`, and `REQ-ADV-030` and `REQ-SEC-018` besides. See
+[the finding of the sixth release](2026-10-30-the-sixth-release-was-published-and-installed-on-fios-stb-01.md).)*
+
 No IPv6 address, hardware address, network name or device name appears in this
 finding, and neither does any machine's address on either network, the
 printer's host name, the certificate pin or a user name. The log lines quoted
